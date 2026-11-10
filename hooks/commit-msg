@@ -11,9 +11,9 @@
 # fixup!/squash!/amend! messages pass unchecked, typed by hand or not
 # (templates/commit-check.yml keeps fixup commits off main in CI). The
 # subject is measured in characters. The hook checks the message git will
-# save: everything below the scissors line is ignored, and comment lines
-# are ignored only when git drops them, that is in a message written in
-# git's editor. With -m or -F git keeps them, so they count.
+# save: comment lines and anything below the scissors line are ignored
+# only when git drops them (after its editor, or with commit.cleanup=strip).
+# With -m or -F git keeps them, so they count.
 #
 # Source: https://github.com/Tonttu84/ai-workflow (MIT). Install with
 # hooks/install.sh from that repo. Needs bash 3.2 or later and git.
@@ -32,32 +32,40 @@ while IFS= read -r line || [ -n "$line" ]; do
   raw+=("${line%$'\r'}")
 done < "$file"
 
-# Git drops comment lines only from a message written in its editor; with
-# -m or -F it keeps them. The editor template says which applies ("will
-# be ignored" or "will be kept"). A scissors line without the template
-# comes from commit -v, which drops them too, unless commit.cleanup is
-# set to a mode that keeps them.
-strip=0
-for ((i = 0; i < ${#raw[@]}; i++)); do
-  case ${raw[i]} in
-    "$comment Please enter the commit message"*) strip=1 ;;
-    "$comment with '$comment' will be kept"*) strip=0; break ;;
-    "$scissors"*)
-      if [ "$strip" -eq 0 ]; then
-        case $(git config --get commit.cleanup 2>/dev/null) in
-          scissors | whitespace | verbatim) ;;
-          *) strip=1 ;;
-        esac
-      fi
-      break ;;
+# Git drops comment lines only in its "strip" cleanup mode: the default
+# when its editor ran, or commit.cleanup=strip. With -m, -F or --no-edit
+# git runs no editor and exports GIT_EDITOR=: to this hook; then comment
+# lines are kept (unless commit.cleanup=strip) and so is a scissors line.
+# Otherwise the editor template says which applies ("will be ignored" or
+# "will be kept"), else commit.cleanup does. A --cleanup option on the
+# command line is invisible here. Run by hand, set GIT_EDITOR=: to check
+# a message as git commit -m would save it.
+cleanup=$(git config --get commit.cleanup 2>/dev/null || true)
+if [ "${GIT_EDITOR-}" = : ]; then
+  cut=0
+  if [ "$cleanup" = strip ]; then strip=1; else strip=0; fi
+else
+  cut=1
+  case $cleanup in
+    whitespace | scissors | verbatim) strip=0 ;;
+    *) strip=1 ;;
   esac
-done
+  for ((i = 0; i < ${#raw[@]}; i++)); do
+    case ${raw[i]} in
+      "$comment Please enter the commit message"*) strip=1 ;;
+      "$comment with '$comment' will be kept"*) strip=0; break ;;
+      "$scissors"*) break ;;
+    esac
+  done
+fi
 
 # Read the message the way git will save it.
 lines=()
 for ((i = 0; i < ${#raw[@]}; i++)); do
   line=${raw[i]}
-  case $line in "$scissors"*) break ;; esac
+  if [ "$cut" -eq 1 ]; then
+    case $line in "$scissors"*) break ;; esac
+  fi
   if [ "$strip" -eq 1 ]; then
     case $line in "$comment"*) continue ;; esac
   fi

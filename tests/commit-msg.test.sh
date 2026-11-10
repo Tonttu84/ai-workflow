@@ -8,15 +8,22 @@ make_tmp
 
 HOOK="$ROOT/hooks/commit-msg"
 
-# run_hook <message with escapes>: exit status of the hook on that message
+# run_hook <message with escapes> [editor]: exit status of the hook on
+# that message. Git exports GIT_EDITOR=: to the hook when no editor ran
+# (-m, -F); "editor" runs it as after git's editor, with GIT_EDITOR unset.
 run_hook() {
   printf '%b' "$1" > "$TMP/COMMIT_EDITMSG"
-  bash "$HOOK" "$TMP/COMMIT_EDITMSG" > "$TMP/out" 2>&1
+  if [ "${2-}" = editor ]; then
+    env -u GIT_EDITOR bash "$HOOK" "$TMP/COMMIT_EDITMSG" > "$TMP/out" 2>&1
+  else
+    GIT_EDITOR=: bash "$HOOK" "$TMP/COMMIT_EDITMSG" > "$TMP/out" 2>&1
+  fi
 }
 
+# expect <ok|bad>[@editor] <message with escapes>
 expect() {
-  local want=$1 msg=$2
-  if run_hook "$msg"; then got=ok; else got=bad; fi
+  local want=${1%@*} mode=${1#*@} msg=$2
+  if run_hook "$msg" "$mode"; then got=ok; else got=bad; fi
   if [ "$got" = "$want" ]; then
     pass
   else
@@ -25,7 +32,7 @@ expect() {
   fi
 }
 
-# Format: expectation|message
+# Format: expectation[@editor]|message
 while IFS='|' read -r want msg; do
   case $want in ''|'#'*) continue ;; esac
   expect "$want" "$msg"
@@ -44,16 +51,21 @@ ok|fix(parser): handle empty input\n\nThe parser crashed on an empty file.\n\nRe
 # What git strips before saving the message
 ok|\n\nfeat: add login form
 ok|feat: add login form
-ok|feat: add login form\n# ------------------------ >8 ------------------------\ndiff --git a/x b/x
+ok@editor|feat: add login form\n# ------------------------ >8 ------------------------\ndiff --git a/x b/x
 # Comment lines: git drops them from a message written in its editor...
-ok|feat: add login form\n\n# Please enter the commit message for your changes. Lines starting\n# with '#' will be ignored, and an empty message aborts the commit.\n#\n# On branch main
-ok|# typed in the editor\nfeat: add login form\n\n# Please enter the commit message for your changes. Lines starting\n# with '#' will be ignored, and an empty message aborts the commit.
-ok|# typed in the editor\nfeat: add login form\n\n# ------------------------ >8 ------------------------\n# Do not modify or remove the line above.\ndiff --git a/x b/x
-bad|# typed in the editor\nfeat: add login form\n\n# Please enter the commit message for your changes. Lines starting\n# with '#' will be kept; you may remove them yourself if you want to.
+ok@editor|feat: add login form\n\n# Please enter the commit message for your changes. Lines starting\n# with '#' will be ignored, and an empty message aborts the commit.\n#\n# On branch main
+ok@editor|# typed in the editor\nfeat: add login form\n\n# Please enter the commit message for your changes. Lines starting\n# with '#' will be ignored, and an empty message aborts the commit.
+ok@editor|# typed in the editor\nfeat: add login form\n\n# ------------------------ >8 ------------------------\n# Do not modify or remove the line above.\ndiff --git a/x b/x
+bad@editor|# typed in the editor\nfeat: add login form\n\n# Please enter the commit message for your changes. Lines starting\n# with '#' will be kept; you may remove them yourself if you want to.
+# ...also when git's template is translated or switched off (--no-status)
+ok@editor|# Notiz\nfeat: add login form\n\n# Bitte geben Sie eine Commit-Beschreibung ein.
+ok@editor|# typed in the editor\nfeat: add login form
 # ...but keeps them in a message given with -m or -F
 bad|# anything\nfeat: add login form
 bad|#WIP hack\n\nfeat: add login form
 bad|feat: add login form\n#42
+bad|# Notiz\nfeat: add login form\n\n# Bitte geben Sie eine Commit-Beschreibung ein.
+bad|feat: add login form\n# ------------------------ >8 ------------------------\ndiff --git a/x b/x
 ok|feat: add login form\n\n#42 was the cause
 ok|feat: add login form\r\n\r\nWritten in an editor that saves CRLF.\r\n
 # Messages git writes itself
@@ -113,7 +125,7 @@ pad_utf8() { # pad_utf8 <n> [char]: n copies of a two-byte character
 expect_c() { # expect under LC_ALL=C
   local want=$1 msg=$2 got
   printf '%s' "$msg" > "$TMP/COMMIT_EDITMSG"
-  if LC_ALL=C bash "$HOOK" "$TMP/COMMIT_EDITMSG" > "$TMP/out" 2>&1; then got=ok; else got=bad; fi
+  if GIT_EDITOR=: LC_ALL=C bash "$HOOK" "$TMP/COMMIT_EDITMSG" > "$TMP/out" 2>&1; then got=ok; else got=bad; fi
   if [ "$got" = "$want" ]; then pass; else fail "LC_ALL=C: expected $want, got $got: $msg"; fi
 }
 expect_c ok "fix: $(pad_utf8 60)"
@@ -145,10 +157,13 @@ git -C "$repo" config core.autocrlf false
 mkdir -p "$TMP/hooks"
 cp "$HOOK" "$TMP/hooks/commit-msg"
 git -C "$repo" config core.hooksPath "$TMP/hooks"
-# The editor prepends $EDIT_TEXT (printf %b escapes) to git's template.
+# The editor prepends $EDIT_TEXT (printf %b escapes) to git's template,
+# after running the sed script $EDIT_SED over it, if set.
 # SC2016: the editor script expands these itself.
 # shellcheck disable=SC2016
-printf '%s\n' '{ printf "%b\n" "$EDIT_TEXT"; cat "$1"; } > "$1.new" && mv "$1.new" "$1"' \
+printf '%s\n' \
+  'sed -e "${EDIT_SED:-}" "$1" > "$1.sed" || exit 1' \
+  '{ printf "%b\n" "$EDIT_TEXT"; cat "$1.sed"; } > "$1" && rm -f "$1.sed"' \
   > "$TMP/editor.sh"
 
 # commit_with <-m|-F|editor> <message with escapes> [git commit options...]
@@ -178,5 +193,38 @@ refute "-m with core.commentChar ;: git keeps a ; line" commit_with -m '; a note
 check "editor with core.commentChar ;: ; lines are dropped" commit_with editor '; a note\nfix: use the comment char'
 check "editor with core.commentChar ;: git saved that subject" saved_subject 'fix: use the comment char'
 git -C "$repo" config --unset core.commentChar
+
+# A translated git (simulated by rewording its template) or --no-status
+# leaves no English template text; the editor still ran, so git strips.
+export EDIT_SED='s/^# Please enter.*/# Bitte geben Sie eine Commit-Beschreibung ein./; /^# with /d'
+check "editor, translated template: comment lines are dropped" commit_with editor '# Notiz\nfix: add the translated flow'
+unset EDIT_SED
+check "editor, translated template: git saved that subject" saved_subject 'fix: add the translated flow'
+check "editor --no-status: comment lines are dropped" commit_with editor '# a note\nfix: add the no-status flow' --no-status
+check "editor --no-status: git saved that subject" saved_subject 'fix: add the no-status flow'
+export EDIT_SED='/^chore: replaced below$/d'
+check "-e -m: comment lines are dropped" commit_with editor '# a note\nfix: add the edit flow' -e -m 'chore: replaced below'
+unset EDIT_SED
+check "-e -m: git saved the edited subject" saved_subject 'fix: add the edit flow'
+git -C "$repo" config commit.cleanup strip
+check "-m with commit.cleanup=strip: git drops a # line" commit_with -m '# a note\nfix: strip by config'
+check "-m with commit.cleanup=strip: git saved that subject" saved_subject 'fix: strip by config'
+git -C "$repo" config commit.cleanup whitespace
+refute "editor with commit.cleanup=whitespace: git keeps a # line" commit_with editor '# a note\nfix: keep by config'
+git -C "$repo" config --unset commit.cleanup
+
+# The signal the hook relies on: git exports GIT_EDITOR=: when no editor ran.
+cat "$TMP/hooks/commit-msg" > "$TMP/hook.real"
+printf '#!/bin/sh\nprintf %%s "${GIT_EDITOR-unset}" > "%s"\n' "$TMP/seen" > "$TMP/hooks/commit-msg"
+seen() { test "$(cat "$TMP/seen")" "$1" :; }
+commit_with -m 'fix: probe'
+check "git sets GIT_EDITOR=: for -m" seen =
+commit_with -F 'fix: probe'
+check "git sets GIT_EDITOR=: for -F" seen =
+commit_with editor 'fix: probe'
+check "git does not set GIT_EDITOR=: when its editor runs" seen !=
+commit_with editor 'fix: probe' -e -m 'fix: probe'
+check "git does not set GIT_EDITOR=: for -e" seen !=
+cat "$TMP/hook.real" > "$TMP/hooks/commit-msg"
 
 finish
