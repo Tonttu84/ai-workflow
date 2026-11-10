@@ -32,6 +32,7 @@ templates/
   review-brief.md             the brief for a cold reviewer
   hardening-brief.md          the brief for the test hardening run after a feature
   function-limits.md          linter limits on function size, per stack
+  data-science.md             leakage tests, baselines, metrics and model reports for data and ML projects
   commitlint.config.mjs       commitlint rules matching the hook, for Node projects
   commit-check.yml            CI gate: every commit message and PR title
   dependabot.yml              grouped dependency updates every two weeks
@@ -141,6 +142,7 @@ The workflow runs the project's committed `.githooks/commit-msg`, as it was befo
 2. Copy `templates/AGENTS.md`, `templates/CLAUDE.md` and `templates/decisions.md` (as `docs/decisions.md`).
 3. Install the commit hook, add `templates/commit-check.yml` and `templates/dependabot.yml`, protect `main`, and set the squash setting if pull requests are squash-merged (step 6 above).
 4. Turn on the linter's function limits from `templates/function-limits.md` at the starting values, as warnings; make them errors once the first code settles.
+5. For a data or ML project, point `AGENTS.md` at `templates/data-science.md` and state the project's split, metric and baseline there.
 
 ## Moving an existing project to these rules
 
@@ -151,6 +153,7 @@ The workflow runs the project's committed `.githooks/commit-msg`, as it was befo
 5. Turn on Dependabot from the template: copy `templates/dependabot.yml` to `.github/dependabot.yml`, uncomment the project's ecosystems, and enable Dependabot security updates in the repository settings. A repository with nothing to update skips the version updates; security updates stay on everywhere.
 6. Set the function limits (`templates/function-limits.md`): turn the linter checks on as warnings, measure the existing code, pick limits that flag only the worst few percent, record them in `docs/decisions.md`, then make them errors.
 7. Move committed test secrets into the secrets repo (`<secrets>/<project>/<file>`), leaving their variable names with empty values in the project, and rotate every moved value at its provider: git history keeps the old ones.
+8. For a data or ML project, point `AGENTS.md` at `templates/data-science.md` and add the leakage tests it lists.
 
 ## Updating
 

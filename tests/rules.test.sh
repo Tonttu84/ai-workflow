@@ -72,4 +72,9 @@ check "clang-tidy: nesting 4 (the body is level 1)" test "$(tidy_value readabili
 check "clang-tidy: cognitive 15" test "$(tidy_value readability-function-cognitive-complexity.Threshold)" = 15
 check "the review brief checks over-splitting" grep -q 'single-use helper' "$ROOT/templates/review-brief.md"
 
+# --- the data template is reached from the kickoff and the readme
+for f in templates/kickoff.md README.md; do
+  check "$f points to the data and ML template" grep -qF 'templates/data-science.md' "$ROOT/$f"
+done
+
 finish
