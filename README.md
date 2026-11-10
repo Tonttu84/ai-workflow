@@ -120,8 +120,8 @@ The hook checks: a subject of the form `type(scope)!: summary` with an allowed t
 
 The hook is feedback while writing, not a gate: `core.hooksPath` is local config that a clone does not copy, `--no-verify` and GitHub's web editor skip it, and a squash merge writes its commit on GitHub. Three layers:
 
-1. The hook catches a bad message as it is written.
-2. CI checks every commit that reaches `main` and every PR title: copy [`templates/commit-check.yml`](templates/commit-check.yml) to the project's `.github/workflows/`. This is the gate.
+1. The hooks catch a bad message as it is written (`commit-msg`) and before it is pushed (`pre-push`, the same check CI runs). Run them, with the tests, lint, types and build, before every push: Actions minutes are scarce on private repositories.
+2. CI checks every commit that reaches `main` and every PR title: copy [`templates/commit-check.yml`](templates/commit-check.yml) to the project's `.github/workflows/`. This is the gate; it confirms now and then. Public repositories may run it on every push and pull request; private ones delete the push trigger and use the weekly schedule, pull requests and manual runs.
 3. A ruleset on `main` makes the gate binding. In a repository that works through pull requests it requires the `commit-check` jobs and blocks force pushes. A solo repository pushes to `main` directly, which a required check would reject, so its ruleset only blocks force pushes and deletion of `main`, and CI stays visible there. On GitHub Free, rulesets work only on public repositories; a private repository is a recorded exception (the check is visible but does not block) until the plan changes.
 
 A squash merge turns the PR title into the commit subject on `main`. By default GitHub does that only for pull requests with more than one commit; a one-commit PR gets that commit's subject. Make the PR title the subject in every case, once per repository:
