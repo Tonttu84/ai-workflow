@@ -117,6 +117,19 @@ Setting `core.hooksPath` makes git ignore every hook in `.git/hooks`, so the def
 
 Node projects may use [commitlint](https://commitlint.js.org) and husky instead, with [`templates/commitlint.config.mjs`](templates/commitlint.config.mjs). It extends `@commitlint/config-conventional` so that it accepts and rejects the same messages as the hook; its header lists the few differences.
 
+#### A project that already uses husky
+
+Husky sets `core.hooksPath` to `.husky/_`, so the default mode refuses. Keep husky as the hook runner:
+
+1. `install.sh --copy-only /path/to/project` copies the three files to `.githooks/` unchanged, stages them as executable and adds the LF rule, as the default mode does, but leaves `core.hooksPath` alone. CI needs `.githooks/commit-msg` and `.githooks/check-commits`.
+2. Call our `pre-push` from husky's, passing git's arguments; its input (the refs being pushed) passes through on its own. `.husky/pre-push`:
+
+   ```sh
+   .githooks/pre-push "$@"
+   ```
+
+3. Check messages as they are written with commitlint from `.husky/commit-msg` (`npx --no -- commitlint --edit "$1"`) and `templates/commitlint.config.mjs`.
+
 The hook checks: a subject of the form `type(scope)!: summary` with an allowed type (`feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `build`, `ci`, `chore`, `revert`), a lower-case scope, at most 72 characters, no trailing period, and a blank line before the body. Subjects that start the way git's own merge, revert, reapply, `fixup!`, `squash!` and `amend!` messages do pass unchecked, whether git wrote them or a person typed them; `templates/commit-check.yml` keeps `fixup!`, `squash!` and `amend!` commits off `main`. Comment lines count unless git drops them (it does in its editor, not with `-m` or `-F`), and the length is counted in characters. It does not check body wrapping, so long URLs and logs can go in a body.
 
 ### 6. CI: the gate for commit messages

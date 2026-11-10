@@ -251,6 +251,40 @@ new_repo "$TMP/d4"
 check "--git-hooks install for the switch" run_install --git-hooks "$TMP/d4"
 check "our own hooks in .git/hooks do not block the default mode" run_install "$TMP/d4"
 
+# --copy-only: a husky project keeps husky as the hook runner. The hooks
+# are copied to .githooks/ (CI reads them there), staged executable and
+# given the LF rule, and core.hooksPath stays as it is.
+new_repo "$TMP/husky"
+git -C "$TMP/husky" config core.filemode false
+git -C "$TMP/husky" config core.hooksPath .husky/_
+check "--copy-only succeeds under another hooks path" run_install --copy-only "$TMP/husky"
+check "--copy-only leaves core.hooksPath alone" hooks_path_is "$TMP/husky" .husky/_
+for name in commit-msg pre-push check-commits; do
+  check "--copy-only copies $name" cmp -s "$ROOT/hooks/$name" "$TMP/husky/.githooks/$name"
+done
+check "--copy-only stages them as 100755" modes_are 100755 "$TMP/husky"
+check "--copy-only adds the LF rule" test "$(rule_count "$TMP/husky")" = 1
+refute "--copy-only with --git-hooks is rejected" run_install --copy-only --git-hooks "$TMP/husky"
+# The README's husky recipe. Husky 9 sets core.hooksPath to .husky/_,
+# whose generated hooks run the project's .husky/<hook> with sh -e; here
+# a stand-in for that wrapper. The project's .husky/pre-push calls
+# .githooks/pre-push with git's arguments, and its input passes through.
+mkdir -p "$TMP/husky/.husky/_"
+# SC2016: "$@" is for the hooks to expand.
+# shellcheck disable=SC2016
+printf '#!/bin/sh\nexec sh -e .husky/pre-push "$@"\n' > "$TMP/husky/.husky/_/pre-push"
+chmod +x "$TMP/husky/.husky/_/pre-push"
+# shellcheck disable=SC2016
+printf '.githooks/pre-push "$@"\n' > "$TMP/husky/.husky/pre-push"
+git init -q --bare -b main "$TMP/husky-remote.git"
+git -C "$TMP/husky" remote add origin "$TMP/husky-remote.git"
+git -C "$TMP/husky" add -A
+git -C "$TMP/husky" commit -q --no-verify -m "chore: add the hooks"
+check "husky recipe: a good push passes" q git -C "$TMP/husky" push -q origin main
+git -C "$TMP/husky" commit -q --no-verify --allow-empty -m "WIP"
+refute "husky recipe: a bad commit stops the push" git -C "$TMP/husky" push -q origin main 2> "$TMP/husky-push.out"
+check "and the check said why" grep -q 'breaks the commit rules' "$TMP/husky-push.out"
+
 # Not a git repository
 mkdir -p "$TMP/plain"
 refute "refuses a directory that is not a git repo" run_install "$TMP/plain"

@@ -3,7 +3,7 @@
 # project, with check-commits, which pre-push and the CI commit check
 # both use to check the messages of a range of commits.
 #
-# Usage: install.sh [--git-hooks] [--force] [project-dir]
+# Usage: install.sh [--git-hooks | --copy-only] [--force] [project-dir]
 #
 #   default      copy the hooks to <project>/.githooks/ and run
 #                git config core.hooksPath .githooks. Commit .githooks/
@@ -18,6 +18,10 @@
 #                and warns when it overrides a global core.hooksPath.
 #   --git-hooks  copy the hooks into the clone's own hooks directory
 #                (.git/hooks) instead. Nothing to commit; per clone only.
+#   --copy-only  copy the hooks to .githooks/, stage them as executable
+#                and add the LF rule, as the default mode does, but leave
+#                core.hooksPath alone: for husky projects, whose
+#                .husky/pre-push calls .githooks/pre-push (see README).
 #   --force      replace a different commit-msg or hooks path, or switch
 #                off the hooks in .git/hooks. A pre-push that is not ours
 #                (Git LFS has one) is never replaced, even with --force:
@@ -32,7 +36,12 @@ force=0
 dir=.
 while [ $# -gt 0 ]; do
   case $1 in
-    --git-hooks) mode=githooks ;;
+    --git-hooks | --copy-only)
+      if [ "$mode" != hookspath ]; then
+        echo "install.sh: --git-hooks and --copy-only exclude each other" >&2
+        exit 2
+      fi
+      case $1 in --git-hooks) mode=githooks ;; *) mode=copyonly ;; esac ;;
     --force) force=1 ;;
     -h | --help) awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; exit 0 ;;
     -*) echo "install.sh: unknown option $1" >&2; exit 2 ;;
@@ -147,8 +156,9 @@ if [ "$mode" = hookspath ]; then
   current=$(git -C "$top" config --local --get core.hooksPath || true)
   effective=$(git -C "$top" config --get core.hooksPath || true)
   if [ -n "$current" ] && [ "$current" != .githooks ] && [ "$force" -eq 0 ]; then
-    echo "install.sh: core.hooksPath is already '$current'; add the hook there," >&2
-    echo "  use --git-hooks, or rerun with --force to switch to .githooks" >&2
+    echo "install.sh: core.hooksPath is already '$current'; add the hook there" >&2
+    echo "  (husky: --copy-only, see the README), use --git-hooks, or rerun with" >&2
+    echo "  --force to switch to .githooks" >&2
     exit 1
   fi
   if [ -z "$effective" ]; then
@@ -175,6 +185,13 @@ if [ "$mode" = hookspath ]; then
   install_hooks "$top/.githooks"
   git -C "$top" config core.hooksPath .githooks
   echo "Installed $HOOKS in $top/.githooks (core.hooksPath=.githooks). Commit .githooks/."
+  lf_rule
+  index_exec
+elif [ "$mode" = copyonly ]; then
+  install_hooks "$top/.githooks"
+  current=$(git -C "$top" config --get core.hooksPath || true)
+  echo "Copied $HOOKS to $top/.githooks; core.hooksPath stays '${current:-unset}'. Commit .githooks/."
+  echo "Call .githooks/pre-push \"\$@\" from the project's own pre-push (husky: .husky/pre-push)."
   lf_rule
   index_exec
 else
