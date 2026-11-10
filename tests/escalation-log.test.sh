@@ -66,4 +66,26 @@ check "B's rejected push is retried after a pull" push_retry "$TMP/b"
 check "all entries kept, no conflict markers" \
   clean_and_complete "entry A1" "entry B1" "entry A2" "entry B2"
 
+# 3. A records the outcome of its entry while B adds a new entry. The
+# outcome is appended as a line of its own, never edited into the entry,
+# so the union merge cannot keep a stale copy next to the new one.
+q git -C "$TMP/a" pull -q
+q git -C "$TMP/b" pull -q
+printf -- '\n- Outcome (entry A1): needed\n' >> "$TMP/a/$log"
+append "$TMP/b" "entry B3"
+check "A logs the outcome" log_entry "$TMP/a" "outcome of A1"
+check "B logs its entry over the outcome" log_entry "$TMP/b" "B3"
+check "the outcome and the new entry are both kept" \
+  clean_and_complete "entry A1" "entry B1" "entry A2" "entry B2" "entry B3"
+one_outcome() { [ "$(grep -c '^- Outcome (entry A1): needed$' "$TMP/check/$log")" -eq 1 ]; }
+check "the outcome appears once" one_outcome
+
+# The log's own format asks for outcomes as appended lines, not edits.
+format_block() { sed -n '/^## Entry format/,/^## Entries/p' "$ROOT/$log"; }
+appends_outcomes() {
+  format_block | grep -q '^- Outcome (YYYY-MM-DD: <entry title>): ' &&
+    ! format_block | grep -q '^- Outcome: '
+}
+check "the format appends outcomes instead of editing entries" appends_outcomes
+
 finish

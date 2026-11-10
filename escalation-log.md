@@ -2,7 +2,7 @@
 
 A learning journal: which tasks are hard for an AI coding agent, and why.
 
-Subagents normally run on Opus 5.5 at normal effort. When the coordinating agent judges a task hard enough to run on a stronger setting (Opus or Fable at high effort), it explains why in the chat and adds an entry here. After the task, the entry gets its outcome, so over time the log shows which kinds of difficulty really needed the escalation and which did not.
+Subagents normally run on Opus 5.5 at normal effort. When the coordinating agent judges a task hard enough to run on a stronger setting (Opus or Fable at high effort), it explains why in the chat and adds an entry here. After the task, an outcome line is added, so over time the log shows which kinds of difficulty really needed the escalation and which did not.
 
 ## Entry format
 
@@ -17,8 +17,13 @@ Newest entry at the bottom. Keep project details at the level a stranger may rea
   long chains of dependent steps, an ambiguous spec, concurrency, numeric
   precision, an API newer than the model's training, too much code to hold
   at once, ...>
-- Outcome: <filled in afterwards: did it succeed; was the escalation needed,
-  or would the default have done; what the result teaches>
+```
+
+When the task ends, append its outcome as a new line at the bottom of the file. Never edit an entry: sessions in several projects write here at once, and the file merges by keeping both sides (`merge=union`), so an edited line would survive next to its old copy. An older entry's `Outcome:` placeholder stays as it is.
+
+```markdown
+- Outcome (YYYY-MM-DD: <entry title>): <did it succeed; was the escalation
+  needed, or would the default have done; what the result teaches>
 ```
 
 ## Entries

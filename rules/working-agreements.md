@@ -18,7 +18,7 @@ In repositories the owner does not own (course work, other people's projects) an
 - Escalate on your own judgement when a task is hard: pass `model: "opus"` with `effort: "high"`, or `model: "fable"` with `effort: "high"`. These rules are the owner's standing request to set the effort level in those cases.
 - Every escalation is explained, because the owner wants to learn what is hard for an AI:
   - In the chat, explain in detail why this task is hard for an AI. Name the concrete difficulty (a long chain of dependent steps, an ambiguous or contradictory spec, concurrency, numeric precision, an API newer than the model's training, a large amount of code to hold at once). "It is complex" is not an explanation.
-  - Append an entry to `escalation-log.md` in the ai-workflow clone, in its format; the file is public, so keep project details generic. There, `git pull --rebase --autostash`, commit that file only (`git commit -m "docs(escalation): ..." -- escalation-log.md`) and push; if the push is rejected, pull and push again. Fill in the outcome the same way when the task ends: was the escalation needed?
+  - Append an entry to `escalation-log.md` in the ai-workflow clone, in its format; the file is public, so keep project details generic. There, `git pull --rebase --autostash`, commit that file only (`git commit -m "docs(escalation): ..." -- escalation-log.md`) and push; if the push is rejected, pull and push again. When the task ends, append its outcome the same way as a new line, never by editing the entry: was the escalation needed?
 
 ## Grilling
 
