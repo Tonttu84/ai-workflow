@@ -15,8 +15,8 @@
 #   --force      replace a different existing hook or hooks path, or
 #                switch off the hooks in .git/hooks.
 #
-# Node projects may use commitlint with @commitlint/config-conventional
-# (and header-max-length 72) through husky instead of this hook.
+# Node projects may use commitlint and husky instead of this hook, with
+# templates/commitlint.config.mjs from the same repository.
 set -eu
 
 mode=hookspath

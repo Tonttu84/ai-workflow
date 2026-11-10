@@ -64,7 +64,7 @@ These rules apply to every project the owner runs with an AI coding agent. A pro
 
   - Types: `feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `build`, `ci`, `chore`, `revert`. The scope is optional and lower case; `!` before the colon marks a breaking change.
   - One logical change per commit. Task ids go in a `Refs:` footer, never in the subject.
-- A commit hook enforces this in every project: commitlint with `@commitlint/config-conventional` (header limit 72) and husky in Node projects, `hooks/install.sh` from this repo elsewhere, wired into the project's setup command. Never use `--no-verify`; if the hook rejects a message, fix the message.
+- A commit hook enforces this in every project: `hooks/install.sh`, wired into the project's setup command. Node projects may use commitlint and husky instead, with `templates/commitlint.config.mjs`. Never use `--no-verify`; if the hook rejects a message, fix the message.
 - Parallel agents: one worktree per task; merge one at a time. Before the first commit, check which branch you are on and fetch `main`.
 
 ## Decisions

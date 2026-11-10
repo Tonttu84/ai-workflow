@@ -31,6 +31,7 @@ templates/
   agent-brief.md              the brief for a coding subagent
   review-brief.md             the brief for a cold reviewer
   hardening-brief.md          the brief for the test hardening run after a feature
+  commitlint.config.mjs       commitlint rules matching the hook, for Node projects
 hooks/
   commit-msg                  portable bash hook enforcing the commit rules
   install.sh                  installs the hook into a project
@@ -108,7 +109,7 @@ The default mode copies the hook to the project's `.githooks/` (commit it) and s
 
 Setting `core.hooksPath` makes git ignore every hook in `.git/hooks`, so the default mode refuses when that folder already holds hooks (pre-commit, husky, lefthook, Git LFS): use `--git-hooks`, move them into `.githooks/`, or pass `--force` to switch them off. It warns when it overrides a global `core.hooksPath`. `--git-hooks` refuses to replace a different `commit-msg` without `--force`.
 
-Node projects may use [commitlint](https://commitlint.js.org) with `@commitlint/config-conventional` and husky instead, with `header-max-length` set to 72 to match.
+Node projects may use [commitlint](https://commitlint.js.org) and husky instead, with [`templates/commitlint.config.mjs`](templates/commitlint.config.mjs). It extends `@commitlint/config-conventional` so that it accepts and rejects the same messages as the hook; its header lists the few differences.
 
 The hook checks: a subject of the form `type(scope)!: summary` with an allowed type (`feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `build`, `ci`, `chore`, `revert`), a lower-case scope, at most 72 characters, no trailing period, and a blank line before the body. Merge, revert, `fixup!`, `squash!` and `amend!` messages that git writes pass unchanged. It does not check body wrapping, so long URLs and logs can go in a body.
 
