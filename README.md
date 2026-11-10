@@ -160,7 +160,7 @@ The workflow runs the project's committed `.githooks/commit-msg`, as it was befo
 
 ## Tests
 
-`make test` (or `./tests/run.sh`) runs the shell tests: a table of good and bad commit messages for the hook plus real `git commit` runs through it, both install modes end to end, the skill sync, overlay and install scripts against a local fake upstream, and the templates that must match the hook. `make lint` runs [ShellCheck](https://www.shellcheck.net), which must be installed. CI runs both on pushes to `main` and on pull requests.
+`make test` (or `./tests/run.sh`) runs the shell tests: a table of good and bad commit messages for the hook plus real `git commit` runs through it, both install modes end to end, the skill sync, overlay and install scripts against a local fake upstream, the templates that must match the hook, and the rules file's word cap and the templates it points to. `make lint` runs [ShellCheck](https://www.shellcheck.net), which must be installed. CI runs both on pushes to `main` and on pull requests.
 
 ## Licence
 
