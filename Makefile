@@ -1,4 +1,4 @@
-SCRIPTS := hooks/commit-msg hooks/install.sh scripts/*.sh tests/*.sh
+SCRIPTS := hooks/commit-msg hooks/pre-push hooks/install.sh scripts/*.sh tests/*.sh
 
 .PHONY: test lint setup
 

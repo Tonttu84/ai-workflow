@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# pre-push hook: checks the message of every commit about to be pushed
+# with the commit-msg hook next to it, as the CI commit check
+# (templates/commit-check.yml) does, so a failure shows up here, for
+# free, instead of in CI. fixup!/squash!/amend! commits are rejected:
+# squash them first. Merge commits git writes pass.
+#
+#   as a hook   git passes <remote> <url>, and one line per ref on stdin:
+#               <local ref> <local sha> <remote ref> <remote sha>.
+#               Deletions are skipped; for a new branch, the commits no
+#               branch of <remote> has yet are checked.
+#   --check <commit-msg> <git rev-list arguments...>
+#               checks the commits rev-list lists; CI uses this.
+#
+# Source: https://github.com/Tonttu84/ai-workflow (MIT). Install with
+# hooks/install.sh from that repo. Needs bash 3.2 or later and git.
+set -u
+
+# check_commits <commit-msg hook> <git rev-list arguments...>
+check_commits() {
+  local hook=$1 status=0 revs sha subject msg
+  shift
+  revs=$(git rev-list --reverse "$@") || return 2
+  msg=$(mktemp) || return 2
+  while read -r sha; do
+    [ -n "$sha" ] || continue
+    git log -1 --format=%B "$sha" > "$msg"
+    subject=$(head -n 1 "$msg")
+    case $subject in
+      "fixup! "* | "squash! "* | "amend! "*)
+        printf 'pre-push: %s: squash it first (git rebase -i --autosquash): %s\n' "$sha" "$subject" >&2
+        status=1
+        continue ;;
+    esac
+    if ! GIT_EDITOR=: bash "$hook" "$msg" > "$msg.out" 2>&1; then
+      printf 'pre-push: %s: the message breaks the commit rules\n' "$sha" >&2
+      sed -n '1,/^$/p' "$msg.out" | sed 's/^/  /' >&2
+      status=1
+    fi
+  done <<< "$revs"
+  rm -f "$msg" "$msg.out"
+  return "$status"
+}
+
+if [ "${1-}" = --check ]; then
+  shift
+  [ "$#" -ge 2 ] || { echo "usage: pre-push --check <commit-msg> <rev-list arguments...>" >&2; exit 2; }
+  check_commits "$@"
+  exit
+fi
+
+remote=${1:-origin}
+hook="$(cd "$(dirname "$0")" && pwd)/commit-msg"
+[ -f "$hook" ] || { echo "pre-push: $hook not found" >&2; exit 1; }
+
+status=0
+while read -r _local_ref local_sha _remote_ref remote_sha; do
+  [ -n "${local_sha//0/}" ] || continue # a deletion
+  if [ -n "${remote_sha//0/}" ] && git cat-file -e "$remote_sha^{commit}" 2> /dev/null; then
+    check_commits "$hook" "$remote_sha..$local_sha" || status=1
+  else
+    check_commits "$hook" "$local_sha" --not --remotes="$remote" || status=1
+  fi
+done
+
+if [ "$status" -ne 0 ]; then
+  echo "pre-push: fix the messages (git rebase -i) and push again; never --no-verify." >&2
+fi
+exit "$status"

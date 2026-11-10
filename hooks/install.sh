@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
-# Installs the ai-workflow commit-msg hook into a git project.
+# Installs the ai-workflow commit-msg and pre-push hooks into a git
+# project. pre-push checks the messages of the commits being pushed, as
+# the CI commit check does.
 #
 # Usage: install.sh [--git-hooks] [--force] [project-dir]
 #
-#   default      copy the hook to <project>/.githooks/commit-msg and run
+#   default      copy the hooks to <project>/.githooks/ and run
 #                git config core.hooksPath .githooks. Commit .githooks/
 #                so every clone gets the same hook; each clone still runs
 #                the git config line once (put it in the setup command).
 #                Refuses when .git/hooks holds hooks (pre-commit, husky,
 #                lefthook, Git LFS), since git would stop running them,
 #                and warns when it overrides a global core.hooksPath.
-#   --git-hooks  copy the hook into the clone's own hooks directory
+#   --git-hooks  copy the hooks into the clone's own hooks directory
 #                (.git/hooks) instead. Nothing to commit; per clone only.
 #   --force      replace a different existing hook or hooks path, or
 #                switch off the hooks in .git/hooks.
@@ -33,7 +35,8 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-src="$(cd "$(dirname "$0")" && pwd)/commit-msg"
+here="$(cd "$(dirname "$0")" && pwd)"
+HOOKS="commit-msg pre-push"
 
 if ! git -C "$dir" rev-parse --git-dir > /dev/null 2>&1; then
   echo "install.sh: $dir is not inside a git repository" >&2
@@ -41,15 +44,28 @@ if ! git -C "$dir" rev-parse --git-dir > /dev/null 2>&1; then
 fi
 top=$(git -C "$dir" rev-parse --show-toplevel)
 
-# copy_hook <destination>: refuses to replace a different file without --force
-copy_hook() {
-  if [ -e "$1" ] && ! cmp -s "$src" "$1" && [ "$force" -eq 0 ]; then
-    echo "install.sh: $1 exists and differs; rerun with --force to replace it" >&2
-    exit 1
-  fi
-  mkdir -p "$(dirname "$1")"
-  cp "$src" "$1"
-  chmod +x "$1"
+# install_hooks <directory>: copies every hook there. Refuses, before
+# copying anything, to replace a different file without --force.
+install_hooks() {
+  local name
+  for name in $HOOKS; do
+    if [ -e "$1/$name" ] && ! cmp -s "$here/$name" "$1/$name" && [ "$force" -eq 0 ]; then
+      echo "install.sh: $1/$name exists and differs; rerun with --force to replace it" >&2
+      exit 1
+    fi
+  done
+  mkdir -p "$1"
+  for name in $HOOKS; do
+    cp "$here/$name" "$1/$name"
+    chmod +x "$1/$name"
+  done
+}
+
+# ours <file>: the file is one of the hooks this script installs
+ours() {
+  local name
+  for name in $HOOKS; do cmp -s "$here/$name" "$1" && return 0; done
+  return 1
 }
 
 # The clone's own hooks directory (.git/hooks, shared by worktrees). Only
@@ -76,7 +92,7 @@ if [ "$mode" = hookspath ]; then
     for f in "$hooks"/*; do
       [ -f "$f" ] || continue
       case $f in *.sample) continue ;; esac
-      cmp -s "$src" "$f" && continue
+      ours "$f" && continue
       found="$found ${f##*/}"
     done
     if [ -n "$found" ] && [ "$force" -eq 0 ]; then
@@ -90,9 +106,9 @@ if [ "$mode" = hookspath ]; then
     echo "  or system git config; this repository now uses .githooks instead," >&2
     echo "  so the hooks in '$effective' stop running here" >&2
   fi
-  copy_hook "$top/.githooks/commit-msg"
+  install_hooks "$top/.githooks"
   git -C "$top" config core.hooksPath .githooks
-  echo "Installed $top/.githooks/commit-msg (core.hooksPath=.githooks). Commit .githooks/."
+  echo "Installed $HOOKS in $top/.githooks (core.hooksPath=.githooks). Commit .githooks/."
 else
   current=$(git -C "$top" config --get core.hooksPath || true)
   if [ -n "$current" ]; then
@@ -102,6 +118,6 @@ else
   fi
   hooks=$(cd "$top" && git rev-parse --git-path hooks)
   case $hooks in /* | [A-Za-z]:*) ;; *) hooks="$top/$hooks" ;; esac
-  copy_hook "$hooks/commit-msg"
-  echo "Installed $hooks/commit-msg"
+  install_hooks "$hooks"
+  echo "Installed $HOOKS in $hooks"
 fi

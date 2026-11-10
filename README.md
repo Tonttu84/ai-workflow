@@ -36,7 +36,8 @@ templates/
   dependabot.yml              grouped dependency updates every two weeks
 hooks/
   commit-msg                  portable bash hook enforcing the commit rules
-  install.sh                  installs the hook into a project
+  pre-push                    checks every commit being pushed, as CI does
+  install.sh                  installs both hooks into a project
 skills/                       the grill skills, tracked from upstream (see skills/README.md)
 scripts/
   sync-skills.sh              fetches the latest upstream skills, re-applies local overlays
@@ -107,9 +108,9 @@ Projects without Node:
 /path/to/ai-workflow/hooks/install.sh --git-hooks /path/to/project  # or copy into .git/hooks
 ```
 
-The default mode copies the hook to the project's `.githooks/` (commit it) and sets `core.hooksPath`. Each fresh clone still needs `git config core.hooksPath .githooks` once, so put that line in the project's setup command.
+It installs two hooks: `commit-msg` checks a message as it is written, and `pre-push` checks every commit about to be pushed with the same range check the CI template runs, so a bad message is caught before the push, without spending Actions minutes. The default mode copies them to the project's `.githooks/` (commit it) and sets `core.hooksPath`. Each fresh clone still needs `git config core.hooksPath .githooks` once, so put that line in the project's setup command.
 
-Setting `core.hooksPath` makes git ignore every hook in `.git/hooks`, so the default mode refuses when that folder already holds hooks (pre-commit, husky, lefthook, Git LFS): use `--git-hooks`, move them into `.githooks/`, or pass `--force` to switch them off. It warns when it overrides a global `core.hooksPath`. `--git-hooks` refuses to replace a different `commit-msg` without `--force`.
+Setting `core.hooksPath` makes git ignore every hook in `.git/hooks`, so the default mode refuses when that folder already holds hooks (pre-commit, husky, lefthook, Git LFS): use `--git-hooks`, move them into `.githooks/`, or pass `--force` to switch them off. It warns when it overrides a global `core.hooksPath`. `--git-hooks` refuses to replace a different `commit-msg` or `pre-push` without `--force`; Git LFS installs its own `pre-push`, so an LFS project keeps the default mode with its LFS hooks moved into `.githooks/`, or calls `git lfs pre-push "$@"` from ours.
 
 Node projects may use [commitlint](https://commitlint.js.org) and husky instead, with [`templates/commitlint.config.mjs`](templates/commitlint.config.mjs). It extends `@commitlint/config-conventional` so that it accepts and rejects the same messages as the hook; its header lists the few differences.
 

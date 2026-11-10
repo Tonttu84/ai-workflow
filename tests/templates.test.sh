@@ -78,6 +78,7 @@ git -C "$repo" config user.email test@example.com
 git -C "$repo" config core.autocrlf false
 mkdir -p "$repo/.githooks" "$TMP/runner"
 cp "$HOOK" "$repo/.githooks/commit-msg"
+cp "$ROOT/hooks/pre-push" "$repo/.githooks/pre-push"
 commit() { # commit <message with escapes>: a commit the local hook never saw
   echo "$1" >> "$repo/file" && git -C "$repo" add file &&
     git -C "$repo" commit -q --no-verify --allow-empty -m "$(printf '%b' "$1")"
@@ -212,6 +213,7 @@ new_project() { # new_project <dir>: $repo with one commit and no hook
 new_project "$TMP/fresh"
 mkdir -p "$repo/.githooks"
 cp "$HOOK" "$repo/.githooks/commit-msg"
+cp "$ROOT/hooks/pre-push" "$repo/.githooks/pre-push"
 git -C "$repo" add .githooks
 commit "ci: add the commit hook"
 check "first hook: the title is checked with the PR's own hook" title_ok "ci: add the commit check"

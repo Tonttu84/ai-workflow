@@ -32,6 +32,8 @@ new_repo "$TMP/a"
 check "default install succeeds" run_install "$TMP/a"
 check "hook copied to .githooks" cmp -s "$ROOT/hooks/commit-msg" "$TMP/a/.githooks/commit-msg"
 check "hook is executable" test -x "$TMP/a/.githooks/commit-msg"
+check "pre-push copied to .githooks" cmp -s "$ROOT/hooks/pre-push" "$TMP/a/.githooks/pre-push"
+check "pre-push is executable" test -x "$TMP/a/.githooks/pre-push"
 check "core.hooksPath is .githooks" test "$(git -C "$TMP/a" config core.hooksPath)" = .githooks
 refute "bad message rejected after install" commits_ok "$TMP/a" "added stuff."
 check "good message accepted after install" commits_ok "$TMP/a" "chore: start the project"
@@ -106,6 +108,7 @@ check "good message accepted there" commits_ok "$TMP/my proj ä" "chore: start t
 new_repo "$TMP/c"
 check "--git-hooks install succeeds" run_install --git-hooks "$TMP/c"
 check "hook copied to .git/hooks" cmp -s "$ROOT/hooks/commit-msg" "$TMP/c/.git/hooks/commit-msg"
+check "pre-push copied to .git/hooks" cmp -s "$ROOT/hooks/pre-push" "$TMP/c/.git/hooks/pre-push"
 refute "--git-hooks leaves core.hooksPath unset" git -C "$TMP/c" config core.hooksPath
 refute "bad message rejected via .git/hooks" commits_ok "$TMP/c" "WIP"
 check "good message accepted via .git/hooks" commits_ok "$TMP/c" "chore: start the project"
@@ -117,6 +120,26 @@ refute "refuses to overwrite a different hook" run_install --git-hooks "$TMP/d"
 check "the different hook is left as it was" grep -q 'exit 0' "$TMP/d/.git/hooks/commit-msg"
 check "--force overwrites it" run_install --git-hooks --force "$TMP/d"
 check "overwritten hook is ours" cmp -s "$ROOT/hooks/commit-msg" "$TMP/d/.git/hooks/commit-msg"
+
+# A different pre-push (Git LFS installs one) is refused the same way,
+# before anything is copied.
+new_repo "$TMP/d2"
+printf '#!/bin/sh
+git lfs pre-push "$@"
+' > "$TMP/d2/.git/hooks/pre-push"
+refute "refuses to overwrite a different pre-push" run_install --git-hooks "$TMP/d2"
+check "the refusal names pre-push" said pre-push
+check "nothing is installed half way" test ! -e "$TMP/d2/.git/hooks/commit-msg"
+check "the different pre-push is left as it was" grep -q 'lfs' "$TMP/d2/.git/hooks/pre-push"
+new_repo "$TMP/d3"
+printf '#!/bin/sh
+git lfs pre-push "$@"
+' > "$TMP/d3/.git/hooks/pre-push"
+refute "default mode refuses over a pre-push in .git/hooks" run_install "$TMP/d3"
+check "that refusal names pre-push" said pre-push
+new_repo "$TMP/d4"
+check "--git-hooks install for the switch" run_install --git-hooks "$TMP/d4"
+check "our own hooks in .git/hooks do not block the default mode" run_install "$TMP/d4"
 
 # Not a git repository
 mkdir -p "$TMP/plain"

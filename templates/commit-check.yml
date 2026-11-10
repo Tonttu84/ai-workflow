@@ -85,7 +85,12 @@ jobs:
           PUSH_BEFORE: ${{ github.event.before }}
           PUSH_AFTER: ${{ github.sha }}
         run: |
-          hook_from() { git show "$1:.githooks/commit-msg" > "$RUNNER_TEMP/commit-msg" 2> /dev/null; }
+          # The project's commit-msg hook, and its pre-push hook, which holds
+          # the range check the local push runs too.
+          hook_from() {
+            git show "$1:.githooks/commit-msg" > "$RUNNER_TEMP/commit-msg" 2> /dev/null &&
+              git show "$1:.githooks/pre-push" > "$RUNNER_TEMP/pre-push" 2> /dev/null
+          }
           have() { git cat-file -e "$1^{commit}" 2> /dev/null; }
           # The commits to check ($@), the commit before them whose hook
           # checks them (trusted), and the change's own tip as a fallback.
@@ -109,26 +114,12 @@ jobs:
           if [ -n "$trusted" ] && hook_from "$trusted"; then
             :
           elif hook_from "$tip"; then
-            [ -z "$trusted" ] || echo "::warning::.githooks/commit-msg is new in this change; checking with its own copy"
+            [ -z "$trusted" ] || echo "::warning::The hooks in .githooks/ are new in this change; checking with their own copies"
           else
-            echo "::error::.githooks/commit-msg is missing; commit the hook first"
+            echo "::error::.githooks/commit-msg or .githooks/pre-push is missing; commit the hooks first (hooks/install.sh)"
             exit 1
           fi
-          revs=$(git rev-list --reverse "$@")
-          status=0
-          while read -r sha; do
-            [ -n "$sha" ] || continue
-            git log -1 --format=%B "$sha" > "$RUNNER_TEMP/message"
-            subject=$(head -n 1 "$RUNNER_TEMP/message")
-            case $subject in
-              "fixup! "* | "squash! "* | "amend! "*)
-                echo "::error::$sha: squash it first (git rebase -i --autosquash): $subject"
-                status=1
-                continue ;;
-            esac
-            if ! GIT_EDITOR=: bash "$RUNNER_TEMP/commit-msg" "$RUNNER_TEMP/message"; then
-              echo "::error::$sha: the message breaks the commit rules"
-              status=1
-            fi
-          done <<< "$revs"
-          exit "$status"
+          if ! bash "$RUNNER_TEMP/pre-push" --check "$RUNNER_TEMP/commit-msg" "$@"; then
+            echo "::error::Some commit messages break the commit rules; see the lines above"
+            exit 1
+          fi
