@@ -69,14 +69,20 @@ replace_text() {
   [ -n "$2" ] || die "replace.txt: empty 'old:' for $1"
   case $3 in *"$2"*) die "replace.txt: the new text for $1 contains the old text" ;; esac
   if grep -qF -- "$2" "$target"; then
-    OLD=$2 NEW=$3 awk '{
+    # Write back through cat, not mv, so the target keeps its mode.
+    if ! OLD=$2 NEW=$3 awk '{
       out = ""; s = $0
       while ((i = index(s, ENVIRON["OLD"])) > 0) {
         out = out substr(s, 1, i - 1) ENVIRON["NEW"]
         s = substr(s, i + length(ENVIRON["OLD"]))
       }
       print out s
-    }' "$target" > "$target.tmp" && mv "$target.tmp" "$target"
+    }' "$target" > "$target.tmp"; then
+      rm -f "$target.tmp"
+      die "replace.txt: could not rewrite $target"
+    fi
+    cat "$target.tmp" > "$target"
+    rm -f "$target.tmp"
   elif ! grep -qF -- "$3" "$target"; then
     die "replace.txt: '$2' not found in $target; upstream changed, update the overlay"
   fi

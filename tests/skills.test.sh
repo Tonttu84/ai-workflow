@@ -43,6 +43,25 @@ write_skill "$TMP/s5/SKILL.md" "Grill the user."
 printf 'file: ../outside.txt\nold: a\nnew: b\n' > "$TMP/escape-overlay/replace.txt"
 refute "replace.txt refuses a path outside the skill" quiet bash "$APPLY" "$TMP/s5" "$TMP/escape-overlay"
 
+# replace.txt keeps the target's mode, and a failed replacement leaves the
+# target as it was, with no temporary file behind.
+mkdir -p "$TMP/s7" "$TMP/run-overlay" "$TMP/badawk"
+write_skill "$TMP/s7/SKILL.md" "Grill the user."
+printf '#!/bin/sh\necho hello\n' > "$TMP/s7/run.sh"
+chmod 755 "$TMP/s7/run.sh"
+printf 'file: run.sh\nold: hello\nnew: goodbye\n' > "$TMP/run-overlay/replace.txt"
+printf '#!/bin/sh\necho partial\nexit 1\n' > "$TMP/badawk/awk"
+chmod +x "$TMP/badawk/awk"
+cp "$TMP/s7/run.sh" "$TMP/run.before"
+refute "a failing replacement fails the overlay" \
+  env PATH="$TMP/badawk:$PATH" bash "$APPLY" "$TMP/s7" "$TMP/run-overlay" > /dev/null 2>&1
+check "a failing replacement leaves the target as it was" cmp -s "$TMP/run.before" "$TMP/s7/run.sh"
+check "a failing replacement leaves no temporary file" test ! -e "$TMP/s7/run.sh.tmp"
+check "replace.txt applies to run.sh" quiet bash "$APPLY" "$TMP/s7" "$TMP/run-overlay"
+check "run.sh was patched" grep -qx 'echo goodbye' "$TMP/s7/run.sh"
+check "run.sh is still executable" test -x "$TMP/s7/run.sh"
+check "no temporary file is left" test ! -e "$TMP/s7/run.sh.tmp"
+
 # Overlay files saved with CRLF endings apply without carrying CRs over
 mkdir -p "$TMP/s6" "$TMP/crlf-overlay"
 write_skill "$TMP/s6/SKILL.md" "Grill the user."
