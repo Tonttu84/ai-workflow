@@ -123,22 +123,56 @@ check "the different hook is left as it was" grep -q 'exit 0' "$TMP/d/.git/hooks
 check "--force overwrites it" run_install --git-hooks --force "$TMP/d"
 check "overwritten hook is ours" cmp -s "$ROOT/hooks/commit-msg" "$TMP/d/.git/hooks/commit-msg"
 
-# A different pre-push (Git LFS installs one) is refused the same way,
-# before anything is copied.
+# A pre-push that is not ours (Git LFS installs one) is never overwritten,
+# not even with --force: it is kept as pre-push.local, and ours runs it
+# first with the same arguments and input.
+fake_lfs() { # fake_lfs <file>: a pre-push that records its arguments and input
+  # SC2016: the fake hook expands $* itself.
+  # shellcheck disable=SC2016
+  printf '#!/bin/sh\necho "args: $*" > "%s"\ncat >> "%s"\n' "$TMP/lfs.ran" "$TMP/lfs.ran" > "$1"
+  chmod +x "$1"
+}
+q() { "$@" > /dev/null 2>&1; }
 new_repo "$TMP/d2"
-printf '#!/bin/sh
-git lfs pre-push "$@"
-' > "$TMP/d2/.git/hooks/pre-push"
-refute "refuses to overwrite a different pre-push" run_install --git-hooks "$TMP/d2"
-check "the refusal names pre-push" said pre-push
-check "nothing is installed half way" test ! -e "$TMP/d2/.git/hooks/commit-msg"
-check "the different pre-push is left as it was" grep -q 'lfs' "$TMP/d2/.git/hooks/pre-push"
+fake_lfs "$TMP/d2/.git/hooks/pre-push"
+check "--git-hooks installs next to a foreign pre-push" run_install --git-hooks "$TMP/d2"
+check "it says the foreign pre-push is chained" said pre-push.local
+check "ours is now the pre-push" cmp -s "$ROOT/hooks/pre-push" "$TMP/d2/.git/hooks/pre-push"
+check "the foreign one is kept as pre-push.local" grep -q lfs.ran "$TMP/d2/.git/hooks/pre-push.local"
+check "a second install keeps the chain" run_install --git-hooks "$TMP/d2"
+check "--force does not overwrite it either" run_install --git-hooks --force "$TMP/d2"
+check "the foreign one is still pre-push.local" grep -q lfs.ran "$TMP/d2/.git/hooks/pre-push.local"
+git init -q --bare -b main "$TMP/d2-remote.git"
+git -C "$TMP/d2" remote add origin "$TMP/d2-remote.git"
+commits_ok "$TMP/d2" "chore: start"
+check "a push goes through both hooks" q git -C "$TMP/d2" push -q origin main
+check "the chained pre-push got git's arguments" grep -q "^args: origin " "$TMP/lfs.ran"
+check "the chained pre-push read the refs from stdin" grep -qE '^refs/heads/main [0-9a-f]+ refs/heads/main ' "$TMP/lfs.ran"
+git -C "$TMP/d2" commit -q --no-verify --allow-empty -m "WIP"
+refute "our check still runs after the chained one" q git -C "$TMP/d2" push -q origin main
+git -C "$TMP/d2" reset -q --hard HEAD~1
+printf '#!/bin/sh\nexit 1\n' > "$TMP/d2/.git/hooks/pre-push.local"
+commits_ok "$TMP/d2" "chore: more"
+refute "a failing chained pre-push stops the push" q git -C "$TMP/d2" push -q origin main
+
+# The default mode still refuses while the hooks sit in .git/hooks (git
+# would stop running them); moved into .githooks/, the pre-push is chained.
 new_repo "$TMP/d3"
-printf '#!/bin/sh
-git lfs pre-push "$@"
-' > "$TMP/d3/.git/hooks/pre-push"
+fake_lfs "$TMP/d3/.git/hooks/pre-push"
 refute "default mode refuses over a pre-push in .git/hooks" run_install "$TMP/d3"
 check "that refusal names pre-push" said pre-push
+mkdir -p "$TMP/d3/.githooks"
+mv "$TMP/d3/.git/hooks/pre-push" "$TMP/d3/.githooks/pre-push"
+check "with it moved into .githooks/, the install succeeds" run_install "$TMP/d3"
+check "and chains it there" grep -q lfs.ran "$TMP/d3/.githooks/pre-push.local"
+
+# A refusal (a different commit-msg) happens before anything moves.
+new_repo "$TMP/d5"
+printf '#!/bin/sh\nexit 0\n' > "$TMP/d5/.git/hooks/commit-msg"
+fake_lfs "$TMP/d5/.git/hooks/pre-push"
+refute "a different commit-msg is refused" run_install --git-hooks "$TMP/d5"
+check "the foreign pre-push has not moved" grep -q lfs.ran "$TMP/d5/.git/hooks/pre-push"
+check "no pre-push.local was made" test ! -e "$TMP/d5/.git/hooks/pre-push.local"
 new_repo "$TMP/d4"
 check "--git-hooks install for the switch" run_install --git-hooks "$TMP/d4"
 check "our own hooks in .git/hooks do not block the default mode" run_install "$TMP/d4"

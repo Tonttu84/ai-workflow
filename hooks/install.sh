@@ -14,8 +14,10 @@
 #                and warns when it overrides a global core.hooksPath.
 #   --git-hooks  copy the hooks into the clone's own hooks directory
 #                (.git/hooks) instead. Nothing to commit; per clone only.
-#   --force      replace a different existing hook or hooks path, or
-#                switch off the hooks in .git/hooks.
+#   --force      replace a different commit-msg or hooks path, or switch
+#                off the hooks in .git/hooks. A pre-push that is not ours
+#                (Git LFS has one) is never replaced, even with --force:
+#                it is kept as pre-push.local, and ours runs it first.
 #
 # Node projects may use commitlint and husky instead of this hook, with
 # templates/commitlint.config.mjs from the same repository.
@@ -44,17 +46,34 @@ if ! git -C "$dir" rev-parse --git-dir > /dev/null 2>&1; then
 fi
 top=$(git -C "$dir" rev-parse --show-toplevel)
 
-# install_hooks <directory>: copies every hook there. Refuses, before
-# copying anything, to replace a different file without --force.
+# ai_workflow_hook <file>: the file is a version of one of our hooks
+ai_workflow_hook() {
+  grep -q '^# Source: https://github.com/Tonttu84/ai-workflow' "$1" 2> /dev/null
+}
+
+# install_hooks <directory>: copies every hook there. A different
+# commit-msg is replaced only with --force. A pre-push that is not ours
+# (Git LFS installs one) is never replaced: it is kept as pre-push.local
+# and ours runs it first. Every refusal comes before anything changes.
 install_hooks() {
-  local name
-  for name in $HOOKS; do
-    if [ -e "$1/$name" ] && ! cmp -s "$here/$name" "$1/$name" && [ "$force" -eq 0 ]; then
-      echo "install.sh: $1/$name exists and differs; rerun with --force to replace it" >&2
+  local chain=0
+  if [ -e "$1/commit-msg" ] && ! cmp -s "$here/commit-msg" "$1/commit-msg" && [ "$force" -eq 0 ]; then
+    echo "install.sh: $1/commit-msg exists and differs; rerun with --force to replace it" >&2
+    exit 1
+  fi
+  if [ -e "$1/pre-push" ] && ! ai_workflow_hook "$1/pre-push"; then
+    if [ -e "$1/pre-push.local" ]; then
+      echo "install.sh: $1 holds both a pre-push that is not ours and a pre-push.local;" >&2
+      echo "  merge them into pre-push.local, then rerun" >&2
       exit 1
     fi
-  done
+    chain=1
+  fi
   mkdir -p "$1"
+  if [ "$chain" -eq 1 ]; then
+    mv "$1/pre-push" "$1/pre-push.local"
+    echo "Kept the existing pre-push as $1/pre-push.local; ours runs it first."
+  fi
   for name in $HOOKS; do
     cp "$here/$name" "$1/$name"
     chmod +x "$1/$name"
