@@ -41,3 +41,14 @@ finish() {
   printf '%s: %d passed, %d failed\n' "$(basename "$0")" "$passed" "$failed"
   [ "$failed" -eq 0 ]
 }
+
+# help_ok <script>: --help prints the whole leading comment block, without
+# the shebang or any code after the block.
+help_ok() {
+  local out want
+  out=$(bash "$1" --help) || return 1
+  case $out in *'#!'* | *'set -'*) return 1 ;; esac
+  case $out in *Usage:*) ;; *) return 1 ;; esac
+  want=$(awk 'NR == 1 { next } /^#/ { n++; next } { exit } END { print n + 0 }' "$1")
+  [ "$(printf '%s\n' "$out" | wc -l)" -eq "$want" ]
+}

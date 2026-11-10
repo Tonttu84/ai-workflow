@@ -121,6 +121,9 @@ check "overwritten hook is ours" cmp -s "$ROOT/hooks/commit-msg" "$TMP/d/.git/ho
 mkdir -p "$TMP/plain"
 refute "refuses a directory that is not a git repo" run_install "$TMP/plain"
 
+# Help
+check "--help prints the comment block and no code" help_ok "$INSTALL"
+
 # Unknown option
 refute "rejects an unknown option" run_install --bogus "$TMP/a"
 

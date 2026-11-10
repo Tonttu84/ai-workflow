@@ -24,7 +24,7 @@ while [ $# -gt 0 ]; do
     --ref) ref=${2:?--ref needs a value}; shift ;;
     --from) from=${2:?--from needs a value}; shift ;;
     --dest) dest=${2:?--dest needs a value}; shift ;;
-    -h | --help) sed -n '2,13p' "$0"; exit 0 ;;
+    -h | --help) awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; exit 0 ;;
     *) echo "sync-skills.sh: unknown argument $1" >&2; exit 2 ;;
   esac
   shift

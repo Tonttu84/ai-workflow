@@ -26,7 +26,7 @@ while [ $# -gt 0 ]; do
   case $1 in
     --git-hooks) mode=githooks ;;
     --force) force=1 ;;
-    -h | --help) sed -n '2,17p' "$0"; exit 0 ;;
+    -h | --help) awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; exit 0 ;;
     -*) echo "install.sh: unknown option $1" >&2; exit 2 ;;
     *) dir=$1 ;;
   esac
