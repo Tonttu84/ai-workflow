@@ -1,13 +1,20 @@
-# Checks a pull request before it is squash-merged. The squash commit's
-# subject on main is the PR title, so the title must pass the project's
-# commit-msg hook, without the hook's exemptions for subjects git writes
-# (a PR title never is one); and fixup!/squash!/amend! commits must not
-# reach main unsquashed.
+# The gate for commit messages. The local hook is feedback while writing:
+# a fresh clone has it off until its setup command runs, --no-verify and
+# GitHub's web editor skip it, and a squash merge writes its commit on
+# GitHub. This workflow checks what reaches the default branch:
+#   - every commit of a pull request (base..head), and every commit of a
+#     push to the default branch (before..after), with the project's
+#     .githooks/commit-msg as it was before the change, so a change cannot
+#     weaken its own check. Merge commits git writes pass, as in the hook;
+#     fixup!/squash!/amend! commits fail, squash them first.
+#   - the PR title, which a squash merge makes the commit subject, without
+#     the hook's exemptions for subjects git writes (a title never is one).
+# A ruleset on the default branch that requires this check and blocks
+# force pushes makes it binding.
 #
 # Copy to .github/workflows/commit-check.yml in a project that commits
-# .githooks/commit-msg (hooks/install.sh in Tonttu84/ai-workflow). The
-# title is checked with the hook from the base commit, so a pull request
-# cannot weaken the check on itself.
+# .githooks/commit-msg (hooks/install.sh in Tonttu84/ai-workflow), and
+# change `main` below if the default branch has another name.
 #
 # GitHub uses the PR title as the squash subject only when the repository
 # says so; by default a one-commit PR gets that commit's subject. Set it
@@ -19,12 +26,15 @@ name: commit-check
 on:
   pull_request:
     types: [opened, edited, reopened, synchronize]
+  push:
+    branches: [main]
 
 permissions:
   contents: read
 
 jobs:
   title:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -58,14 +68,45 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: No fixup!, squash! or amend! commits
+      - name: Every commit follows the commit format
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.sha }}
         run: |
-          bad=$(git log --format=%s "$BASE_SHA..$HEAD_SHA" | grep -E '^(fixup|squash|amend)! ' || true)
-          if [ -n "$bad" ]; then
-            echo "::error::Squash these commits first (git rebase -i --autosquash):"
-            printf '%s\n' "$bad"
+          # The commits to check, and the commit whose hook checks them.
+          if [ "$EVENT" = pull_request ]; then
+            set -- "$PR_BASE..$PR_HEAD"
+            hook_rev=$PR_BASE
+          elif [ -n "${PUSH_BEFORE//0/}" ] && git cat-file -e "$PUSH_BEFORE^{commit}" 2> /dev/null; then
+            set -- "$PUSH_BEFORE..$PUSH_AFTER" # a force push: only the new commits
+            hook_rev=$PUSH_BEFORE
+          else
+            echo "::notice::No earlier commit to compare with (new branch or lost history); checking $PUSH_AFTER only"
+            set -- -1 "$PUSH_AFTER"
+            hook_rev=$PUSH_AFTER
+          fi
+          if ! git show "$hook_rev:.githooks/commit-msg" > "$RUNNER_TEMP/commit-msg" 2> /dev/null; then
+            echo "::error::.githooks/commit-msg is missing at $hook_rev"
             exit 1
           fi
+          revs=$(git rev-list --reverse "$@")
+          status=0
+          while read -r sha; do
+            [ -n "$sha" ] || continue
+            git log -1 --format=%B "$sha" > "$RUNNER_TEMP/message"
+            subject=$(head -n 1 "$RUNNER_TEMP/message")
+            case $subject in
+              "fixup! "* | "squash! "* | "amend! "*)
+                echo "::error::$sha: squash it first (git rebase -i --autosquash): $subject"
+                status=1
+                continue ;;
+            esac
+            if ! GIT_EDITOR=: bash "$RUNNER_TEMP/commit-msg" "$RUNNER_TEMP/message"; then
+              echo "::error::$sha: the message breaks the commit rules"
+              status=1
+            fi
+          done <<< "$revs"
+          exit "$status"

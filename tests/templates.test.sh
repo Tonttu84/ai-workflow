@@ -108,21 +108,84 @@ check "title step rejects every subject the hook exempts" exemptions_in_sync
 check "title step: a title with \$(...) or backticks is only text" title_ok 'feat: $(touch pwned) `touch pwned`'
 check "title step: nothing was run from the title" test ! -e "$repo/pwned"
 
-commit() { echo "$1" >> "$repo/file" && git -C "$repo" add file && git -C "$repo" commit -q --no-verify -m "$1"; }
+# --- the commits step: every commit of a PR or a push, checked by the hook
+# as it was before the change
+commit() { # commit <message with escapes>: a commit the local hook never saw
+  echo "$1" >> "$repo/file" && git -C "$repo" add file &&
+    git -C "$repo" commit -q --no-verify --allow-empty -m "$(printf '%b' "$1")"
+}
+git -C "$repo" add .githooks
 commit "chore: start"
 base=$(git -C "$repo" rev-parse HEAD)
 commit "feat: add the export"
 commit "fix: handle an empty export"
-commits_ok() { # commits_ok: the commits step passes for $base..HEAD
-  (cd "$repo" && BASE_SHA=$base HEAD_SHA=$(git rev-parse HEAD) bash -eo pipefail -c "$(run_script 'No fixup!, squash! or amend! commits')") \
-    > /dev/null 2>&1
+COMMITS_STEP=$(run_script 'Every commit follows the commit format')
+check "commits step: the script is found" test -n "$COMMITS_STEP"
+# commits_ok <event> [before]: the step passes for a pull request from
+# $base to HEAD, or for a push from <before> (default $base) to HEAD
+commits_ok() {
+  (cd "$repo" && RUNNER_TEMP="$TMP/runner" EVENT=$1 \
+    PR_BASE=$base PR_HEAD=$(git rev-parse HEAD) \
+    PUSH_BEFORE=${2:-$base} PUSH_AFTER=$(git rev-parse HEAD) \
+    env -u GIT_EDITOR bash -eo pipefail -c "$COMMITS_STEP") > "$TMP/step.out" 2>&1
 }
-check "commits step: ordinary commits pass" commits_ok
-for subject in "fixup! feat: add the export" "squash! feat: add the export" "amend! feat: add the export"; do
-  git -C "$repo" branch -f before HEAD
+tip=$(git -C "$repo" rev-parse HEAD)
+reset_tip() { git -C "$repo" reset -q --hard "$tip"; }
+
+check "PR: good commits pass" commits_ok pull_request
+check "push: good commits pass" commits_ok push
+for subject in "fixup! feat: add the export" "squash! feat: add the export" \
+  "amend! feat: add the export" "WIP" "add stuff." "# note\nfeat: add a kept comment line"; do
   commit "$subject"
-  refute "commits step: '${subject%% *}' commit fails" commits_ok
-  git -C "$repo" reset -q --hard before
+  refute "PR: a '$subject' commit fails" commits_ok pull_request
+  refute "push: a '$subject' commit fails" commits_ok push
+  reset_tip
 done
+
+# A bad commit in the middle is caught, not just the newest one.
+commit "WIP"
+commit "feat: a good commit on top"
+refute "PR: a bad commit below a good one fails" commits_ok pull_request
+check "the failure names the bad commit" grep -q "$(git -C "$repo" rev-parse HEAD~1)" "$TMP/step.out"
+reset_tip
+
+# Merge commits that git writes pass, as in the hook.
+git -C "$repo" checkout -q -b side
+commit "feat: work on a side branch"
+git -C "$repo" checkout -q main
+commit "fix: work on main meanwhile"
+git -C "$repo" merge -q --no-ff --no-verify --no-edit side > /dev/null 2>&1
+check "PR: a merge commit git wrote passes" commits_ok pull_request
+reset_tip
+
+# A change cannot weaken its own check: the hook comes from the base.
+printf '#!/bin/sh\nexit 0\n' > "$repo/.githooks/commit-msg"
+git -C "$repo" add .githooks
+commit "WIP: switch the hook off"
+refute "PR: a commit that disables the hook is checked by the old one" commits_ok pull_request
+refute "push: the same, with the hook from before the push" commits_ok push
+reset_tip
+
+# A new branch (all-zero before) or a before that is gone: the head only.
+zero=0000000000000000000000000000000000000000
+commit "WIP"
+commit "feat: a good head"
+check "push from nothing: only the head is checked" commits_ok push "$zero"
+check "it says so" grep -q 'checking' "$TMP/step.out"
+check "push from a lost commit: only the head is checked" commits_ok push 1234567890123456789012345678901234567890
+reset_tip
+commit "WIP"
+refute "push from nothing: a bad head fails" commits_ok push "$zero"
+reset_tip
+
+# A force push: only the commits that are new on top of the old tip count.
+git -C "$repo" checkout -q -b old "$base"
+commit "WIP never pushed again"
+old=$(git -C "$repo" rev-parse HEAD)
+git -C "$repo" checkout -q main
+check "force push: the commits replacing the old tip pass" commits_ok push "$old"
+commit "WIP"
+refute "force push: a bad new commit fails" commits_ok push "$old"
+reset_tip
 
 finish
