@@ -1,2 +1,5 @@
 # Shell scripts must keep LF endings or bash fails on Windows checkouts.
 * text=auto eol=lf
+
+# Sessions in every project append here at once; keep both sides.
+escalation-log.md merge=union
