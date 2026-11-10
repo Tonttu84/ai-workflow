@@ -85,7 +85,7 @@ In the user-level `~/.claude/settings.json`:
 
 - Set the environment variable `CLAUDE_CODE_SUBAGENT_MODEL` to `claude-opus-5-5` (under the `env` key). Subagents then default to Opus 5.5. It is only a default: a model the coordinator passes for an escalation still wins, so do not also set `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`.
 - Add `Agent(fork)` to `permissions.deny`. A fork inherits the whole conversation and runs on the coordinator's model; the rules want fresh subagents with a written brief.
-- Do not pin a session `model`; choose the coordinator's model per session.
+- Do not pin a session `model` (D9). The coordinator runs on Fable 5.1 (D5): pick it when starting the coordinating session, for example with `/model`.
 
 Passing `effort` on a subagent call needs Claude Code v2.1.292 or later.
 
@@ -112,7 +112,7 @@ Setting `core.hooksPath` makes git ignore every hook in `.git/hooks`, so the def
 
 Node projects may use [commitlint](https://commitlint.js.org) and husky instead, with [`templates/commitlint.config.mjs`](templates/commitlint.config.mjs). It extends `@commitlint/config-conventional` so that it accepts and rejects the same messages as the hook; its header lists the few differences.
 
-The hook checks: a subject of the form `type(scope)!: summary` with an allowed type (`feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `build`, `ci`, `chore`, `revert`), a lower-case scope, at most 72 characters, no trailing period, and a blank line before the body. Merge, revert, `fixup!`, `squash!` and `amend!` messages that git writes pass unchanged. It does not check body wrapping, so long URLs and logs can go in a body.
+The hook checks: a subject of the form `type(scope)!: summary` with an allowed type (`feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `build`, `ci`, `chore`, `revert`), a lower-case scope, at most 72 characters, no trailing period, and a blank line before the body. Subjects that start the way git's own merge, revert, reapply, `fixup!`, `squash!` and `amend!` messages do pass unchecked, whether git wrote them or a person typed them; `templates/commit-check.yml` keeps `fixup!`, `squash!` and `amend!` commits out of squash-merged pull requests. Comment lines count unless git drops them (it does in its editor, not with `-m` or `-F`), and the length is counted in characters. It does not check body wrapping, so long URLs and logs can go in a body.
 
 ### 6. CI for squash-merged pull requests
 
@@ -128,11 +128,11 @@ A squash merge turns the PR title into the commit subject on `main`, and no loca
 
 - Rules: edit in this repo, commit under its own hook, push, and `git pull` on other machines. A new session picks up the change.
 - Skills: `./scripts/sync-skills.sh`, review `git diff skills/`, run the tests, commit, then `./scripts/install-skills.sh`. See [`skills/README.md`](skills/README.md).
-- Escalations: the coordinating agent appends entries to `escalation-log.md` and pushes them.
+- Escalations: the coordinating agent appends entries to `escalation-log.md`, commits that file alone and pushes it.
 
 ## Tests
 
-`make test` (or `./tests/run.sh`) runs the shell tests: a table of good and bad commit messages for the hook, both install modes end to end, and the skill sync, overlay and install scripts against a local fake upstream. `make lint` runs ShellCheck. CI runs both on every push.
+`make test` (or `./tests/run.sh`) runs the shell tests: a table of good and bad commit messages for the hook plus real `git commit` runs through it, both install modes end to end, the skill sync, overlay and install scripts against a local fake upstream, and the templates that must match the hook. `make lint` runs [ShellCheck](https://www.shellcheck.net), which must be installed. CI runs both on pushes to `main` and on pull requests.
 
 ## Licence
 
