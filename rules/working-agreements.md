@@ -1,14 +1,14 @@
 # Working agreements
 
-These rules apply to every project the owner runs with an AI coding agent. A project's `AGENTS.md` adds what is specific to it (its kind, stack, commands, domain rules, quirks) and wins where it says so explicitly. "The owner" is the human you work for. Paths starting with `templates/` or `hooks/` mean those folders in the ai-workflow clone this file is imported from, not in the current project.
+These rules apply to every project the owner runs with an AI coding agent. A project's `AGENTS.md` adds what is specific to it (its kind, stack, commands, domain rules, quirks) and wins where it says so explicitly. "The owner" is the human you work for. `templates/` and `hooks/` paths are in the ai-workflow clone that holds this file, not in the current project.
 
-In repositories the owner does not own (course work, other people's projects) and the owner's inactive ones left unmigrated (D23): follow their own conventions, never push without asking, and skip the kickoff, commit-hook and escalation-log rules. Any other repository of the owner's without an `AGENTS.md` gets the kickoff (new) or a migration (existing); ask which if unclear.
+In repositories the owner does not own (course work, other people's projects) and inactive ones left unmigrated (D23): follow their conventions, never push without asking, and skip the kickoff, hook and escalation-log rules. The owner's other repositories without an `AGENTS.md` get the kickoff (new) or a migration; ask if unclear.
 
 ## Coordination and delegation
 
 - The main conversation is the coordinator. It plans, grills, writes briefs, reviews and merges. Small edits are fine there (a typo, a one-line config change); real work is delegated.
 - Coding, long test runs and review fixes go to subagents. Each gets a self-contained brief (`templates/agent-brief.md`): the goal, files to touch and to leave alone, the tests to write first, the commands that verify the work, and what to report. The brief is all the context the subagent has.
-- A subagent's report is evidence to check, not a verdict. Before telling the owner something is done, re-run the gate, read the diff and spot-check the claims.
+- A subagent's report is evidence, not a verdict: before telling the owner something is done, re-run the gate, read the diff and spot-check the claims.
 - Parallel subagents each work in their own git worktree.
 
 ## Models and escalation
@@ -18,7 +18,7 @@ In repositories the owner does not own (course work, other people's projects) an
 - Escalate on your own judgement when a task is hard: pass `model: "opus"` with `effort: "high"`, or `model: "fable"` with `effort: "high"`. These rules are the owner's standing request to set the effort level in those cases.
 - Every escalation is explained, because the owner wants to learn what is hard for an AI:
   - In the chat, explain in detail why this task is hard for an AI. Name the concrete difficulty (a long chain of dependent steps, an ambiguous or contradictory spec, concurrency, numeric precision, an API newer than the model's training, a large amount of code to hold at once). "It is complex" is not an explanation.
-  - Append an entry to `escalation-log.md` in the ai-workflow clone this file is imported from, in the format given there. The file is public: describe the project generically, with no private names or details. In that clone, `git pull --rebase --autostash` first, then commit only that file (`git commit -m "docs(escalation): ..." -- escalation-log.md`) and push; if the push is rejected, pull again and push. When the task ends, fill in the outcome the same way: was the escalation needed?
+  - Append an entry to `escalation-log.md` in the ai-workflow clone, in its format; the file is public, so keep project details generic. There, `git pull --rebase --autostash`, commit that file only (`git commit -m "docs(escalation): ..." -- escalation-log.md`) and push; if the push is rejected, pull and push again. Fill in the outcome the same way when the task ends: was the escalation needed?
 
 ## Grilling
 
@@ -45,7 +45,7 @@ In repositories the owner does not own (course work, other people's projects) an
 - Prefer automated pass/fail checks over an agent or a human looking at output. If you are checking something by eye, turn it into an assertion.
 - Never weaken, skip or delete a test to go green. If a test is wrong, a subagent stops and reports why; the coordinator then fixes it as its own change.
 - Keep logic pure and IO at the edges. No network in unit tests; use fakes and fixtures.
-- Every wait has a deadline: network calls, polling loops, test waits and CI jobs all time out. So does every command an agent runs: set the tool's timeout, wrap a command that might hang in `timeout` (or an equivalent), run long jobs in the background with a deadline instead of polling forever, give every loop an exit condition and an iteration or time cap, and never wait on interactive input (use non-interactive flags).
+- Every wait has a deadline: network calls, polling loops, test waits and CI jobs all time out. Every command you run has a time limit: the tool's timeout, `timeout` (or an equivalent) around anything that might hang, a deadline on background jobs instead of endless polling. Loops get an exit condition and an iteration or time cap, and no command waits for interactive input (use non-interactive flags).
 
 ## Git
 
@@ -67,7 +67,7 @@ In repositories the owner does not own (course work, other people's projects) an
   - Types: `feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `build`, `ci`, `chore`, `revert`. The scope is optional and lower case; `!` before the colon marks a breaking change.
   - One logical change per commit. Task ids go in a `Refs:` footer, never in the subject.
 - A commit hook enforces this in every project: `hooks/install.sh`, wired into the project's setup command. Node projects may use commitlint and husky instead, with `templates/commitlint.config.mjs`. Never use `--no-verify`; if the hook rejects a message, fix the message.
-- A squash merge makes the PR title the commit subject on `main` (repository setting `squash_merge_commit_title=PR_TITLE`), so the title follows the same format; `templates/commit-check.yml` checks it in CI.
+- A squash merge makes the PR title the subject on `main` (repository setting `squash_merge_commit_title=PR_TITLE`), so it follows the same format; `templates/commit-check.yml` checks it in CI.
 - Parallel agents: one worktree per task; merge one at a time. Before the first commit, check which branch you are on and fetch `main`.
 
 ## Decisions
