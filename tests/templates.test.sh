@@ -136,7 +136,7 @@ check "commits step: the script is found" test -n "$COMMITS_STEP"
 commits_ok() {
   (cd "$repo" && RUNNER_TEMP="$TMP/runner" EVENT=$1 \
     PR_BASE=$base PR_HEAD=$(git rev-parse HEAD) \
-    PUSH_BEFORE=${2:-$base} PUSH_AFTER=$(git rev-parse HEAD) \
+    PUSH_BEFORE=$(if [ "$1" = push ]; then echo "${2:-$base}"; fi) PUSH_AFTER=$(git rev-parse HEAD) \
     env -u GIT_EDITOR bash -eo pipefail -c "$COMMITS_STEP") > "$TMP/step.out" 2>&1
 }
 tip=$(git -C "$repo" rev-parse HEAD)
@@ -256,6 +256,34 @@ refute "lost tip: fetched, and its hook rejects the push" commits_ok push "$old"
 check "lost tip that cannot be fetched: only the head, with a warning" \
   commits_ok push 1234567890123456789012345678901234567890
 check "it warns that the pushed hook was used" grep -q '::warning::' "$TMP/step.out"
+repo=$main_repo base=$main_base
+
+# A scheduled or manual run checks the commits of the last eight days on
+# the branch, with the hook from the commit just before them.
+repo="$TMP/scheduled"
+git init -q -b main "$repo"
+git -C "$repo" config user.name test
+git -C "$repo" config user.email test@example.com
+git -C "$repo" config core.autocrlf false
+mkdir -p "$repo/.githooks"
+cp "$HOOK" "$repo/.githooks/commit-msg"
+cp "$ROOT/hooks/pre-push" "$repo/.githooks/pre-push"
+git -C "$repo" add .githooks
+days_ago() { printf '%s +0000' "$(($(date +%s) - $1 * 86400))"; }
+GIT_AUTHOR_DATE=$(days_ago 30) GIT_COMMITTER_DATE=$(days_ago 30) commit "chore: start"
+GIT_AUTHOR_DATE=$(days_ago 20) GIT_COMMITTER_DATE=$(days_ago 20) commit "WIP from before the rules"
+commit "feat: this week's work"
+check "schedule: a bad commit older than the window is not checked" commits_ok schedule
+check "workflow_dispatch: the same window" commits_ok workflow_dispatch
+commit "WIP this week"
+commit "fix: a good commit on top"
+refute "schedule: a bad commit in the window fails" commits_ok schedule
+refute "workflow_dispatch: the same" commits_ok workflow_dispatch
+
+# The triggers: pull requests, pushes to main, by hand, one run per ref.
+check "commit-check runs by hand" grep -qx '  workflow_dispatch:' "$WORKFLOW"
+check "commit-check cancels a superseded run" grep -qx '  cancel-in-progress: true' "$WORKFLOW"
+check "commit-check offers a schedule for private repos" grep -q '^  #   - cron: ' "$WORKFLOW"
 repo=$main_repo base=$main_base
 
 # --- dependabot.yml: valid YAML, every two weeks, titles that pass the hook

@@ -21,6 +21,13 @@
 # once per repository:
 #   gh api -X PATCH repos/OWNER/REPO \
 #     -f squash_merge_commit_title=PR_TITLE -f squash_merge_commit_message=PR_BODY
+#
+# Triggers: Actions minutes are free for public repositories on standard
+# runners, but private ones share a small monthly allowance on GitHub
+# Free. The pre-push hook runs the same check locally before every push,
+# so CI is a confirmation. A public repository keeps the push trigger; a
+# private one deletes it and uncomments the weekly schedule. A scheduled
+# or manual run checks the last eight days of commits on the branch.
 name: commit-check
 
 on:
@@ -28,9 +35,17 @@ on:
     types: [opened, edited, reopened, synchronize]
   push:
     branches: [main]
+  workflow_dispatch:
+  # schedule:
+  #   - cron: '0 6 * * 1'
 
 permissions:
   contents: read
+
+# A newer run for the same branch or pull request replaces an older one.
+concurrency:
+  group: commit-check-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   title:
@@ -97,6 +112,11 @@ jobs:
           if [ "$EVENT" = pull_request ]; then
             set -- "$PR_BASE..$PR_HEAD"
             trusted=$PR_BASE tip=$PR_HEAD
+          elif [ "$EVENT" != push ]; then
+            # A scheduled or manual run: the last eight days on this branch.
+            tip=$PUSH_AFTER
+            trusted=$(git rev-list -1 --before="8 days ago" "$PUSH_AFTER")
+            if [ -n "$trusted" ]; then set -- "$trusted..$PUSH_AFTER"; else set -- "$PUSH_AFTER"; fi
           else
             tip=$PUSH_AFTER trusted=
             if [ -n "${PUSH_BEFORE//0/}" ]; then
