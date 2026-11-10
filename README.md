@@ -32,6 +32,7 @@ templates/
   review-brief.md             the brief for a cold reviewer
   hardening-brief.md          the brief for the test hardening run after a feature
   commitlint.config.mjs       commitlint rules matching the hook, for Node projects
+  commit-check.yml            CI check of PR titles and fixup! commits before a squash merge
 hooks/
   commit-msg                  portable bash hook enforcing the commit rules
   install.sh                  installs the hook into a project
@@ -113,11 +114,15 @@ Node projects may use [commitlint](https://commitlint.js.org) and husky instead,
 
 The hook checks: a subject of the form `type(scope)!: summary` with an allowed type (`feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `build`, `ci`, `chore`, `revert`), a lower-case scope, at most 72 characters, no trailing period, and a blank line before the body. Merge, revert, `fixup!`, `squash!` and `amend!` messages that git writes pass unchanged. It does not check body wrapping, so long URLs and logs can go in a body.
 
+### 6. CI for squash-merged pull requests
+
+A squash merge turns the PR title into the commit subject on `main`, and no local hook sees it. Copy [`templates/commit-check.yml`](templates/commit-check.yml) to the project's `.github/workflows/`. On every pull request it runs the project's committed `.githooks/commit-msg`, taken from the base commit, on the title, and fails when the PR holds `fixup!`, `squash!` or `amend!` commits. Actions are pinned by SHA, the token is read-only and not persisted, and the title reaches the script through an environment variable, never pasted into it.
+
 ## Starting a new project
 
 1. Grill the plan, then copy `templates/kickoff.md` to `docs/kickoff.md` and fill it in before writing code.
 2. Copy `templates/AGENTS.md`, `templates/CLAUDE.md` and `templates/decisions.md` (as `docs/decisions.md`).
-3. Install the commit hook and set up CI.
+3. Install the commit hook and set up CI; projects that squash-merge pull requests add `templates/commit-check.yml`.
 
 ## Updating
 

@@ -1,0 +1,57 @@
+# Checks a pull request before it is squash-merged. The squash commit's
+# subject on main is the PR title, so the title must pass the project's
+# commit-msg hook; and fixup!/squash!/amend! commits must not reach main
+# unsquashed (the hook lets those subjects through).
+#
+# Copy to .github/workflows/commit-check.yml in a project that commits
+# .githooks/commit-msg (hooks/install.sh in Tonttu84/ai-workflow). The
+# title is checked with the hook from the base commit, so a pull request
+# cannot weaken the check on itself.
+name: commit-check
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  title:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - name: The PR title follows the commit format
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          if [ ! -f .githooks/commit-msg ]; then
+            echo "::error::.githooks/commit-msg is missing on the base branch"
+            exit 1
+          fi
+          printf '%s\n' "$TITLE" > "$RUNNER_TEMP/pr-title"
+          bash .githooks/commit-msg "$RUNNER_TEMP/pr-title"
+
+  commits:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: No fixup!, squash! or amend! commits
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          bad=$(git log --format=%s "$BASE_SHA..$HEAD_SHA" | grep -E '^(fixup|squash|amend)! ' || true)
+          if [ -n "$bad" ]; then
+            echo "::error::Squash these commits first (git rebase -i --autosquash):"
+            printf '%s\n' "$bad"
+            exit 1
+          fi
