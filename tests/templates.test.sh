@@ -77,14 +77,18 @@ git -C "$repo" config user.email test@example.com
 git -C "$repo" config core.autocrlf false
 mkdir -p "$repo/.githooks" "$TMP/runner"
 cp "$HOOK" "$repo/.githooks/commit-msg"
-title_ok() { # title_ok <title>: the title step passes in $repo
-  (cd "$repo" && RUNNER_TEMP="$TMP/runner" TITLE=$1 env -u GIT_EDITOR bash -eo pipefail -c "$(run_script 'The PR title follows the commit format')") \
+title_ok() { # title_ok <title> [pr number]: the title step passes in $repo
+  (cd "$repo" && RUNNER_TEMP="$TMP/runner" TITLE=$1 PR_NUMBER=${2:-123} env -u GIT_EDITOR bash -eo pipefail -c "$(run_script 'The PR title follows the commit format')") \
     > /dev/null 2>&1
 }
 check "title step: the script is found" test -n "$(run_script 'The PR title follows the commit format')"
 check "title step: a conventional title passes" title_ok "feat(api): add the export endpoint"
 refute "title step: a plain title fails" title_ok "Add the export endpoint"
 refute "title step: a long title fails" title_ok "fix: $(printf '%070d' 0 | tr 0 x)"
+# A squash merge appends " (#N)" to the title; the subject on main must still fit.
+check "title step: 65 characters plus ' (#123)' pass" title_ok "fix: $(printf '%060d' 0 | tr 0 x)"
+refute "title step: 66 characters plus ' (#123)' fail" title_ok "fix: $(printf '%061d' 0 | tr 0 x)"
+refute "title step: 64 characters plus ' (#12345)' fail" title_ok "fix: $(printf '%059d' 0 | tr 0 x)" 12345
 refute "title step: '#42 fix login' fails" title_ok "#42 fix login"
 # A PR title is never a message git wrote, so the hook's exemptions do not apply.
 for title in "Merge branch 'main' into login" "Merge branches 'a' and 'b'" \
@@ -221,19 +225,32 @@ check "every ecosystem has a commit-message prefix" \
   test "$(uncommented | grep -c '^      prefix: ')" -eq "$entries"
 check "every ecosystem has one group" test "$(uncommented | grep -c '^    groups:$')" -eq "$entries"
 # Dependabot's grouped title: "<prefix>: bump the <group> group across 1
-# directory with <n> updates". Each must pass the hook at a large n.
+# directory with <n> updates", and a squash merge appends " (#<PR>)".
+# Each must pass the hook at a large n and PR number.
+group_titles() { # one "<prefix> <group>" line per group, per ecosystem
+  uncommented | awk '
+    /^  - package-ecosystem: / { flush(); n = 0; prefix = "" }
+    /^      [a-z-]+:$/ { sub(/^ +/, ""); sub(/:$/, ""); groups[++n] = $0 }
+    /^      prefix: / { prefix = $2 }
+    function flush(i) { for (i = 1; i <= n; i++) print prefix, groups[i] }
+    END { flush() }
+  '
+}
 titles_pass() {
   local prefix group
-  paste -d ' ' <(uncommented | sed -n 's/^      prefix: //p') \
-    <(uncommented | sed -n 's/^      \([a-z-]*\):$/\1/p') |
-    while read -r prefix group; do
-      printf '%s: bump the %s group across 1 directory with 99 updates\n' "$prefix" "$group" > "$TMP/title"
-      GIT_EDITOR=: bash "$HOOK" "$TMP/title" > /dev/null 2>&1 || exit 1
-    done
+  [ -n "$(group_titles)" ] || return 1
+  while read -r prefix group; do
+    printf '%s: bump the %s group across 1 directory with 99 updates (#9999)\n' \
+      "$prefix" "$group" > "$TMP/title"
+    GIT_EDITOR=: bash "$HOOK" "$TMP/title" > /dev/null 2>&1 || return 1
+  done < <(group_titles)
 }
-check "every grouped Dependabot title passes the hook" titles_pass
-sed 's/prefix: chore(ci)/prefix: deps/' "$DEPENDABOT" > "$TMP/bad-prefix.yml"
+check "every grouped Dependabot title passes the hook after a squash merge" titles_pass
+sed 's/prefix: ci$/prefix: deps/' "$DEPENDABOT" > "$TMP/bad-prefix.yml"
 bad_titles() { DEPENDABOT="$TMP/bad-prefix.yml" titles_pass; }
 refute "a prefix that is not a commit type is noticed" bad_titles
+sed 's/^      actions:$/      github-actions-updates:/' "$DEPENDABOT" > "$TMP/long-group.yml"
+long_group() { DEPENDABOT="$TMP/long-group.yml" titles_pass; }
+refute "a group name too long for the subject is noticed" long_group
 
 finish

@@ -45,6 +45,7 @@ jobs:
       - name: The PR title follows the commit format
         env:
           TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           if [ ! -f .githooks/commit-msg ]; then
             echo "::error::.githooks/commit-msg is missing on the base branch"
@@ -57,7 +58,8 @@ jobs:
               echo "::error::The PR title looks like a message git writes; use 'type(scope): summary'"
               exit 1 ;;
           esac
-          printf '%s\n' "$TITLE" > "$RUNNER_TEMP/pr-title"
+          # A squash merge appends " (#N)"; the subject on main must still fit.
+          printf '%s (#%s)\n' "$TITLE" "$PR_NUMBER" > "$RUNNER_TEMP/pr-title"
           GIT_EDITOR=: bash .githooks/commit-msg "$RUNNER_TEMP/pr-title"
 
   commits:

@@ -3,9 +3,11 @@
 #
 # Dependabot has no two-week interval, so the schedule is a cron job on
 # the 1st and the 15th of each month (times in UTC). The commit-message
-# prefixes make every title a valid subject for the commit hook and the
-# CI commit check, e.g. "chore(deps): bump the npm group across 1
-# directory with 12 updates".
+# prefixes (`chore`, and `ci` for actions) make every grouped title a
+# valid subject for the commit hook and the CI commit check, even after
+# a squash merge appends " (#N)": "chore: bump the npm group across 1
+# directory with 12 updates (#345)". A scope such as chore(deps) and long
+# group names would push it past 72 characters.
 #
 # github-actions is always on: workflows pin actions by commit SHA with
 # the release tag in a trailing comment (`@<sha> # v7.0.1`), and only
@@ -26,7 +28,7 @@ updates:
         patterns:
           - '*'
     commit-message:
-      prefix: chore(ci)
+      prefix: ci
 
 #  - package-ecosystem: npm
 #    directory: /
@@ -38,7 +40,7 @@ updates:
 #        patterns:
 #          - '*'
 #    commit-message:
-#      prefix: chore(deps)
+#      prefix: chore
 
 # For a project managed with uv, use `package-ecosystem: uv` instead.
 #  - package-ecosystem: pip
@@ -51,4 +53,4 @@ updates:
 #        patterns:
 #          - '*'
 #    commit-message:
-#      prefix: chore(deps)
+#      prefix: chore
