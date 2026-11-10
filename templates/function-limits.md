@@ -52,7 +52,8 @@ Ruff has no warning level: a selected rule fails the check. So in step 1 run the
 
 ```toml
 [tool.ruff.lint]
-extend-select = ["C901", "PLR0912", "PLR0913", "PLR0915"]
+# Step 3 only: uncomment to make these checks fail the gate.
+# extend-select = ["C901", "PLR0912", "PLR0913", "PLR0915"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 15          # C901, cyclomatic
