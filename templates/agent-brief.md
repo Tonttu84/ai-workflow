@@ -22,7 +22,7 @@
 ## Tests first
 
 - <The failing test(s) to write before the code, and where they go.>
-- Never weaken, skip or delete an existing test. If one looks wrong, stop and report it.
+- Never weaken, skip or delete an existing test. If one looks wrong, stop and report why; the coordinator then fixes it as its own change.
 
 ## Work rules
 
