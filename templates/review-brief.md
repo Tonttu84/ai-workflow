@@ -25,7 +25,8 @@ You are reviewing a change you did not write. Read it cold and decide whether it
 3. Tests: were they written first for logic and bug fixes? Would a wrong line still pass? Was any test weakened, skipped or deleted?
 4. Security: input validation, secrets, injection, permissions.
 5. Fit: follows the project's rules, layout and existing patterns; no dead code or stray debug output.
-6. Commits: Conventional Commits, one logical change each, bodies that say why.
+6. Function shape, both ways: each function does one thing at one level of detail. Too big: over the linter's limits (`templates/function-limits.md`) without a stated reason. Too split: a single-use helper that only passes its arguments on, or a name that hides no real detail; fold it back in.
+7. Commits: Conventional Commits, one logical change each, bodies that say why.
 
 Run the gate yourself if you can (`<command>`); report what you ran. Do not edit files or push.
 

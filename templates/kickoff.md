@@ -41,4 +41,5 @@ What every coding subagent here gets on top of `templates/agent-brief.md`:
 
 - Read first: `AGENTS.md`, <key files>.
 - The gate: `<command>`.
+- Function limits: <linter and values, from `templates/function-limits.md`; warnings until the first code settles>.
 - Never touch: <generated files, secrets, migrations already applied>.

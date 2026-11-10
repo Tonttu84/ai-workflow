@@ -31,6 +31,7 @@ templates/
   agent-brief.md              the brief for a coding subagent
   review-brief.md             the brief for a cold reviewer
   hardening-brief.md          the brief for the test hardening run after a feature
+  function-limits.md          linter limits on function size, per stack
   commitlint.config.mjs       commitlint rules matching the hook, for Node projects
   commit-check.yml            CI gate: every commit message and PR title
   dependabot.yml              grouped dependency updates every two weeks
@@ -139,6 +140,7 @@ The workflow runs the project's committed `.githooks/commit-msg`, as it was befo
 1. Grill the plan, then copy `templates/kickoff.md` to `docs/kickoff.md` and fill it in before writing code.
 2. Copy `templates/AGENTS.md`, `templates/CLAUDE.md` and `templates/decisions.md` (as `docs/decisions.md`).
 3. Install the commit hook, add `templates/commit-check.yml` and `templates/dependabot.yml`, protect `main`, and set the squash setting if pull requests are squash-merged (step 6 above).
+4. Turn on the linter's function limits from `templates/function-limits.md` at the starting values, as warnings; make them errors once the first code settles.
 
 ## Moving an existing project to these rules
 
@@ -147,6 +149,7 @@ The workflow runs the project's committed `.githooks/commit-msg`, as it was befo
 3. Smoke-check it in that repository: a bad message is rejected (`git commit --allow-empty -m "bad"`), a good one passes, and the project's existing hooks (pre-commit, Git LFS, husky) still run.
 4. Once the hook is committed and on `main`, add `templates/commit-check.yml` (a change that adds both is checked with its own copy of the hook, with a warning) and protect `main` with a ruleset (step 6 above); if pull requests are squash-merged, set `squash_merge_commit_title=PR_TITLE`. The first pull request should show the commit check running and passing.
 5. Turn on Dependabot from the template: copy `templates/dependabot.yml` to `.github/dependabot.yml`, uncomment the project's ecosystems, and enable Dependabot security updates in the repository settings. A repository with nothing to update skips the version updates; security updates stay on everywhere.
+6. Set the function limits (`templates/function-limits.md`): turn the linter checks on as warnings, measure the existing code, pick limits that flag only the worst few percent, record them in `docs/decisions.md`, then make them errors.
 
 ## Updating
 
