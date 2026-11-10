@@ -30,6 +30,16 @@ refute() {
   if "$@"; then fail "$desc"; else pass; fi
 }
 
+# clear_git_env: unsets every exported GIT_* variable, so a test that runs
+# git is not steered by the hook or tool that started it (GIT_DIR,
+# GIT_INDEX_FILE, GIT_EDITOR and the like point at the outer repository).
+clear_git_env() {
+  local v
+  for v in $(compgen -e); do
+    case $v in GIT_*) unset "$v" ;; esac
+  done
+}
+
 # A scratch directory removed when the test script exits.
 make_tmp() {
   TMP=$(mktemp -d)

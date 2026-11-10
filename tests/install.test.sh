@@ -8,7 +8,9 @@ make_tmp
 
 INSTALL="$ROOT/hooks/install.sh"
 
-# Keep the machine's own git config out of the tests.
+# Keep the machine's own git config and any outer hook's GIT_* variables
+# out of the tests.
+clear_git_env
 GIT_CONFIG_GLOBAL="$TMP/global.gitconfig"
 GIT_CONFIG_NOSYSTEM=1
 export GIT_CONFIG_GLOBAL GIT_CONFIG_NOSYSTEM
@@ -39,6 +41,38 @@ check "core.hooksPath is .githooks" test "$(git -C "$TMP/a" config core.hooksPat
 refute "bad message rejected after install" commits_ok "$TMP/a" "added stuff."
 check "good message accepted after install" commits_ok "$TMP/a" "chore: start the project"
 check "second install is a no-op" run_install "$TMP/a"
+
+# The hooks reach the index as executable even when chmod cannot (Git for
+# Windows sets core.filemode=false); git on Linux skips a 100644 hook.
+# modes_are <mode> <repo> [tree]: every .githooks file has that mode in
+# the index, or in the tree given, and there are at least three
+modes_are() {
+  local listing
+  if [ -n "${3-}" ]; then
+    listing=$(git -C "$2" ls-tree -r "$3" -- .githooks)
+  else
+    listing=$(git -C "$2" ls-files -s -- .githooks)
+  fi
+  [ "$(printf '%s\n' "$listing" | grep -c .)" -ge 3 ] &&
+    [ "$(printf '%s\n' "$listing" | awk '{ print $1 }' | sort -u)" = "$1" ]
+}
+new_repo "$TMP/fm"
+git -C "$TMP/fm" config core.filemode false
+check "filemode=false: install succeeds" run_install "$TMP/fm"
+check "filemode=false: the hooks are 100755 in the index" modes_are 100755 "$TMP/fm"
+check "it says the hooks are staged as executable" said 100755
+git -C "$TMP/fm" add -A
+commits_ok "$TMP/fm" "chore: add the commit hooks"
+check "filemode=false: the commit records them as 100755" modes_are 100755 "$TMP/fm" HEAD
+check "a later install keeps them 100755" run_install "$TMP/fm"
+check "and the index still has 100755" modes_are 100755 "$TMP/fm"
+# When the index cannot be updated, the install fails and prints the command.
+new_repo "$TMP/fm2"
+git -C "$TMP/fm2" config core.filemode false
+: > "$TMP/fm2/.git/index.lock"
+refute "a locked index: the install fails" run_install "$TMP/fm2"
+check "it prints the command to run" said 'git update-index --add --chmod=+x -- .githooks/commit-msg'
+rm "$TMP/fm2/.git/index.lock"
 
 # Default mode refuses to take over another hooks path (husky, say)
 new_repo "$TMP/b"

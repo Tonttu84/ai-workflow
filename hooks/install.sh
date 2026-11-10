@@ -9,6 +9,8 @@
 #                git config core.hooksPath .githooks. Commit .githooks/
 #                so every clone gets the same hook; each clone still runs
 #                the git config line once (put it in the setup command).
+#                Stages the hooks as executable (100755): chmod does not
+#                reach the index under core.filemode=false (Windows).
 #                Refuses when .git/hooks holds hooks (pre-commit, husky,
 #                lefthook, Git LFS), since git would stop running them,
 #                and warns when it overrides a global core.hooksPath.
@@ -80,6 +82,28 @@ install_hooks() {
   done
 }
 
+# index_exec: stages the hooks in .githooks/ as executable (100755). With
+# core.filemode=false, as Git for Windows sets it, chmod never reaches the
+# index, and git on Linux skips a hook committed as 100644. Checked with
+# git ls-files -s; on failure it prints the command to run by hand.
+index_exec() {
+  local name f ok=1 files=()
+  for name in $HOOKS pre-push.local; do
+    [ -e "$top/.githooks/$name" ] && files+=(".githooks/$name")
+  done
+  git -C "$top" update-index --add --chmod=+x -- "${files[@]}" 2> /dev/null || ok=0
+  for f in "${files[@]}"; do
+    [ "$(git -C "$top" ls-files -s -- "$f" | cut -d ' ' -f 1)" = 100755 ] || ok=0
+  done
+  if [ "$ok" -eq 0 ]; then
+    echo "install.sh: could not stage the hooks as executable; in $top run" >&2
+    echo "  git update-index --add --chmod=+x -- ${files[*]}" >&2
+    echo "  and check that git ls-files -s .githooks shows 100755 for each" >&2
+    exit 1
+  fi
+  echo "Staged ${files[*]} as executable (100755 in git ls-files -s .githooks)."
+}
+
 # ours <file>: the file is one of the hooks this script installs
 ours() {
   local name
@@ -128,6 +152,7 @@ if [ "$mode" = hookspath ]; then
   install_hooks "$top/.githooks"
   git -C "$top" config core.hooksPath .githooks
   echo "Installed $HOOKS in $top/.githooks (core.hooksPath=.githooks). Commit .githooks/."
+  index_exec
 else
   current=$(git -C "$top" config --get core.hooksPath || true)
   if [ -n "$current" ]; then
