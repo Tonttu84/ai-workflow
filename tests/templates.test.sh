@@ -79,6 +79,8 @@ git -C "$repo" config core.autocrlf false
 mkdir -p "$repo/.githooks" "$TMP/runner"
 cp "$HOOK" "$repo/.githooks/commit-msg"
 cp "$ROOT/hooks/check-commits" "$repo/.githooks/check-commits"
+# SC2016: the fake hook expands $PWD itself when it runs.
+# shellcheck disable=SC2016
 printf '#!/bin/sh\ntouch "$PWD/pre-push-ran"\n' > "$repo/.githooks/pre-push"
 commit() { # commit <message with escapes>: a commit the local hook never saw
   echo "$1" >> "$repo/file" && git -C "$repo" add file &&
@@ -218,6 +220,8 @@ new_project "$TMP/fresh"
 mkdir -p "$repo/.githooks"
 cp "$HOOK" "$repo/.githooks/commit-msg"
 cp "$ROOT/hooks/check-commits" "$repo/.githooks/check-commits"
+# SC2016: the fake hook expands $PWD itself when it runs.
+# shellcheck disable=SC2016
 printf '#!/bin/sh\ntouch "$PWD/pre-push-ran"\n' > "$repo/.githooks/pre-push"
 git -C "$repo" add .githooks
 commit "ci: add the commit hook"
@@ -273,6 +277,8 @@ git -C "$repo" config core.autocrlf false
 mkdir -p "$repo/.githooks"
 cp "$HOOK" "$repo/.githooks/commit-msg"
 cp "$ROOT/hooks/check-commits" "$repo/.githooks/check-commits"
+# SC2016: the fake hook expands $PWD itself when it runs.
+# shellcheck disable=SC2016
 printf '#!/bin/sh\ntouch "$PWD/pre-push-ran"\n' > "$repo/.githooks/pre-push"
 git -C "$repo" add .githooks
 days_ago() { printf '%s +0000' "$(($(date +%s) - $1 * 86400))"; }
