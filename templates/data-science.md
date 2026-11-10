@@ -77,27 +77,27 @@ Information from the test set or the future must not reach training. Each rule b
 
 ## 2. Baseline first
 
-Before anything complex, fit the simplest sensible model: last value or seasonal naive for forecasts, the mean or `sklearn.dummy.DummyRegressor`, the majority class or a logistic regression for classification. Every later model is reported against it on the same metric, split and folds. A model that does not beat the baseline by more than the fold spread has not beaten it.
+Before anything complex, fit the simplest sensible model: last value or seasonal naive for forecasts, the mean or `sklearn.dummy.DummyRegressor`, the majority class or a logistic regression for classification. Every later model is reported against it on the same metric, split and folds. Compare them fold by fold: take the difference from the baseline in each fold, then the mean of those differences and their spread. A model whose mean gain is not clearly larger than that spread has not beaten the baseline.
 
 ## 3. Valid metrics, stated up front
 
 Choose the metric for the problem and write it in `docs/decisions.md` before comparing models.
 
-- MAE is in the target's units and robust to outliers; RMSE punishes large errors; MAPE breaks near zero and punishes over-forecasts more than under-forecasts, so prefer MAE scaled by the baseline's MAE (MASE-style) for series near zero.
+- MAE is in the target's units and robust to outliers; RMSE punishes large errors; MAPE breaks near zero and punishes over-forecasts more than under-forecasts, so for series near zero prefer relative MAE (divided by the baseline's MAE on the same test rows) or MASE (scaled by the in-sample MAE of the naive forecast).
 - With imbalanced classes, accuracy hides failure: use precision and recall at a stated threshold, average precision (`sklearn.metrics.average_precision_score`) or balanced accuracy.
 - When probabilities are used as probabilities, check calibration: `sklearn.metrics.brier_score_loss` and `sklearn.calibration.calibration_curve`.
-- Report uncertainty where it is cheap: the mean and spread over folds (`cross_validate`), or a bootstrap of the test-set metric.
+- Report uncertainty where it is cheap: the mean and spread over folds (`sklearn.model_selection.cross_validate`; for a time series pass the time folds as `cv`, such as `cv=list(make_cv(ts))` or a `TimeSeriesSplit`), or a bootstrap of the test-set metric. Neighbouring errors in a time series are correlated, so resample blocks of consecutive rows (a block bootstrap), not single rows.
 
 ## 4. A model report per model
 
 Each model that is kept gets a short report (`reports/<model>.md` or the project's equivalent):
 
 - **Why this model**: the alternatives tried and why they lost, as rows in the decision log.
-- **Feature importance**: `sklearn.inspection.permutation_importance` on held-out data, not impurity-based importance (it is computed on training data and favours high-cardinality features). Correlated features share importance; say so when it matters.
+- **Feature importance**: `sklearn.inspection.permutation_importance` on held-out data, not impurity-based importance (it is computed on training data and favours high-cardinality features). Correlated features cover for each other: permuting one leaves the other carrying the signal, so both can look unimportant. Permute a correlated group together, or cluster correlated features and keep one per cluster.
 - **Residuals**: where and when the model is wrong, by time, by segment and against the predicted value.
 - **Strengths and weaknesses**: the cases it handles well, the ones it does not, and what would fix them.
 
-Prefer an interpretable model (linear, small tree, baseline plus corrections) unless a complex one shows a gain larger than the fold spread.
+Prefer an interpretable model (linear, small tree, baseline plus corrections) unless a complex one shows a gain over it, measured fold by fold as for the baseline.
 
 ## 5. Exploration and features
 
