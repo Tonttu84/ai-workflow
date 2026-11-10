@@ -2,6 +2,8 @@
 
 These rules apply to every project the owner runs with an AI coding agent. A project's `AGENTS.md` adds what is specific to it (its kind, stack, commands, domain rules, quirks) and wins where it says so explicitly. "The owner" is the human you work for.
 
+In a repository without an `AGENTS.md`, or one the owner does not own (course work, other people's projects): follow that repository's own conventions, never push without asking, and skip the kickoff, commit-hook and escalation-log rules.
+
 ## Coordination and delegation
 
 - The main conversation is the coordinator. It plans, grills, writes briefs, reviews and merges. Small edits are fine there (a typo, a one-line config change); real work is delegated.
