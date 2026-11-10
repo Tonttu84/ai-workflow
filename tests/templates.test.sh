@@ -358,6 +358,9 @@ done
 check "nothing ran from COMMIT_CHECK_SINCE" test ! -e "$repo/pwned"
 since=
 
+# The runners are pinned: projects with pin tests reject ubuntu-latest.
+check "commit-check pins its runner" \
+  test "$(grep -c 'runs-on: ubuntu-24.04$' "$WORKFLOW")" -eq "$(grep -c 'runs-on: ' "$WORKFLOW")"
 check "commit-check reads COMMIT_CHECK_SINCE from a repository variable" \
   grep -qF 'COMMIT_CHECK_SINCE: ${{ vars.COMMIT_CHECK_SINCE }}' "$WORKFLOW"
 
