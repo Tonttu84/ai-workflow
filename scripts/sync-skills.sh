@@ -36,13 +36,21 @@ trap 'rm -rf "$tmp"' EXIT
 if [ -z "$from" ]; then
   echo "Fetching $REPO at $ref"
   git init -q "$tmp/upstream"
-  git -C "$tmp/upstream" fetch -q --depth 1 "$REPO.git" "$ref"
+  # Every wait has a deadline: a hard limit where timeout(1) exists (not
+  # on stock macOS), and git's own low-speed abort everywhere.
+  with_deadline() {
+    if command -v timeout > /dev/null 2>&1; then timeout 300 "$@"; else "$@"; fi
+  }
+  with_deadline git -C "$tmp/upstream" -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=60 \
+    fetch -q --depth 1 "$REPO.git" "$ref"
   git -C "$tmp/upstream" -c core.autocrlf=false checkout -q FETCH_HEAD
   from="$tmp/upstream"
 fi
 commit=$(git -C "$from" rev-parse HEAD 2> /dev/null || echo unknown)
 
-# Stage every skill first, so a missing one leaves dest untouched.
+# Stage everything first, so a missing piece leaves dest untouched.
+[ -f "$from/LICENSE" ] || { echo "sync-skills.sh: no LICENSE upstream" >&2; exit 1; }
+cp "$from/LICENSE" "$tmp/stage-LICENSE"
 for name in $SKILLS; do
   matches=$(find "$from/skills" -type d -name "$name" \
     -not -path '*/deprecated/*' -not -path '*/in-progress/*')
@@ -62,7 +70,7 @@ for name in $SKILLS; do
   rm -rf "${dest:?}/$name"
   cp -R "$tmp/stage-$name" "$dest/$name"
 done
-cp "$from/LICENSE" "$dest/LICENSE"
+cp "$tmp/stage-LICENSE" "$dest/LICENSE"
 cat > "$dest/UPSTREAM" << EOF
 repo: $REPO
 ref: $ref

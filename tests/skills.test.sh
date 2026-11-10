@@ -70,8 +70,18 @@ check "upstream commit recorded" grep -qxF "commit: $sha" "$out/UPSTREAM"
 
 check "sync --help prints the comment block and no code" help_ok "$SYNC"
 
+# A failed sync leaves dest exactly as it was.
+cp -R "$out" "$TMP/out.before"
+unchanged() { diff -r "$TMP/out.before" "$out" > /dev/null; }
+printf -- '---\nname: grill-me\ndescription: Newer.\n---\n\nRun grilling.\n' > "$up/skills/productivity/grill-me/SKILL.md"
+mv "$up/LICENSE" "$TMP/LICENSE.up"
+refute "sync fails when upstream has no LICENSE" quiet bash "$SYNC" --from "$up" --dest "$out"
+check "a missing LICENSE leaves dest untouched" unchanged
+mv "$TMP/LICENSE.up" "$up/LICENSE"
+
 rm -rf "$up/skills/productivity/grill-me"
-refute "sync fails when a skill is missing upstream" quiet bash "$SYNC" --from "$up" --dest "$TMP/out2"
+refute "sync fails when a skill is missing upstream" quiet bash "$SYNC" --from "$up" --dest "$out"
+check "a missing skill leaves dest untouched" unchanged
 
 # --- install-skills.sh <target>
 target="$TMP/home-skills"
