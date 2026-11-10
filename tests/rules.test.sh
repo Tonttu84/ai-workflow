@@ -44,14 +44,26 @@ refute "a rules file over the cap is noticed" under_cap "$TMP/long.md"
 
 # --- function-limits.md: every stack gets the agreed starting values
 LIMITS="$ROOT/templates/function-limits.md"
+# sets <file> <text>: the text is in the file and the number it ends with
+# is whole there (not followed by another digit or a decimal point)
+sets() {
+  awk -v t="$2" '
+    { i = index($0, t) }
+    i && substr($0, i + length(t), 1) !~ /[0-9.]/ { found = 1 }
+    END { exit !found }
+  ' "$1"
+}
 for line in "'sonarjs/cognitive-complexity': ['warn', 15]" "complexity: ['warn', 15]" \
   "'max-lines-per-function': ['warn', { max: 60" "'max-params': ['warn', 5]" "'max-depth': ['warn', 3]" \
   'max-complexity = 15' 'max-args = 5' \
   'cognitive-complexity-threshold = 15' 'too-many-lines-threshold = 60' \
   'too-many-arguments-threshold = 5' 'excessive-nesting-threshold = 5' \
   'lizard -C 15 -L 60 -a 5'; do
-  check "function-limits.md sets $line" grep -qF -- "$line" "$LIMITS"
+  check "function-limits.md sets $line" sets "$LIMITS" "$line"
 done
+sed 's/^max-args = 5 /max-args = 50/' "$LIMITS" > "$TMP/limits-50.md"
+check "the drifted copy differs" test -n "$(diff "$LIMITS" "$TMP/limits-50.md")"
+refute "a drifted value (5 to 50) is noticed" sets "$TMP/limits-50.md" 'max-args = 5'
 # clang-tidy: each threshold key is followed by the agreed value
 tidy_value() { grep -A1 -F -- "key: $1" "$LIMITS" | sed -n 's/^ *value: //p'; }
 check "clang-tidy: 60 lines" test "$(tidy_value readability-function-size.LineThreshold)" = 60
