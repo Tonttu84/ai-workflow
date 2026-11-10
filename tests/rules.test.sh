@@ -48,7 +48,7 @@ for line in "'sonarjs/cognitive-complexity': ['warn', 15]" "complexity: ['warn',
   "'max-lines-per-function': ['warn', { max: 60" "'max-params': ['warn', 5]" "'max-depth': ['warn', 3]" \
   'max-complexity = 15' 'max-args = 5' \
   'cognitive-complexity-threshold = 15' 'too-many-lines-threshold = 60' \
-  'too-many-arguments-threshold = 5' 'excessive-nesting-threshold = 3' \
+  'too-many-arguments-threshold = 5' 'excessive-nesting-threshold = 5' \
   'lizard -C 15 -L 60 -a 5'; do
   check "function-limits.md sets $line" grep -qF -- "$line" "$LIMITS"
 done

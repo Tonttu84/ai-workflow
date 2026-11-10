@@ -10,7 +10,7 @@ Ready config for the function guide in the working agreements: a function does o
 | Cyclomatic complexity (where the tool has no cognitive measure) | 15 |
 | Lines per function | about 60 |
 | Parameters | 5 |
-| Nesting depth | 3 |
+| Nesting depth | 3 (Clippy counts more levels: see its section) |
 
 These are a first guess, to revisit once real projects have been measured.
 
@@ -77,10 +77,12 @@ In `clippy.toml` at the crate or workspace root:
 cognitive-complexity-threshold = 15
 too-many-lines-threshold = 60
 too-many-arguments-threshold = 5
-excessive-nesting-threshold = 3
+excessive-nesting-threshold = 5    # counts impl, trait, mod and the fn body too
 ```
 
-The thresholds do nothing unless the lints run. `too_many_lines` is in the pedantic group and `cognitive_complexity` in the nursery group (newer Clippy may list it under restriction), so neither is on by default; `too_many_arguments` is on by default (complexity group, threshold 7); `excessive_nesting` does nothing until its threshold is set. Group membership moves between Clippy releases: check the lint list for the project's toolchain. Turn them on in `Cargo.toml` (`[workspace.lints.clippy]` in a workspace):
+`excessive_nesting` counts every nested item and block, not just control flow: an `impl`, a trait, an inline `mod` (such as `mod tests`), the function body and each block inside it. `impl X { fn f() { if a { if b {} } } }` is already four deep, so 5 leaves about three levels inside a method, like the nesting depth 3 of the other tools.
+
+The thresholds do nothing unless the lints run. `too_many_lines` is in the pedantic group and `cognitive_complexity` in the restriction group, so neither is on by default; `too_many_arguments` is on by default (complexity group, threshold 7); `excessive_nesting` does nothing until its threshold is set. Clippy's own docs discourage `cognitive_complexity`, as a poor proxy for how hard code is to read: treat its warnings as hints and lean on the length and nesting lints. Group membership moves between Clippy releases: check the lint list for the project's toolchain. Turn the lints on in `Cargo.toml`:
 
 ```toml
 [lints.clippy]
@@ -88,6 +90,13 @@ cognitive_complexity = "warn"
 too_many_lines = "warn"
 too_many_arguments = "warn"
 excessive_nesting = "warn"
+```
+
+In a Cargo workspace, put the table in the root `Cargo.toml` as `[workspace.lints.clippy]`, and opt each member crate in with this in its own `Cargo.toml`:
+
+```toml
+[lints]
+workspace = true
 ```
 
 In step 3, make the gate run `cargo clippy --all-targets -- -D warnings`, or set the lints to `"deny"`.
