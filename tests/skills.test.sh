@@ -94,6 +94,17 @@ check "upstream commit recorded" grep -qxF "commit: $sha" "$out/UPSTREAM"
 
 check "sync --help prints the comment block and no code" help_ok "$SYNC"
 
+# Fetching (from a local repository here) works when a timeout command on
+# PATH is not GNU timeout, like Windows' timeout.exe, which rejects
+# --version and would fail the fetch.
+mkdir -p "$TMP/fakebin"
+printf '#!/bin/sh\necho "fake timeout: invalid syntax" >&2\nexit 1\n' > "$TMP/fakebin/timeout"
+chmod +x "$TMP/fakebin/timeout"
+check "fetch with a foreign timeout on PATH succeeds" \
+  env PATH="$TMP/fakebin:$PATH" bash "$SYNC" --repo "$up" --dest "$TMP/fetched" > /dev/null 2>&1
+check "the fetched skills match upstream" cmp -s "$up/skills/productivity/grill-me/SKILL.md" "$TMP/fetched/grill-me/SKILL.md"
+check "the fetched commit is recorded" grep -qxF "commit: $sha" "$TMP/fetched/UPSTREAM"
+
 # A failed sync leaves dest exactly as it was.
 cp -R "$out" "$TMP/out.before"
 unchanged() { diff -r "$TMP/out.before" "$out" > /dev/null; }
