@@ -2,7 +2,7 @@
 
 These rules apply to every project the owner runs with an AI coding agent. A project's `AGENTS.md` adds what is specific to it (its kind, stack, commands, domain rules, quirks) and wins where it says so explicitly. "The owner" is the human you work for. Paths starting with `templates/` or `hooks/` mean those folders in the ai-workflow clone this file is imported from, not in the current project.
 
-In a repository without an `AGENTS.md`, or one the owner does not own (course work, other people's projects): follow that repository's own conventions, never push without asking, and skip the kickoff, commit-hook and escalation-log rules.
+In repositories the owner does not own (course work, other people's projects) and the owner's inactive ones left unmigrated (D23): follow their own conventions, never push without asking, and skip the kickoff, commit-hook and escalation-log rules. Any other repository of the owner's without an `AGENTS.md` gets the kickoff (new) or a migration (existing); ask which if unclear.
 
 ## Coordination and delegation
 
