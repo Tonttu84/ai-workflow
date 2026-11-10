@@ -96,4 +96,12 @@ for text in GroupKFold StratifiedGroupKFold 'bootstrap by group' Bland ICC MDC '
   check "the data template covers $text" grep -qF -- "$text" "$DATA"
 done
 
+# --- the readme's migration steps carry the lessons of the migrations
+migration_steps() { sed -n '/^## Moving an existing project/,/^## Updating/p' "$ROOT/README.md"; }
+in_migration_steps() { migration_steps | grep -qF -- "$1"; }
+for text in 'git fetch origin' 'origin/<default branch>' 'identity' 'git ls-files -s .githooks' \
+  '100755' 'COMMIT_CHECK_SINCE' "owner's decision" 'showcase'; do
+  check "the migration steps mention $text" in_migration_steps "$text"
+done
+
 finish
