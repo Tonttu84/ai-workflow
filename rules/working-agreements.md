@@ -45,7 +45,7 @@ In a repository without an `AGENTS.md`, or one the owner does not own (course wo
 - Prefer automated pass/fail checks over an agent or a human looking at output. If you are checking something by eye, turn it into an assertion.
 - Never weaken, skip or delete a test to go green. If a test is wrong, a subagent stops and reports why; the coordinator then fixes it as its own change.
 - Keep logic pure and IO at the edges. No network in unit tests; use fakes and fixtures.
-- Every wait has a deadline: network calls, polling loops, test waits and CI jobs all time out.
+- Every wait has a deadline: network calls, polling loops, test waits and CI jobs all time out. So does every command an agent runs: set the tool's timeout, wrap a command that might hang in `timeout` (or an equivalent), run long jobs in the background with a deadline instead of polling forever, give every loop an exit condition and an iteration or time cap, and never wait on interactive input (use non-interactive flags).
 
 ## Git
 
