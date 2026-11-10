@@ -106,6 +106,8 @@ Projects without Node:
 
 The default mode copies the hook to the project's `.githooks/` (commit it) and sets `core.hooksPath`. Each fresh clone still needs `git config core.hooksPath .githooks` once, so put that line in the project's setup command.
 
+Setting `core.hooksPath` makes git ignore every hook in `.git/hooks`, so the default mode refuses when that folder already holds hooks (pre-commit, husky, lefthook, Git LFS): use `--git-hooks`, move them into `.githooks/`, or pass `--force` to switch them off. It warns when it overrides a global `core.hooksPath`. `--git-hooks` refuses to replace a different `commit-msg` without `--force`.
+
 Node projects may use [commitlint](https://commitlint.js.org) with `@commitlint/config-conventional` and husky instead, with `header-max-length` set to 72 to match.
 
 The hook checks: a subject of the form `type(scope)!: summary` with an allowed type (`feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `build`, `ci`, `chore`, `revert`), a lower-case scope, at most 72 characters, no trailing period, and a blank line before the body. Merge, revert, `fixup!`, `squash!` and `amend!` messages that git writes pass unchanged. It does not check body wrapping, so long URLs and logs can go in a body.
