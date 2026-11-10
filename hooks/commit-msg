@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# commit-msg hook: enforces Conventional Commits plus good-message rules.
+#
+#   type(scope)!: summary     scope and ! are optional
+#   - type is one of the allowed types below, in lower case
+#   - scope is lower case: letters, digits, . _ / -
+#   - the subject is at most 72 characters and does not end with a period
+#   - a blank line separates the subject from the body
+#
+# Messages git writes itself pass untouched: merges, reverts, and
+# fixup!/squash!/amend! commits. Comment lines and everything below the
+# scissors line are ignored, as git ignores them.
+#
+# Source: https://github.com/Tonttu84/ai-workflow (MIT). Install with
+# hooks/install.sh from that repo. Needs bash 3.2 or later and git.
+set -u
+
+file=${1:?usage: commit-msg <message-file>}
+types='feat|fix|docs|test|refactor|perf|build|ci|chore|revert'
+max=72
+
+comment=$(git config --get core.commentChar 2>/dev/null || true)
+[ "${#comment}" -eq 1 ] || comment='#'
+scissors="$comment ------------------------ >8 ------------------------"
+
+# Read the message the way git will save it.
+lines=()
+while IFS= read -r line || [ -n "$line" ]; do
+  line=${line%$'\r'}
+  case $line in
+    "$scissors"*) break ;;
+    "$comment"*) continue ;;
+  esac
+  while [[ $line == *[[:space:]] ]]; do line=${line%?}; done
+  if [ "${#lines[@]}" -eq 0 ] && [ -z "$line" ]; then continue; fi
+  lines+=("$line")
+done < "$file"
+
+errors=()
+if [ "${#lines[@]}" -eq 0 ]; then
+  errors+=("the message is empty")
+  subject=''
+else
+  subject=${lines[0]}
+fi
+
+case $subject in
+  "Merge branch "* | "Merge branches "* | "Merge remote-tracking branch "* | \
+  "Merge pull request "* | "Merge tag "* | "Merge commit "* | \
+  'Revert "'* | "fixup! "* | "squash! "* | "amend! "*)
+    exit 0 ;;
+esac
+
+if [ -n "$subject" ]; then
+  pattern="^($types)(\([a-z0-9][a-z0-9._/-]*\))?!?: [^ ]"
+  if ! [[ $subject =~ $pattern ]]; then
+    errors+=("the subject must look like 'type(scope)!: summary' with an allowed type")
+  fi
+  if [ "${#subject}" -gt "$max" ]; then
+    errors+=("the subject is ${#subject} characters; the limit is $max")
+  fi
+  if [[ $subject == *. ]]; then
+    errors+=("the subject ends with a period")
+  fi
+  if [ "${#lines[@]}" -gt 1 ] && [ -n "${lines[1]}" ]; then
+    errors+=("the second line must be blank (it separates the subject from the body)")
+  fi
+fi
+
+[ "${#errors[@]}" -eq 0 ] && exit 0
+
+{
+  printf 'commit-msg: rejected: %s\n' "$subject"
+  for e in "${errors[@]}"; do printf '  - %s\n' "$e"; done
+  printf '\nFormat:  type(scope)!: summary   (scope and ! are optional)\n'
+  printf 'Types:   %s\n' "$(printf '%s' "$types" | sed 's/|/, /g')"
+  printf 'Subject: at most %d characters, imperative, no trailing period.\n' "$max"
+  printf 'Body:    after a blank line; say why. Task ids go in a footer (Refs: R99).\n'
+  printf '\nThe message is kept in %s\n' "$file"
+} >&2
+exit 1
