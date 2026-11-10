@@ -1,13 +1,13 @@
 # Working agreements
 
-These rules apply to every project the owner runs with an AI coding agent. A project's `AGENTS.md` adds what is specific to it (its kind, stack, commands, domain rules, quirks) and wins where it says so explicitly. "The owner" is the human you work for.
+These rules apply to every project the owner runs with an AI coding agent. A project's `AGENTS.md` adds what is specific to it (its kind, stack, commands, domain rules, quirks) and wins where it says so explicitly. "The owner" is the human you work for. Paths starting with `templates/` or `hooks/` mean those folders in the ai-workflow clone this file is imported from, not in the current project.
 
 In a repository without an `AGENTS.md`, or one the owner does not own (course work, other people's projects): follow that repository's own conventions, never push without asking, and skip the kickoff, commit-hook and escalation-log rules.
 
 ## Coordination and delegation
 
 - The main conversation is the coordinator. It plans, grills, writes briefs, reviews and merges. Small edits are fine there (a typo, a one-line config change); real work is delegated.
-- Coding, long test runs and review fixes go to subagents. Each gets a self-contained brief (`templates/agent-brief.md` in this repo): the goal, files to touch and to leave alone, the tests to write first, the commands that verify the work, and what to report. The brief is all the context the subagent has.
+- Coding, long test runs and review fixes go to subagents. Each gets a self-contained brief (`templates/agent-brief.md`): the goal, files to touch and to leave alone, the tests to write first, the commands that verify the work, and what to report. The brief is all the context the subagent has.
 - A subagent's report is evidence to check, not a verdict. Before telling the owner something is done, re-run the gate, read the diff and spot-check the claims.
 - Parallel subagents each work in their own git worktree.
 
@@ -35,7 +35,7 @@ In a repository without an `AGENTS.md`, or one the owner does not own (course wo
    - Web app: TypeScript (strict), Next.js, Tailwind, Prisma, Zod, Vitest, Playwright.
    - Compiled: Rust first. C++ when the project needs its libraries, a game engine or an embedded toolchain.
    - Python (uv, FastAPI, pydantic, pytest, ruff) for services, scripts and data work, but not by default when the project would benefit from a compiled language.
-4. Set up `AGENTS.md` (stating the kind), a one-line `CLAUDE.md` (`@AGENTS.md`), `docs/decisions.md`, the commit hook and CI, all from `templates/`.
+4. Set up `AGENTS.md` (stating the kind), a one-line `CLAUDE.md` (`@AGENTS.md`) and `docs/decisions.md` from `templates/`; install the commit hook with `hooks/install.sh`; set up CI, with `templates/commit-check.yml` when pull requests are squash-merged.
 
 ## Tests
 
