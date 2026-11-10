@@ -101,6 +101,23 @@ expect bad "feat: $(pad 67)"
 expect ok "fix(scope): $(pad 60)"
 expect bad "fix(scope): $(pad 61)"
 
+# The limit counts characters, not bytes, in any locale.
+pad_utf8() { # pad_utf8 <n> [char]: n copies of a two-byte character
+  local i c=${2:-'\303\244'} # a-umlaut by default
+  for ((i = 0; i < $1; i++)); do printf '%b' "$c"; done
+}
+expect_c() { # expect under LC_ALL=C
+  local want=$1 msg=$2 got
+  printf '%s' "$msg" > "$TMP/COMMIT_EDITMSG"
+  if LC_ALL=C bash "$HOOK" "$TMP/COMMIT_EDITMSG" > "$TMP/out" 2>&1; then got=ok; else got=bad; fi
+  if [ "$got" = "$want" ]; then pass; else fail "LC_ALL=C: expected $want, got $got: $msg"; fi
+}
+expect_c ok "fix: $(pad_utf8 60)"
+expect_c ok "fix: $(pad_utf8 67)"
+expect_c bad "fix: $(pad_utf8 68)"
+check "the length is reported in characters" grep -q 'is 73 characters' "$TMP/out"
+expect_c bad "fix: $(pad_utf8 68 '\302\247')"
+
 # Every allowed type passes; the rejection message names the rules.
 for type in feat fix docs test refactor perf build ci chore revert; do
   expect ok "$type: do one thing"

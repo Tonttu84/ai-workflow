@@ -84,8 +84,11 @@ if [ -n "$subject" ]; then
   if ! [[ $subject =~ $pattern ]]; then
     errors+=("the subject must look like 'type(scope)!: summary' with an allowed type")
   fi
-  if [ "${#subject}" -gt "$max" ]; then
-    errors+=("the subject is ${#subject} characters; the limit is $max")
+  # Characters, not bytes, in any locale: drop UTF-8 continuation bytes.
+  length=$(printf '%s' "$subject" | LC_ALL=C tr -d '\200-\277' | wc -c)
+  length=$((length + 0))
+  if [ "$length" -gt "$max" ]; then
+    errors+=("the subject is $length characters; the limit is $max")
   fi
   if [[ $subject == *. ]]; then
     errors+=("the subject ends with a period")
