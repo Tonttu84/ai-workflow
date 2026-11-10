@@ -263,7 +263,7 @@ check "lost tip that cannot be fetched: only the head, with a warning" \
 check "it warns that the pushed hook was used" grep -q '::warning::' "$TMP/step.out"
 repo=$main_repo base=$main_base
 
-# A scheduled or manual run checks the commits of the last eight days on
+# A scheduled or manual run checks the commits of the last 15 days on
 # the branch, with the hook from the commit just before them.
 repo="$TMP/scheduled"
 git init -q -b main "$repo"
@@ -285,6 +285,29 @@ commit "WIP this week"
 commit "fix: a good commit on top"
 refute "schedule: a bad commit in the window fails" commits_ok schedule
 refute "workflow_dispatch: the same" commits_ok workflow_dispatch
+
+# The window is 15 days (two weekly runs overlap) along the default
+# branch's own history, so an old branch merged this week is checked.
+repo="$TMP/scheduled2"
+git init -q -b main "$repo"
+git -C "$repo" config user.name test
+git -C "$repo" config user.email test@example.com
+git -C "$repo" config core.autocrlf false
+mkdir -p "$repo/.githooks"
+cp "$HOOK" "$repo/.githooks/commit-msg"
+cp "$ROOT/hooks/check-commits" "$repo/.githooks/check-commits"
+git -C "$repo" add .githooks
+GIT_AUTHOR_DATE=$(days_ago 30) GIT_COMMITTER_DATE=$(days_ago 30) commit "chore: start"
+git -C "$repo" checkout -q -b old-branch
+GIT_AUTHOR_DATE=$(days_ago 20) GIT_COMMITTER_DATE=$(days_ago 20) commit "WIP on an old branch"
+git -C "$repo" checkout -q main
+GIT_AUTHOR_DATE=$(days_ago 3) GIT_COMMITTER_DATE=$(days_ago 3) commit "feat: mainline work"
+git -C "$repo" merge -q --no-ff --no-edit old-branch > /dev/null 2>&1
+refute "schedule: an old branch merged this week is checked" commits_ok schedule
+git -C "$repo" reset -q --hard HEAD~1
+GIT_AUTHOR_DATE=$(days_ago 10) GIT_COMMITTER_DATE=$(days_ago 10) commit "WIP ten days ago"
+commit "fix: today"
+refute "schedule: a bad commit ten days old is inside the window" commits_ok schedule
 
 # The triggers: pull requests, pushes to main, by hand, one run per ref.
 check "commit-check runs by hand" grep -qx '  workflow_dispatch:' "$WORKFLOW"

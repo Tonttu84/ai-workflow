@@ -28,7 +28,7 @@
 # Free. The pre-push hook runs the same check locally before every push,
 # so CI is a confirmation. A public repository keeps the push trigger; a
 # private one deletes it and uncomments the weekly schedule. A scheduled
-# or manual run checks the last eight days of commits on the branch.
+# or manual run checks the last 15 days of commits along the branch's own history.
 name: commit-check
 
 on:
@@ -111,9 +111,10 @@ jobs:
             set -- "$PR_BASE..$PR_HEAD"
             trusted=$PR_BASE tip=$PR_HEAD
           elif [ "$EVENT" != push ]; then
-            # A scheduled or manual run: the last eight days on this branch.
+            # A scheduled or manual run: the last 15 days along this branch's own
+            # history (first parents), so a merged old branch counts too.
             tip=$PUSH_AFTER
-            trusted=$(git rev-list -1 --before="8 days ago" "$PUSH_AFTER")
+            trusted=$(git rev-list -1 --first-parent --before="15 days ago" "$PUSH_AFTER")
             if [ -n "$trusted" ]; then set -- "$trusted..$PUSH_AFTER"; else set -- "$PUSH_AFTER"; fi
           else
             tip=$PUSH_AFTER trusted=
