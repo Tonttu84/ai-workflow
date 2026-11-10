@@ -143,7 +143,7 @@ The workflow runs the project's committed `.githooks/commit-msg`, as it was befo
 1. Add `AGENTS.md` (stating the kind), the one-line `CLAUDE.md` and `docs/decisions.md` from `templates/`.
 2. Install the commit hook with `hooks/install.sh` and add its `git config` line to the setup command: a fresh clone has the hook off until that runs.
 3. Smoke-check it in that repository: a bad message is rejected (`git commit --allow-empty -m "bad"`), a good one passes, and the project's existing hooks (pre-commit, Git LFS, husky) still run.
-4. Add `templates/commit-check.yml` and protect `main` with a ruleset (step 6 above); if pull requests are squash-merged, set `squash_merge_commit_title=PR_TITLE`. The first pull request should show the commit check running and passing.
+4. Once the hook is committed and on `main`, add `templates/commit-check.yml` (a change that adds both is checked with its own copy of the hook, with a warning) and protect `main` with a ruleset (step 6 above); if pull requests are squash-merged, set `squash_merge_commit_title=PR_TITLE`. The first pull request should show the commit check running and passing.
 5. Turn on Dependabot from the template: copy `templates/dependabot.yml` to `.github/dependabot.yml`, uncomment the project's ecosystems, and enable Dependabot security updates in the repository settings. A repository with nothing to update skips this.
 
 ## Updating

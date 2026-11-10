@@ -40,16 +40,23 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.event.pull_request.base.sha }}
+          fetch-depth: 0
           persist-credentials: false
       - name: The PR title follows the commit format
         env:
           TITLE: ${{ github.event.pull_request.title }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
-          if [ ! -f .githooks/commit-msg ]; then
-            echo "::error::.githooks/commit-msg is missing on the base branch"
-            exit 1
+          # The hook from the base; from the PR itself only when it adds it.
+          hook_from() { git show "$1:.githooks/commit-msg" > "$RUNNER_TEMP/commit-msg" 2> /dev/null; }
+          if ! hook_from "$PR_BASE"; then
+            if ! hook_from "$PR_HEAD"; then
+              echo "::error::.githooks/commit-msg is missing; commit the hook first"
+              exit 1
+            fi
+            echo "::warning::.githooks/commit-msg is new in this pull request; checking with its own copy"
           fi
           case $TITLE in
             "Merge branch "* | "Merge branches "* | "Merge remote-tracking branch "* | \
@@ -60,7 +67,7 @@ jobs:
           esac
           # A squash merge appends " (#N)"; the subject on main must still fit.
           printf '%s (#%s)\n' "$TITLE" "$PR_NUMBER" > "$RUNNER_TEMP/pr-title"
-          GIT_EDITOR=: bash .githooks/commit-msg "$RUNNER_TEMP/pr-title"
+          GIT_EDITOR=: bash "$RUNNER_TEMP/commit-msg" "$RUNNER_TEMP/pr-title"
 
   commits:
     runs-on: ubuntu-latest
@@ -78,20 +85,33 @@ jobs:
           PUSH_BEFORE: ${{ github.event.before }}
           PUSH_AFTER: ${{ github.sha }}
         run: |
-          # The commits to check, and the commit whose hook checks them.
+          hook_from() { git show "$1:.githooks/commit-msg" > "$RUNNER_TEMP/commit-msg" 2> /dev/null; }
+          have() { git cat-file -e "$1^{commit}" 2> /dev/null; }
+          # The commits to check ($@), the commit before them whose hook
+          # checks them (trusted), and the change's own tip as a fallback.
           if [ "$EVENT" = pull_request ]; then
             set -- "$PR_BASE..$PR_HEAD"
-            hook_rev=$PR_BASE
-          elif [ -n "${PUSH_BEFORE//0/}" ] && git cat-file -e "$PUSH_BEFORE^{commit}" 2> /dev/null; then
-            set -- "$PUSH_BEFORE..$PUSH_AFTER" # a force push: only the new commits
-            hook_rev=$PUSH_BEFORE
+            trusted=$PR_BASE tip=$PR_HEAD
           else
-            echo "::notice::No earlier commit to compare with (new branch or lost history); checking $PUSH_AFTER only"
-            set -- -1 "$PUSH_AFTER"
-            hook_rev=$PUSH_AFTER
+            tip=$PUSH_AFTER trusted=
+            if [ -n "${PUSH_BEFORE//0/}" ]; then
+              # After a force push the old tip may be missing from the clone.
+              have "$PUSH_BEFORE" || timeout 60 git fetch -q origin "$PUSH_BEFORE" 2> /dev/null || true
+              have "$PUSH_BEFORE" && trusted=$PUSH_BEFORE
+            fi
+            if [ -n "$trusted" ]; then
+              set -- "$PUSH_BEFORE..$PUSH_AFTER" # after a force push too: only the new commits
+            else
+              echo "::warning::No earlier commit to compare with (new branch, or an old tip that cannot be fetched); checking $PUSH_AFTER only, with its own hook"
+              set -- -1 "$PUSH_AFTER"
+            fi
           fi
-          if ! git show "$hook_rev:.githooks/commit-msg" > "$RUNNER_TEMP/commit-msg" 2> /dev/null; then
-            echo "::error::.githooks/commit-msg is missing at $hook_rev"
+          if [ -n "$trusted" ] && hook_from "$trusted"; then
+            :
+          elif hook_from "$tip"; then
+            [ -z "$trusted" ] || echo "::warning::.githooks/commit-msg is new in this change; checking with its own copy"
+          else
+            echo "::error::.githooks/commit-msg is missing; commit the hook first"
             exit 1
           fi
           revs=$(git rev-list --reverse "$@")

@@ -54,8 +54,9 @@ sed 's/@3d3c42e5aac5ba805825da76410c181273ba90b1/@v7/' "$WORKFLOW" > "$TMP/unpin
 refute "an unpinned action is noticed" hardened "$TMP/unpinned.yml"
 # SC2016: sed inserts a literal expression.
 # shellcheck disable=SC2016
-sed 's/bash .githooks\/commit-msg "\$RUNNER_TEMP/bash .githooks\/commit-msg "${{ github.event.pull_request.title }}/' \
+sed 's/"\$RUNNER_TEMP\/pr-title"$/"${{ github.event.pull_request.title }}"/' \
   "$WORKFLOW" > "$TMP/inject.yml"
+check "the injection mutant differs from the workflow" test -n "$(diff "$WORKFLOW" "$TMP/inject.yml")"
 refute "an expression inside a run script is noticed" hardened "$TMP/inject.yml"
 grep -v 'timeout-minutes' "$WORKFLOW" > "$TMP/no-timeout.yml"
 refute "a job without a timeout is noticed" hardened "$TMP/no-timeout.yml"
@@ -77,9 +78,18 @@ git -C "$repo" config user.email test@example.com
 git -C "$repo" config core.autocrlf false
 mkdir -p "$repo/.githooks" "$TMP/runner"
 cp "$HOOK" "$repo/.githooks/commit-msg"
-title_ok() { # title_ok <title> [pr number]: the title step passes in $repo
-  (cd "$repo" && RUNNER_TEMP="$TMP/runner" TITLE=$1 PR_NUMBER=${2:-123} env -u GIT_EDITOR bash -eo pipefail -c "$(run_script 'The PR title follows the commit format')") \
-    > /dev/null 2>&1
+commit() { # commit <message with escapes>: a commit the local hook never saw
+  echo "$1" >> "$repo/file" && git -C "$repo" add file &&
+    git -C "$repo" commit -q --no-verify --allow-empty -m "$(printf '%b' "$1")"
+}
+git -C "$repo" add .githooks
+commit "chore: start"
+base=$(git -C "$repo" rev-parse HEAD)
+title_ok() { # title_ok <title> [pr number]: the title step passes for a PR $base..HEAD
+  (cd "$repo" && RUNNER_TEMP="$TMP/runner" TITLE=$1 PR_NUMBER=${2:-123} \
+    PR_BASE=$base PR_HEAD=$(git rev-parse HEAD) \
+    env -u GIT_EDITOR bash -eo pipefail -c "$(run_script 'The PR title follows the commit format')") \
+    > "$TMP/step.out" 2>&1
 }
 check "title step: the script is found" test -n "$(run_script 'The PR title follows the commit format')"
 check "title step: a conventional title passes" title_ok "feat(api): add the export endpoint"
@@ -116,13 +126,6 @@ check "title step: nothing was run from the title" test ! -e "$repo/pwned"
 
 # --- the commits step: every commit of a PR or a push, checked by the hook
 # as it was before the change
-commit() { # commit <message with escapes>: a commit the local hook never saw
-  echo "$1" >> "$repo/file" && git -C "$repo" add file &&
-    git -C "$repo" commit -q --no-verify --allow-empty -m "$(printf '%b' "$1")"
-}
-git -C "$repo" add .githooks
-commit "chore: start"
-base=$(git -C "$repo" rev-parse HEAD)
 commit "feat: add the export"
 commit "fix: handle an empty export"
 COMMITS_STEP=$(run_script 'Every commit follows the commit format')
@@ -193,6 +196,65 @@ check "force push: the commits replacing the old tip pass" commits_ok push "$old
 commit "WIP"
 refute "force push: a bad new commit fails" commits_ok push "$old"
 reset_tip
+
+# The workflow may land in the change that first commits the hook: the
+# base has none, so the change's own hook is used, with a warning.
+main_repo=$repo main_base=$base
+new_project() { # new_project <dir>: $repo with one commit and no hook
+  repo=$1
+  git init -q -b main "$repo"
+  git -C "$repo" config user.name test
+  git -C "$repo" config user.email test@example.com
+  git -C "$repo" config core.autocrlf false
+  commit "chore: start"
+  base=$(git -C "$repo" rev-parse HEAD)
+}
+new_project "$TMP/fresh"
+mkdir -p "$repo/.githooks"
+cp "$HOOK" "$repo/.githooks/commit-msg"
+git -C "$repo" add .githooks
+commit "ci: add the commit hook"
+check "first hook: the title is checked with the PR's own hook" title_ok "ci: add the commit check"
+check "first hook: the title step warns" grep -q '::warning::' "$TMP/step.out"
+refute "first hook: a bad title still fails" title_ok "Add the commit check"
+check "first hook: the commits are checked with the PR's own hook" commits_ok pull_request
+check "first hook: the commits step warns" grep -q '::warning::' "$TMP/step.out"
+check "first hook: the same on a push" commits_ok push
+commit "WIP"
+refute "first hook: a bad commit still fails" commits_ok pull_request
+new_project "$TMP/nohook"
+commit "feat: no hook anywhere"
+refute "no hook at all: the title step fails" title_ok "feat: add something"
+refute "no hook at all: the commits step fails" commits_ok pull_request
+
+# A force push whose old tip is no longer in the clone: the old tip is
+# fetched so its hook checks the push; when it cannot be fetched, only the
+# head is checked, with the pushed hook and a warning.
+repo=$main_repo base=$main_base
+git init -q --bare -b main "$TMP/remote.git"
+git -C "$TMP/remote.git" config uploadpack.allowAnySHA1InWant true
+git -C "$repo" remote add origin "$TMP/remote.git"
+git -C "$repo" push -q origin main 2> /dev/null
+git -C "$repo" checkout -q -b lost
+commit "chore: the old tip"
+old=$(git -C "$repo" rev-parse HEAD)
+git -C "$repo" push -q origin lost 2> /dev/null
+git -C "$repo" push -q origin :lost 2> /dev/null
+git -C "$repo" checkout -q main
+printf '#!/bin/sh\nexit 0\n' > "$repo/.githooks/commit-msg"
+git -C "$repo" add .githooks
+commit "WIP: switch the hook off"
+git -C "$repo" push -q -f origin main 2> /dev/null
+git clone -q --no-local "$TMP/remote.git" "$TMP/ci" 2> /dev/null
+git -C "$repo" reset -q --hard "$tip"
+repo="$TMP/ci"
+no_lost_tip() { git -C "$repo" cat-file -e "$old^{commit}" 2> /dev/null; }
+refute "lost tip: it is not in the fresh clone" no_lost_tip
+refute "lost tip: fetched, and its hook rejects the push" commits_ok push "$old"
+check "lost tip that cannot be fetched: only the head, with a warning" \
+  commits_ok push 1234567890123456789012345678901234567890
+check "it warns that the pushed hook was used" grep -q '::warning::' "$TMP/step.out"
+repo=$main_repo base=$main_base
 
 # --- dependabot.yml: valid YAML, every two weeks, titles that pass the hook
 DEPENDABOT="$ROOT/templates/dependabot.yml"
