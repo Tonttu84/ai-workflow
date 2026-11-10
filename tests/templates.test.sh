@@ -299,10 +299,12 @@ cp "$ROOT/hooks/check-commits" "$repo/.githooks/check-commits"
 git -C "$repo" add .githooks
 GIT_AUTHOR_DATE=$(days_ago 30) GIT_COMMITTER_DATE=$(days_ago 30) commit "chore: start"
 git -C "$repo" checkout -q -b old-branch
-GIT_AUTHOR_DATE=$(days_ago 20) GIT_COMMITTER_DATE=$(days_ago 20) commit "WIP on an old branch"
+echo old > "$repo/old-file" && git -C "$repo" add old-file  # a file of its own: the merge must not conflict
+GIT_AUTHOR_DATE=$(days_ago 20) GIT_COMMITTER_DATE=$(days_ago 20) git -C "$repo" commit -q --no-verify -m "WIP on an old branch"
 git -C "$repo" checkout -q main
 GIT_AUTHOR_DATE=$(days_ago 3) GIT_COMMITTER_DATE=$(days_ago 3) commit "feat: mainline work"
 git -C "$repo" merge -q --no-ff --no-edit old-branch > /dev/null 2>&1
+check "the old branch was merged" test "$(git -C "$repo" rev-list --count --merges HEAD -1)" -eq 1
 refute "schedule: an old branch merged this week is checked" commits_ok schedule
 git -C "$repo" reset -q --hard HEAD~1
 GIT_AUTHOR_DATE=$(days_ago 10) GIT_COMMITTER_DATE=$(days_ago 10) commit "WIP ten days ago"
