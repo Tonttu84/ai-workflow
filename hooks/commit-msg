@@ -7,8 +7,10 @@
 #   - the subject is at most 72 characters and does not end with a period
 #   - a blank line separates the subject from the body
 #
-# Messages git writes itself pass untouched: merges, reverts, reapplies,
-# and fixup!/squash!/amend! commits. The hook checks the message git will
+# Subjects that start like git's own merge, revert, reapply and
+# fixup!/squash!/amend! messages pass unchecked, typed by hand or not
+# (templates/commit-check.yml keeps fixup commits off main in CI). The
+# subject is measured in characters. The hook checks the message git will
 # save: everything below the scissors line is ignored, and comment lines
 # are ignored only when git drops them, that is in a message written in
 # git's editor. With -m or -F git keeps them, so they count.
