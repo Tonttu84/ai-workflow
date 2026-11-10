@@ -32,6 +32,16 @@ Each point below must hold in the code and be pinned by a test against a fake (a
 - **Pagination**: fetching history follows every page (next link, cursor or offset) until the service says there is no more, with a page cap so a cursor that loops cannot run forever. Test: three pages, every item arrives once.
 - **Failures logged with context**: the service, the operation, the status, the attempt count and the request id if any; never tokens or personal data.
 
+## Data from outside
+
+HTTP bodies, files, API responses and environment variables are parsed once, where they enter, into typed and validated values (Zod, pydantic, serde or the stack's equivalent); the code behind the boundary never sees raw input. Invalid data is rejected with an error that names the field, or handled explicitly (a default, or skipped with a log line), and `docs/decisions.md` records which. Test each case at the boundary:
+
+- **Timestamps and time zones**: `Z`, other offsets and no offset at all (rejected, or given a zone on purpose); a daylight-saving gap and overlap; epoch seconds against milliseconds; a date near midnight that is another day in UTC.
+- **Missing, null and empty**: a missing field, `null`, an empty string and an empty list are four different inputs; an unset variable is not an empty one.
+- **Duplicates**: a repeated key in one object, a repeated id or row in a list.
+- **Out of range**: zero, negative, too large, `NaN` and infinity, a string past its length limit, an unknown enum value.
+- **Wrong types and extras**: a number sent as a string and the other way round; unknown extra fields, ignored or rejected by a recorded choice.
+
 ## Rules
 
 - Tests only: do not change production code.
