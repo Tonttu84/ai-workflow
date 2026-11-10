@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Tests for the rules file and the docs that point into this repo: every
-# templates/ or hooks/ file they name exists.
+# templates/ or hooks/ file they name exists, the rules stay under a word
+# cap, and the function limits template has the agreed values.
 set -u
 # shellcheck source=tests/lib.sh
 . "$(dirname "$0")/lib.sh"
@@ -32,6 +33,14 @@ check "every template and hook the templates name exists" all_exist "$ROOT" "$RO
 # shellcheck disable=SC2016
 printf 'See `templates/no-such-brief.md`.\n' > "$TMP/broken.md"
 refute "a missing template is noticed" all_exist "$ROOT" "$TMP/broken.md" 2> /dev/null
+
+# --- the rules load into every session, so their size is capped: raising
+# the cap is a decision, not a side effect of an edit
+cap=1600
+under_cap() { [ "$(wc -w < "$1")" -le "$cap" ]; }
+check "the rules file stays under $cap words" under_cap "$RULES"
+{ cat "$RULES"; yes word | head -n "$cap"; } > "$TMP/long.md"
+refute "a rules file over the cap is noticed" under_cap "$TMP/long.md"
 
 # --- function-limits.md: every stack gets the agreed starting values
 LIMITS="$ROOT/templates/function-limits.md"
