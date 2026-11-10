@@ -121,7 +121,7 @@ The hook is feedback while writing, not a gate: `core.hooksPath` is local config
 
 1. The hook catches a bad message as it is written.
 2. CI checks every commit that reaches `main` and every PR title: copy [`templates/commit-check.yml`](templates/commit-check.yml) to the project's `.github/workflows/`. This is the gate.
-3. A ruleset on `main` that requires the `commit-check` jobs and blocks force pushes makes the gate binding. On GitHub Free, rulesets work only on public repositories; a private repository is a recorded exception (the check is visible but does not block) until the plan changes.
+3. A ruleset on `main` makes the gate binding. In a repository that works through pull requests it requires the `commit-check` jobs and blocks force pushes. A solo repository pushes to `main` directly, which a required check would reject, so its ruleset only blocks force pushes and deletion of `main`, and CI stays visible there. On GitHub Free, rulesets work only on public repositories; a private repository is a recorded exception (the check is visible but does not block) until the plan changes.
 
 A squash merge turns the PR title into the commit subject on `main`. By default GitHub does that only for pull requests with more than one commit; a one-commit PR gets that commit's subject. Make the PR title the subject in every case, once per repository:
 

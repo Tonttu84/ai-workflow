@@ -35,7 +35,7 @@ In repositories the owner does not own (course work, other people's projects) an
    - Web app: TypeScript (strict), Next.js, Tailwind, Prisma, Zod, Vitest, Playwright.
    - Compiled: Rust first. C++ when the project needs its libraries, a game engine or an embedded toolchain.
    - Python (uv, FastAPI, pydantic, pytest, ruff) for services, scripts and data work, but not by default when the project would benefit from a compiled language.
-4. Set up `AGENTS.md` (stating the kind), a one-line `CLAUDE.md` (`@AGENTS.md`) and `docs/decisions.md` from `templates/`; install the commit hook with `hooks/install.sh`; set up CI with `templates/commit-check.yml` and protect `main`.
+4. Set up `AGENTS.md` (stating the kind), a one-line `CLAUDE.md` (`@AGENTS.md`) and `docs/decisions.md` from `templates/`; install the commit hook with `hooks/install.sh`; set up CI with `templates/commit-check.yml` and a ruleset on `main` (see Git).
 
 ## Tests
 
@@ -66,7 +66,7 @@ In repositories the owner does not own (course work, other people's projects) an
 
   - Types: `feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `build`, `ci`, `chore`, `revert`. The scope is optional and lower case; `!` before the colon marks a breaking change.
   - One logical change per commit. Task ids go in a `Refs:` footer, never in the subject.
-- Three layers enforce this. The commit hook (`hooks/install.sh`, wired into the setup command, since a fresh clone has it off) is feedback while writing; Node projects may use commitlint and husky instead (`templates/commitlint.config.mjs`). CI checking every commit (`templates/commit-check.yml`) is the gate. A ruleset on `main` requiring that check and blocking force pushes makes it binding; GitHub Free offers rulesets only on public repos, so private repos are a recorded exception. Never use `--no-verify`; if the hook rejects a message, fix the message.
+- Three layers enforce this. The commit hook (`hooks/install.sh`, wired into the setup command, since a fresh clone has it off) is feedback while writing; Node projects may use commitlint and husky instead (`templates/commitlint.config.mjs`). CI checking every commit (`templates/commit-check.yml`) is the gate. A ruleset on `main` makes it binding: PR-flow repos require the check and block force pushes; solo repos, which push to `main`, only block force pushes and deletion. GitHub Free offers rulesets only on public repos, so private repos are a recorded exception. Never use `--no-verify`; if the hook rejects a message, fix the message.
 - A squash merge makes the PR title the subject on `main` (repository setting `squash_merge_commit_title=PR_TITLE`), so it follows the same format; the CI check covers it.
 - Dependabot security updates are on in every repo (free on private repos too); version updates follow `templates/dependabot.yml`. A repo with nothing to update (such as a private secrets repo) skips them.
 - Parallel agents: one worktree per task; merge one at a time. Before the first commit, check which branch you are on and fetch `main`.
