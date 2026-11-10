@@ -61,7 +61,10 @@ ok|Merge branch 'main' into feature/login
 ok|Merge remote-tracking branch 'origin/main'
 ok|Merge pull request #12 from someone/login
 ok|Merge tag 'v1.2.0'
+ok|Merge branches 'a' and 'b'
+ok|Merge commit 'abc1234'
 ok|Revert "feat: add login form"\n\nThis reverts commit 1234567.
+ok|Reapply "feat: add login form"\n\nThis reverts commit 89abcde.
 ok|fixup! feat: add login form
 ok|squash! fix(auth): reject expired tokens
 ok|amend! feat: add login form
@@ -86,6 +89,7 @@ bad|feat: add login form.
 bad|feat: add login form\nThe body starts without a blank line.
 bad|Merge my changes
 bad|Revert the login form
+bad|Reapply the login form
 bad|fixup!feat: add login form
 bad|WIP
 TABLE

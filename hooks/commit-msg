@@ -7,8 +7,8 @@
 #   - the subject is at most 72 characters and does not end with a period
 #   - a blank line separates the subject from the body
 #
-# Messages git writes itself pass untouched: merges, reverts, and
-# fixup!/squash!/amend! commits. The hook checks the message git will
+# Messages git writes itself pass untouched: merges, reverts, reapplies,
+# and fixup!/squash!/amend! commits. The hook checks the message git will
 # save: everything below the scissors line is ignored, and comment lines
 # are ignored only when git drops them, that is in a message written in
 # git's editor. With -m or -F git keeps them, so they count.
@@ -75,7 +75,7 @@ fi
 case $subject in
   "Merge branch "* | "Merge branches "* | "Merge remote-tracking branch "* | \
   "Merge pull request "* | "Merge tag "* | "Merge commit "* | \
-  'Revert "'* | "fixup! "* | "squash! "* | "amend! "*)
+  'Revert "'* | 'Reapply "'* | "fixup! "* | "squash! "* | "amend! "*)
     exit 0 ;;
 esac
 
