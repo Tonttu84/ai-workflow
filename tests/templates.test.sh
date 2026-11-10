@@ -78,7 +78,8 @@ git -C "$repo" config user.email test@example.com
 git -C "$repo" config core.autocrlf false
 mkdir -p "$repo/.githooks" "$TMP/runner"
 cp "$HOOK" "$repo/.githooks/commit-msg"
-cp "$ROOT/hooks/pre-push" "$repo/.githooks/pre-push"
+cp "$ROOT/hooks/check-commits" "$repo/.githooks/check-commits"
+printf '#!/bin/sh\ntouch "$PWD/pre-push-ran"\n' > "$repo/.githooks/pre-push"
 commit() { # commit <message with escapes>: a commit the local hook never saw
   echo "$1" >> "$repo/file" && git -C "$repo" add file &&
     git -C "$repo" commit -q --no-verify --allow-empty -m "$(printf '%b' "$1")"
@@ -131,6 +132,7 @@ commit "feat: add the export"
 commit "fix: handle an empty export"
 COMMITS_STEP=$(run_script 'Every commit follows the commit format')
 check "commits step: the script is found" test -n "$COMMITS_STEP"
+check "CI never names a project's pre-push hook" test "$(grep -c 'githooks/pre-push' "$WORKFLOW")" -eq 0
 # commits_ok <event> [before]: the step passes for a pull request from
 # $base to HEAD, or for a push from <before> (default $base) to HEAD
 commits_ok() {
@@ -213,7 +215,8 @@ new_project() { # new_project <dir>: $repo with one commit and no hook
 new_project "$TMP/fresh"
 mkdir -p "$repo/.githooks"
 cp "$HOOK" "$repo/.githooks/commit-msg"
-cp "$ROOT/hooks/pre-push" "$repo/.githooks/pre-push"
+cp "$ROOT/hooks/check-commits" "$repo/.githooks/check-commits"
+printf '#!/bin/sh\ntouch "$PWD/pre-push-ran"\n' > "$repo/.githooks/pre-push"
 git -C "$repo" add .githooks
 commit "ci: add the commit hook"
 check "first hook: the title is checked with the PR's own hook" title_ok "ci: add the commit check"
@@ -267,7 +270,8 @@ git -C "$repo" config user.email test@example.com
 git -C "$repo" config core.autocrlf false
 mkdir -p "$repo/.githooks"
 cp "$HOOK" "$repo/.githooks/commit-msg"
-cp "$ROOT/hooks/pre-push" "$repo/.githooks/pre-push"
+cp "$ROOT/hooks/check-commits" "$repo/.githooks/check-commits"
+printf '#!/bin/sh\ntouch "$PWD/pre-push-ran"\n' > "$repo/.githooks/pre-push"
 git -C "$repo" add .githooks
 days_ago() { printf '%s +0000' "$(($(date +%s) - $1 * 86400))"; }
 GIT_AUTHOR_DATE=$(days_ago 30) GIT_COMMITTER_DATE=$(days_ago 30) commit "chore: start"
@@ -350,5 +354,7 @@ refute "a prefix that is not a commit type is noticed" bad_titles
 sed 's/^      actions:$/      github-actions-updates:/' "$DEPENDABOT" > "$TMP/long-group.yml"
 long_group() { DEPENDABOT="$TMP/long-group.yml" titles_pass; }
 refute "a group name too long for the subject is noticed" long_group
+
+refute "CI never ran a project's pre-push hook" test -e "$TMP/project/pre-push-ran"
 
 finish

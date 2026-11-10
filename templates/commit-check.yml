@@ -13,7 +13,8 @@
 # force pushes makes it binding.
 #
 # Copy to .github/workflows/commit-check.yml in a project that commits
-# .githooks/commit-msg (hooks/install.sh in Tonttu84/ai-workflow), and
+# .githooks/commit-msg and .githooks/check-commits (hooks/install.sh in
+# Tonttu84/ai-workflow puts them there), and
 # change `main` below if the default branch has another name.
 #
 # GitHub uses the PR title as the squash subject only when the repository
@@ -100,12 +101,6 @@ jobs:
           PUSH_BEFORE: ${{ github.event.before }}
           PUSH_AFTER: ${{ github.sha }}
         run: |
-          # The project's commit-msg hook, and its pre-push hook, which holds
-          # the range check the local push runs too.
-          hook_from() {
-            git show "$1:.githooks/commit-msg" > "$RUNNER_TEMP/commit-msg" 2> /dev/null &&
-              git show "$1:.githooks/pre-push" > "$RUNNER_TEMP/pre-push" 2> /dev/null
-          }
           have() { git cat-file -e "$1^{commit}" 2> /dev/null; }
           # The commits to check ($@), the commit before them whose hook
           # checks them (trusted), and the change's own tip as a fallback.
@@ -131,15 +126,21 @@ jobs:
               set -- -1 "$PUSH_AFTER"
             fi
           fi
-          if [ -n "$trusted" ] && hook_from "$trusted"; then
-            :
-          elif hook_from "$tip"; then
-            [ -z "$trusted" ] || echo "::warning::The hooks in .githooks/ are new in this change; checking with their own copies"
-          else
-            echo "::error::.githooks/commit-msg or .githooks/pre-push is missing; commit the hooks first (hooks/install.sh)"
-            exit 1
-          fi
-          if ! bash "$RUNNER_TEMP/pre-push" --check "$RUNNER_TEMP/commit-msg" "$@"; then
+          # Each file from the commit before the change, else from the change
+          # itself with a warning. A project's own pre-push is never run.
+          tool_from() {
+            if [ -n "$trusted" ] && git show "$trusted:.githooks/$1" > "$RUNNER_TEMP/$1" 2> /dev/null; then
+              return 0
+            elif git show "$tip:.githooks/$1" > "$RUNNER_TEMP/$1" 2> /dev/null; then
+              [ -z "$trusted" ] || echo "::warning::.githooks/$1 is new in this change; checking with its own copy"
+              return 0
+            fi
+            echo "::error::.githooks/$1 is missing; commit the hooks first (hooks/install.sh)"
+            return 1
+          }
+          tool_from commit-msg
+          tool_from check-commits
+          if ! bash "$RUNNER_TEMP/check-commits" "$RUNNER_TEMP/commit-msg" "$@"; then
             echo "::error::Some commit messages break the commit rules; see the lines above"
             exit 1
           fi

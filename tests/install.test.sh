@@ -34,6 +34,7 @@ check "hook copied to .githooks" cmp -s "$ROOT/hooks/commit-msg" "$TMP/a/.githoo
 check "hook is executable" test -x "$TMP/a/.githooks/commit-msg"
 check "pre-push copied to .githooks" cmp -s "$ROOT/hooks/pre-push" "$TMP/a/.githooks/pre-push"
 check "pre-push is executable" test -x "$TMP/a/.githooks/pre-push"
+check "check-commits copied to .githooks" cmp -s "$ROOT/hooks/check-commits" "$TMP/a/.githooks/check-commits"
 check "core.hooksPath is .githooks" test "$(git -C "$TMP/a" config core.hooksPath)" = .githooks
 refute "bad message rejected after install" commits_ok "$TMP/a" "added stuff."
 check "good message accepted after install" commits_ok "$TMP/a" "chore: start the project"
@@ -109,6 +110,7 @@ new_repo "$TMP/c"
 check "--git-hooks install succeeds" run_install --git-hooks "$TMP/c"
 check "hook copied to .git/hooks" cmp -s "$ROOT/hooks/commit-msg" "$TMP/c/.git/hooks/commit-msg"
 check "pre-push copied to .git/hooks" cmp -s "$ROOT/hooks/pre-push" "$TMP/c/.git/hooks/pre-push"
+check "check-commits copied to .git/hooks" cmp -s "$ROOT/hooks/check-commits" "$TMP/c/.git/hooks/check-commits"
 refute "--git-hooks leaves core.hooksPath unset" git -C "$TMP/c" config core.hooksPath
 refute "bad message rejected via .git/hooks" commits_ok "$TMP/c" "WIP"
 check "good message accepted via .git/hooks" commits_ok "$TMP/c" "chore: start the project"

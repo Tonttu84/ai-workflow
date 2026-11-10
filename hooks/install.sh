@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Installs the ai-workflow commit-msg and pre-push hooks into a git
-# project. pre-push checks the messages of the commits being pushed, as
-# the CI commit check does.
+# project, with check-commits, which pre-push and the CI commit check
+# both use to check the messages of a range of commits.
 #
 # Usage: install.sh [--git-hooks] [--force] [project-dir]
 #
@@ -36,7 +36,7 @@ while [ $# -gt 0 ]; do
 done
 
 here="$(cd "$(dirname "$0")" && pwd)"
-HOOKS="commit-msg pre-push"
+HOOKS="commit-msg pre-push check-commits"
 
 if ! git -C "$dir" rev-parse --git-dir > /dev/null 2>&1; then
   echo "install.sh: $dir is not inside a git repository" >&2

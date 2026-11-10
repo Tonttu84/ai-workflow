@@ -28,6 +28,7 @@ pushes() { git -C "$repo" push -q "$@" > "$TMP/push.out" 2>&1; }
 remote_has() { git -C "$TMP/remote.git" rev-parse -q --verify "$1" > /dev/null; }
 
 check "pre-push is installed next to commit-msg" test -x "$repo/.githooks/pre-push"
+check "check-commits is installed next to them" test -x "$repo/.githooks/check-commits"
 commit "chore: start"
 check "a first push of good commits passes" pushes origin main
 commit "feat: add the export"
@@ -79,15 +80,15 @@ commit "WIP after the rewrite"
 refute "a force push with a bad commit is rejected" pushes -f origin main
 git -C "$repo" reset -q --hard HEAD~1
 
-# --check is the entry point CI uses: a range and a commit-msg hook.
+# check-commits is what pre-push and CI share: a range and a commit-msg hook.
 cd "$repo" || exit 1
-check "--check passes a good range" \
-  q bash "$ROOT/hooks/pre-push" --check "$ROOT/hooks/commit-msg" "$tip~2..$tip"
+check "check-commits passes a good range" \
+  q bash "$ROOT/hooks/check-commits" "$ROOT/hooks/commit-msg" "$tip~2..$tip"
 commit "WIP"
-refute "--check rejects a bad range" \
-  q bash "$ROOT/hooks/pre-push" --check "$ROOT/hooks/commit-msg" "$tip..HEAD"
-refute "--check fails on an invalid range" \
-  q bash "$ROOT/hooks/pre-push" --check "$ROOT/hooks/commit-msg" "no-such-ref..HEAD"
+refute "check-commits rejects a bad range" \
+  q bash "$ROOT/hooks/check-commits" "$ROOT/hooks/commit-msg" "$tip..HEAD"
+refute "check-commits fails on an invalid range" \
+  q bash "$ROOT/hooks/check-commits" "$ROOT/hooks/commit-msg" "no-such-ref..HEAD"
 cd "$ROOT" || exit 1
 
 finish

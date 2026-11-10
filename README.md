@@ -37,6 +37,7 @@ templates/
 hooks/
   commit-msg                  portable bash hook enforcing the commit rules
   pre-push                    checks every commit being pushed, as CI does
+  check-commits               the range check pre-push and CI share
   install.sh                  installs both hooks into a project
 skills/                       the grill skills, tracked from upstream (see skills/README.md)
 scripts/
