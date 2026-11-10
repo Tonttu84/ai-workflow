@@ -116,13 +116,26 @@ The hook checks: a subject of the form `type(scope)!: summary` with an allowed t
 
 ### 6. CI for squash-merged pull requests
 
-A squash merge turns the PR title into the commit subject on `main`, and no local hook sees it. Copy [`templates/commit-check.yml`](templates/commit-check.yml) to the project's `.github/workflows/`. On every pull request it runs the project's committed `.githooks/commit-msg`, taken from the base commit, on the title, and fails when the PR holds `fixup!`, `squash!` or `amend!` commits. Actions are pinned by SHA, the token is read-only and not persisted, and the title reaches the script through an environment variable, never pasted into it.
+A squash merge turns the PR title into the commit subject on `main`, and no local hook sees it. By default GitHub does that only for pull requests with more than one commit; a one-commit PR gets that commit's subject. Make the PR title the subject in every case, once per repository:
+
+```bash
+gh api -X PATCH repos/OWNER/REPO \
+  -f squash_merge_commit_title=PR_TITLE -f squash_merge_commit_message=PR_BODY
+```
+
+Then copy [`templates/commit-check.yml`](templates/commit-check.yml) to the project's `.github/workflows/`. On every pull request it runs the project's committed `.githooks/commit-msg`, taken from the base commit, on the title, rejects titles the hook would let through as git's own messages (`Merge ...`, `Revert "..."`, `fixup! ...`), and fails when the PR holds `fixup!`, `squash!` or `amend!` commits. Actions are pinned by SHA, the token is read-only and not persisted, and the title reaches the script through an environment variable, never pasted into it.
 
 ## Starting a new project
 
 1. Grill the plan, then copy `templates/kickoff.md` to `docs/kickoff.md` and fill it in before writing code.
 2. Copy `templates/AGENTS.md`, `templates/CLAUDE.md` and `templates/decisions.md` (as `docs/decisions.md`).
-3. Install the commit hook and set up CI; projects that squash-merge pull requests add `templates/commit-check.yml`.
+3. Install the commit hook and set up CI; projects that squash-merge pull requests add `templates/commit-check.yml` and the squash setting (step 6 above).
+
+## Moving an existing project to these rules
+
+1. Add `AGENTS.md` (stating the kind), the one-line `CLAUDE.md` and `docs/decisions.md` from `templates/`.
+2. Install the commit hook with `hooks/install.sh` and add its `git config` line to the setup command.
+3. If pull requests are squash-merged: set `squash_merge_commit_title=PR_TITLE` and add `templates/commit-check.yml` (step 6 above).
 
 ## Updating
 

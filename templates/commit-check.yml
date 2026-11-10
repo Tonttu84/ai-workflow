@@ -1,12 +1,19 @@
 # Checks a pull request before it is squash-merged. The squash commit's
 # subject on main is the PR title, so the title must pass the project's
-# commit-msg hook; and fixup!/squash!/amend! commits must not reach main
-# unsquashed (the hook lets those subjects through).
+# commit-msg hook, without the hook's exemptions for subjects git writes
+# (a PR title never is one); and fixup!/squash!/amend! commits must not
+# reach main unsquashed.
 #
 # Copy to .github/workflows/commit-check.yml in a project that commits
 # .githooks/commit-msg (hooks/install.sh in Tonttu84/ai-workflow). The
 # title is checked with the hook from the base commit, so a pull request
 # cannot weaken the check on itself.
+#
+# GitHub uses the PR title as the squash subject only when the repository
+# says so; by default a one-commit PR gets that commit's subject. Set it
+# once per repository:
+#   gh api -X PATCH repos/OWNER/REPO \
+#     -f squash_merge_commit_title=PR_TITLE -f squash_merge_commit_message=PR_BODY
 name: commit-check
 
 on:
@@ -33,8 +40,15 @@ jobs:
             echo "::error::.githooks/commit-msg is missing on the base branch"
             exit 1
           fi
+          case $TITLE in
+            "Merge branch "* | "Merge branches "* | "Merge remote-tracking branch "* | \
+            "Merge pull request "* | "Merge tag "* | "Merge commit "* | \
+            'Revert "'* | 'Reapply "'* | "fixup! "* | "squash! "* | "amend! "*)
+              echo "::error::The PR title looks like a message git writes; use 'type(scope): summary'"
+              exit 1 ;;
+          esac
           printf '%s\n' "$TITLE" > "$RUNNER_TEMP/pr-title"
-          bash .githooks/commit-msg "$RUNNER_TEMP/pr-title"
+          GIT_EDITOR=: bash .githooks/commit-msg "$RUNNER_TEMP/pr-title"
 
   commits:
     runs-on: ubuntu-latest

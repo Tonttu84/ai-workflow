@@ -77,7 +77,7 @@ git -C "$repo" config core.autocrlf false
 mkdir -p "$repo/.githooks" "$TMP/runner"
 cp "$HOOK" "$repo/.githooks/commit-msg"
 title_ok() { # title_ok <title>: the title step passes in $repo
-  (cd "$repo" && RUNNER_TEMP="$TMP/runner" TITLE=$1 bash -eo pipefail -c "$(run_script 'The PR title follows the commit format')") \
+  (cd "$repo" && RUNNER_TEMP="$TMP/runner" TITLE=$1 env -u GIT_EDITOR bash -eo pipefail -c "$(run_script 'The PR title follows the commit format')") \
     > /dev/null 2>&1
 }
 check "title step: the script is found" test -n "$(run_script 'The PR title follows the commit format')"
@@ -85,6 +85,23 @@ check "title step: a conventional title passes" title_ok "feat(api): add the exp
 refute "title step: a plain title fails" title_ok "Add the export endpoint"
 refute "title step: a long title fails" title_ok "fix: $(printf '%070d' 0 | tr 0 x)"
 refute "title step: '#42 fix login' fails" title_ok "#42 fix login"
+# A PR title is never a message git wrote, so the hook's exemptions do not apply.
+for title in "Merge branch 'main' into login" "Merge branches 'a' and 'b'" \
+  "Merge remote-tracking branch 'origin/main'" "Merge pull request #12 from a/b" \
+  "Merge tag 'v1.2.0'" "Merge commit 'abc1234'" 'Revert "feat: add login"' \
+  'Reapply "feat: add login"' "fixup! feat: add login" "squash! feat: add login" \
+  "amend! feat: add login"; do
+  refute "title step: '$title' fails" title_ok "$title"
+done
+hook_exemptions() {
+  sed -n '/^case \$subject in/,/exit 0 ;;/p' "$HOOK" | grep -oE "\"[^\"]+\"\*|'[^']+'\*"
+}
+exemptions_in_sync() {
+  local p
+  [ "$(hook_exemptions | wc -l)" -ge 10 ] || return 1
+  while IFS= read -r p; do grep -qF -- "$p" "$WORKFLOW" || return 1; done < <(hook_exemptions)
+}
+check "title step rejects every subject the hook exempts" exemptions_in_sync
 # SC2016: the title must stay unexpanded.
 # shellcheck disable=SC2016
 check "title step: a title with \$(...) or backticks is only text" title_ok 'feat: $(touch pwned) `touch pwned`'
