@@ -33,7 +33,7 @@ See `docs/kickoff.md` for why this stack was chosen.
 | Unit tests | `<...>` |
 | End-to-end tests | `<...>` |
 | Lint, format, type-check | `<...>` |
-| The gate (everything CI runs) | `<...>` |
+| The local gate before every push (tests, lint, types, build) | `<...>` |
 
 ## Domain rules
 

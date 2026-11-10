@@ -65,8 +65,11 @@ In repositories the owner does not own (course work, other people's projects) an
 
   - Types: `feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `build`, `ci`, `chore`, `revert`. The scope is optional and lower case; `!` before the colon marks a breaking change.
   - One logical change per commit. Task ids go in a `Refs:` footer, never in the subject.
-- Three layers enforce this. The hooks from `hooks/install.sh` (`commit-msg` and `pre-push`, wired into the setup command since a fresh clone has them off) are feedback; Node projects may use commitlint and husky instead (`templates/commitlint.config.mjs`). CI checking every commit (`templates/commit-check.yml`) is the gate for commit messages. A ruleset on `main` makes it binding: PR-flow repos require the check and block force pushes; solo repos, which push to `main`, only block force pushes and deletion, so there CI reports but never blocks. GitHub Free offers rulesets only on public repos, so private repos are a recorded exception. Never use `--no-verify`; fix the message instead.
-- Before every push, run the local gate (tests, lint, types, build, and the `pre-push` check); CI only confirms now and then. Public repos may run CI on every push and PR; private ones, short of Actions minutes, on pull requests, by hand (`workflow_dispatch`) and on a schedule.
+- Enforcement:
+  - Before every push, run the local gate: tests, lint, types, build, and the `pre-push` commit check. The hooks come from `hooks/install.sh`, wired into the setup command since a fresh clone has them off; Node projects may use commitlint and husky instead (`templates/commitlint.config.mjs`). Never use `--no-verify`; fix the message instead.
+  - CI (`templates/commit-check.yml`) is the gate for commit messages and confirms the local check: public repos on every push and PR; private repos, short of Actions minutes, on PRs, by hand (`workflow_dispatch`) and on a schedule.
+  - A ruleset on `main` blocks force pushes and deletion, and in PR-flow repos also requires the check. GitHub Free offers rulesets only on public repos, so private repos have none (a recorded exception).
+  - So in a private solo repo: the local gate and `pre-push` before every push, CI by hand and on a schedule, no ruleset.
 - A squash merge makes the PR title the subject on `main` (repository setting `squash_merge_commit_title=PR_TITLE`), so it follows the same format; the CI check covers it.
 - Dependabot security updates are on in every repo (free on private repos too); version updates follow `templates/dependabot.yml`, except in a repo with nothing to update (such as a private secrets repo).
 - Parallel agents: one worktree per task; merge one at a time. Before the first commit, check which branch you are on and fetch `main`.
