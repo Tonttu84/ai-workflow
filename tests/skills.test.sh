@@ -117,4 +117,13 @@ check "grill-me installed" cmp -s "$ROOT/skills/grill-me/SKILL.md" "$target/gril
 check "old copy replaced, not merged" test ! -e "$target/grilling/old.md"
 check "overlays not installed as a skill" test ! -e "$target/overlays"
 
+# --- install-skills.sh with no target: $CLAUDE_CONFIG_DIR/skills, else ~/.claude/skills
+check "install defaults to \$CLAUDE_CONFIG_DIR/skills" \
+  env CLAUDE_CONFIG_DIR="$TMP/config dir" HOME="$TMP/home" bash "$INSTALL" > /dev/null 2>&1
+check "skills landed under \$CLAUDE_CONFIG_DIR" test -f "$TMP/config dir/skills/grilling/SKILL.md"
+check "nothing went to ~/.claude" test ! -e "$TMP/home/.claude"
+check "without it, install defaults to ~/.claude/skills" \
+  env -u CLAUDE_CONFIG_DIR HOME="$TMP/home" bash "$INSTALL" > /dev/null 2>&1
+check "skills landed under ~/.claude" test -f "$TMP/home/.claude/skills/grill-me/SKILL.md"
+
 finish
