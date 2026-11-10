@@ -188,4 +188,50 @@ commit "WIP"
 refute "force push: a bad new commit fails" commits_ok push "$old"
 reset_tip
 
+# --- dependabot.yml: valid YAML, every two weeks, titles that pass the hook
+DEPENDABOT="$ROOT/templates/dependabot.yml"
+uncommented() { sed 's/^#  /  /' "$DEPENDABOT"; } # with the placeholders switched on
+sed 's/^#  /  /' "$DEPENDABOT" > "$TMP/dependabot.all.yml"
+yaml_ok() { # yaml_ok <file>: parses with yq or PyYAML; status 2 when neither exists
+  if command -v yq > /dev/null 2>&1; then
+    yq eval '.' "$1" > /dev/null 2>&1
+  elif python3 -c 'import yaml' > /dev/null 2>&1; then
+    python3 -c 'import sys, yaml; yaml.safe_load(open(sys.argv[1]))' "$1" > /dev/null 2>&1
+  else
+    return 2
+  fi
+}
+yaml_ok "$DEPENDABOT"
+case $? in
+  0) pass ;;
+  2) printf 'templates.test.sh: SKIP: no YAML parser (yq or PyYAML) to parse dependabot.yml\n' ;;
+  *) fail "dependabot.yml parses as YAML" ;;
+esac
+yaml_ok "$TMP/dependabot.all.yml"
+case $? in 0) pass ;; 2) ;; *) fail "dependabot.yml with the placeholders on parses" ;; esac
+check "the placeholders cover npm and pip" \
+  test "$(uncommented | grep -cE '^  - package-ecosystem: (npm|pip)$')" -eq 2
+check "github-actions is on" grep -qx '  - package-ecosystem: github-actions' "$DEPENDABOT"
+entries=$(uncommented | grep -c '^  - package-ecosystem: ')
+check "every ecosystem runs on the 1st and 15th" \
+  test "$(uncommented | grep -c "cronjob: '0 6 1,15 \* \*'")" -eq "$entries"
+check "every ecosystem has a commit-message prefix" \
+  test "$(uncommented | grep -c '^      prefix: ')" -eq "$entries"
+check "every ecosystem has one group" test "$(uncommented | grep -c '^    groups:$')" -eq "$entries"
+# Dependabot's grouped title: "<prefix>: bump the <group> group across 1
+# directory with <n> updates". Each must pass the hook at a large n.
+titles_pass() {
+  local prefix group
+  paste -d ' ' <(uncommented | sed -n 's/^      prefix: //p') \
+    <(uncommented | sed -n 's/^      \([a-z-]*\):$/\1/p') |
+    while read -r prefix group; do
+      printf '%s: bump the %s group across 1 directory with 99 updates\n' "$prefix" "$group" > "$TMP/title"
+      GIT_EDITOR=: bash "$HOOK" "$TMP/title" > /dev/null 2>&1 || exit 1
+    done
+}
+check "every grouped Dependabot title passes the hook" titles_pass
+sed 's/prefix: chore(ci)/prefix: deps/' "$DEPENDABOT" > "$TMP/bad-prefix.yml"
+bad_titles() { DEPENDABOT="$TMP/bad-prefix.yml" titles_pass; }
+refute "a prefix that is not a commit type is noticed" bad_titles
+
 finish
