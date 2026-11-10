@@ -38,7 +38,7 @@ In repositories the owner does not own (course work, other people's projects) an
 
 ## Code
 
-- Outside service calls: a timeout; bounded retries on 429 and 5xx (never other 4xx) with exponential backoff and jitter, honouring `Retry-After`; every page when fetching history; failures logged with context. Tests fake a 429, a 500 and a timeout (`templates/hardening-brief.md`).
+- Outside service calls: a timeout; bounded retries on 408, 429 and 5xx (never other 4xx), only when the call is safe to repeat (idempotent, or with an idempotency key), with exponential backoff and jitter, honouring `Retry-After`; every page when fetching history; failures logged with context. Tests fake a 429, a 500 and a timeout (`templates/hardening-brief.md`).
 - Outside data (HTTP bodies, files, APIs, env) is parsed into typed, validated values where it enters (Zod, pydantic, serde); invalid data is rejected or handled explicitly, as a recorded choice. Tests cover the hardening brief's awkward cases (time zones; missing, null, duplicate, out-of-range fields).
 - A function does one thing at one level of detail; split only when the piece earns a name that hides real detail, never into single-use pass-through helpers. The linter enforces size limits (`templates/function-limits.md`).
 - Shared test credentials live in the private repo `Tonttu84/secrets`, cloned once per machine beside the checkouts (`../secrets` or `$SECRETS_DIR`). A project commits its variable names with empty values; `<secrets>/<project>/<file>` overlays them and wins. Without it, the project runs with those features off and says so.

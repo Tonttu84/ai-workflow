@@ -26,9 +26,9 @@ The feature below has landed with its tests. Your job is to attack those tests, 
 Each point below must hold in the code and be pinned by a test against a fake (a stub server or a fake client, never the real service), with a fake clock rather than real sleeps:
 
 - **Timeout** on every call. Test: the fake never answers; the call fails within the timeout.
-- **Bounded retries on 429 and 5xx**, with exponential backoff, jitter and a cap on each delay. Tests: a 500 every time gives up after the set number of attempts and reports the last error; a 500 then a 200 succeeds.
+- **Bounded retries on 408, 429 and 5xx** (but not 501, which will not change on a retry), with exponential backoff, jitter and a cap on each delay, **only for a call that is safe to repeat**: idempotent (GET, PUT, DELETE) or carrying an idempotency key. A POST without one is not retried after a 500, 502 or 504, since the first try may already have done its work (a charge, an email). Tests: a 500 every time gives up after the set number of attempts and reports the last error; a 500 then a 200 succeeds; a POST without an idempotency key that gets a 500 is sent once.
 - **`Retry-After`** (seconds or an HTTP date) is honoured, within the cap. Test: a 429 with `Retry-After: 7` waits 7 seconds on the fake clock, then retries.
-- **No retry on other 4xx** (400, 401, 403, 404, 422): one call, then a clear error. A timeout or dropped connection is retried only when the call is safe to repeat.
+- **No retry on other 4xx** (400, 401, 403, 404, 422; 408 and 429 are the exceptions above): one call, then a clear error. A timeout or dropped connection is retried only when the call is safe to repeat.
 - **Pagination**: fetching history follows every page (next link, cursor or offset) until the service says there is no more, with a page cap so a cursor that loops cannot run forever. Test: three pages, every item arrives once.
 - **Failures logged with context**: the service, the operation, the status, the attempt count and the request id if any; never tokens or personal data.
 
