@@ -36,6 +36,10 @@ In repositories the owner does not own (course work, other people's projects) an
    - Python (uv, FastAPI, pydantic, pytest, ruff) for services, scripts and data work, but not by default when the project would benefit from a compiled language.
 4. Set up `AGENTS.md` (stating the kind), a one-line `CLAUDE.md` (`@AGENTS.md`) and `docs/decisions.md` from `templates/`; install the commit hook with `hooks/install.sh`; set up CI with `templates/commit-check.yml` and a ruleset on `main` (see Git).
 
+## Code
+
+- Every call to an outside service has a timeout and retries 429 and 5xx (never other 4xx) a bounded number of times with exponential backoff and jitter, honouring `Retry-After`. History fetches follow every page; failures are logged with context. Tests fake a 429, a 500 and a timeout (`templates/hardening-brief.md`).
+
 ## Tests
 
 - Test first for domain logic and for every bug fix: a failing test that shows the bug, then the fix.
