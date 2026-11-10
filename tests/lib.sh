@@ -23,6 +23,13 @@ check() {
   if "$@"; then pass; else fail "$desc"; fi
 }
 
+# refute <description> <command...>: the command must fail
+refute() {
+  local desc=$1
+  shift
+  if "$@"; then fail "$desc"; else pass; fi
+}
+
 # A scratch directory removed when the test script exits.
 make_tmp() {
   TMP=$(mktemp -d)
