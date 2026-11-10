@@ -88,5 +88,12 @@ check "the review brief checks over-splitting" grep -q 'single-use helper' "$ROO
 for f in templates/kickoff.md README.md; do
   check "$f points to the data and ML template" grep -qF 'templates/data-science.md' "$ROOT/$f"
 done
+# Its pointer line names the public URL: collaborators may have no clone.
+DATA="$ROOT/templates/data-science.md"
+check "the data template's pointer line names its GitHub URL" \
+  grep -qF '"Data and ML rules: https://github.com/Tonttu84/ai-workflow/blob/main/templates/data-science.md"' "$DATA"
+for text in GroupKFold StratifiedGroupKFold 'bootstrap by group' Bland ICC MDC 'counts as fitting'; do
+  check "the data template covers $text" grep -qF -- "$text" "$DATA"
+done
 
 finish
