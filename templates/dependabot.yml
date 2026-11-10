@@ -11,7 +11,8 @@
 # github-actions is always on: workflows pin actions by commit SHA with
 # the release tag in a trailing comment (`@<sha> # v7.0.1`), and only
 # Dependabot moves them. Uncomment the ecosystems the project uses
-# (remove the leading `#` of each `#  ` line).
+# (remove the leading `#` of each `#  ` line), then
+# delete the examples you don't use, comments included.
 #
 # Security updates are a separate repository setting (Settings, Code
 # security, Dependabot security updates); turn them on in every repo.
@@ -38,6 +39,11 @@ updates:
 
 #  - package-ecosystem: npm
 #    directory: /
+#    # Several package.json folders (a monorepo): replace `directory: /`
+#    # with a list; one entry covers them all.
+#    # directories:
+#    #   - /frontend
+#    #   - /backend
 #    schedule:
 #      interval: cron
 #      cronjob: '0 6 1,15 * *'
@@ -54,6 +60,8 @@ updates:
 #      prefix: chore
 
 # For a project managed with uv, use `package-ecosystem: uv` instead.
+# pip updates also rewrite hashed constraint and requirements files
+# (the `--hash=sha256:...` lines), so expect those in the diff.
 #  - package-ecosystem: pip
 #    directory: /
 #    schedule:
@@ -65,6 +73,48 @@ updates:
 #        patterns:
 #          - '*'
 #      pip-sec:
+#        applies-to: security-updates
+#        patterns:
+#          - '*'
+#    commit-message:
+#      prefix: chore
+
+# Docker: the base images in the Dockerfile at `directory`. `allow` limits
+# the updates to the images named; here one image is watched.
+#  - package-ecosystem: docker
+#    directory: /
+#    schedule:
+#      interval: cron
+#      cronjob: '0 6 1,15 * *'
+#    allow:
+#      - dependency-name: python
+#    groups:
+#      docker:
+#        applies-to: version-updates
+#        patterns:
+#          - '*'
+#      docker-sec:
+#        applies-to: security-updates
+#        patterns:
+#          - '*'
+#    commit-message:
+#      prefix: chore
+
+# Docker Compose: the `image:` lines of the compose files at `directory`,
+# here only the database image.
+#  - package-ecosystem: docker-compose
+#    directory: /
+#    schedule:
+#      interval: cron
+#      cronjob: '0 6 1,15 * *'
+#    allow:
+#      - dependency-name: postgres
+#    groups:
+#      compose:
+#        applies-to: version-updates
+#        patterns:
+#          - '*'
+#      compose-sec:
 #        applies-to: security-updates
 #        patterns:
 #          - '*'

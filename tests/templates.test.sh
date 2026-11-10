@@ -399,8 +399,16 @@ case $? in
 esac
 yaml_ok "$TMP/dependabot.all.yml"
 case $? in 0) pass ;; 2) ;; *) fail "dependabot.yml with the placeholders on parses" ;; esac
-check "the placeholders cover npm and pip" \
-  test "$(uncommented | grep -cE '^  - package-ecosystem: (npm|pip)$')" -eq 2
+for eco in npm pip docker docker-compose; do
+  check "the placeholders cover $eco" \
+    test "$(uncommented | grep -cx "  - package-ecosystem: $eco")" -eq 1
+done
+# allow_count: entries with an allow list naming one dependency
+allow_count() { uncommented | grep -c '^      - dependency-name: '; }
+check "the docker and docker-compose examples watch one image each" test "$(allow_count)" -eq 2
+check "an example shows several npm folders (directories:)" grep -q '^#    # directories:$' "$DEPENDABOT"
+check "it warns that pip updates rewrite hashed constraint files" grep -qi 'hash' "$DEPENDABOT"
+check "the header says to delete the unused examples" grep -q "delete the examples you don't use" "$DEPENDABOT"
 check "github-actions is on" grep -qx '  - package-ecosystem: github-actions' "$DEPENDABOT"
 entries=$(uncommented | grep -c '^  - package-ecosystem: ')
 check "every ecosystem runs on the 1st and 15th" \
