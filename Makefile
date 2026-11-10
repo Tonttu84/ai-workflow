@@ -6,7 +6,7 @@ test:
 	./tests/run.sh
 
 lint:
-	shellcheck $(SCRIPTS)
+	shellcheck -x $(SCRIPTS)
 
 # Use this repo's own commit-msg hook (run once per clone).
 setup:
