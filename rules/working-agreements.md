@@ -33,7 +33,7 @@ In repositories the owner does not own (course work, other people's projects) an
 3. The stack is discussed every time. Open with a proposal:
    - Web app: TypeScript (strict), Next.js, Tailwind, Prisma, Zod, Vitest, Playwright.
    - Compiled: Rust first. C++ when the project needs its libraries, a game engine or an embedded toolchain.
-   - Python (uv, FastAPI, pydantic, pytest, ruff) for services, scripts and data work, but not by default when the project would benefit from a compiled language.
+   - Python (uv, FastAPI, pydantic, pytest, ruff, pyright strict in the gate and CI) for services, scripts and data work, but not by default when the project would benefit from a compiled language.
 4. Set up `AGENTS.md` (stating the kind), a one-line `CLAUDE.md` (`@AGENTS.md`) and `docs/decisions.md` from `templates/`; install the commit hook with `hooks/install.sh`; set up CI with `templates/commit-check.yml` and a ruleset on `main` (see Git).
 
 ## Code
