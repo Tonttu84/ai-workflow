@@ -150,6 +150,7 @@ The workflow runs the project's committed `.githooks/commit-msg`, as it was befo
 4. Once the hook is committed and on `main`, add `templates/commit-check.yml` (a change that adds both is checked with its own copy of the hook, with a warning) and protect `main` with a ruleset (step 6 above); if pull requests are squash-merged, set `squash_merge_commit_title=PR_TITLE`. The first pull request should show the commit check running and passing.
 5. Turn on Dependabot from the template: copy `templates/dependabot.yml` to `.github/dependabot.yml`, uncomment the project's ecosystems, and enable Dependabot security updates in the repository settings. A repository with nothing to update skips the version updates; security updates stay on everywhere.
 6. Set the function limits (`templates/function-limits.md`): turn the linter checks on as warnings, measure the existing code, pick limits that flag only the worst few percent, record them in `docs/decisions.md`, then make them errors.
+7. Move committed test secrets into the secrets repo (`<secrets>/<project>/<file>`), leaving their variable names with empty values in the project, and rotate every moved value at its provider: git history keeps the old ones.
 
 ## Updating
 
