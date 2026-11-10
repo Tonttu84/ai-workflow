@@ -100,6 +100,8 @@ refute "title step: a long title fails" title_ok "fix: $(printf '%070d' 0 | tr 0
 # A squash merge appends " (#N)" to the title; the subject on main must still fit.
 check "title step: 65 characters plus ' (#123)' pass" title_ok "fix: $(printf '%060d' 0 | tr 0 x)"
 refute "title step: 66 characters plus ' (#123)' fail" title_ok "fix: $(printf '%061d' 0 | tr 0 x)"
+check "title step: a long Dependabot title passes" \
+  title_ok "chore: bump @typescript-eslint/eslint-plugin from 8.15.0 to 8.16.0 in the npm-sec group across 1 directory" 1234
 refute "title step: 64 characters plus ' (#12345)' fail" title_ok "fix: $(printf '%059d' 0 | tr 0 x)" 12345
 refute "title step: '#42 fix login' fails" title_ok "#42 fix login"
 # A PR title is never a message git wrote, so the hook's exemptions do not apply.
@@ -351,9 +353,6 @@ check "every grouped Dependabot title passes the hook after a squash merge" titl
 sed 's/prefix: ci$/prefix: deps/' "$DEPENDABOT" > "$TMP/bad-prefix.yml"
 bad_titles() { DEPENDABOT="$TMP/bad-prefix.yml" titles_pass; }
 refute "a prefix that is not a commit type is noticed" bad_titles
-sed 's/^      actions:$/      github-actions-updates:/' "$DEPENDABOT" > "$TMP/long-group.yml"
-long_group() { DEPENDABOT="$TMP/long-group.yml" titles_pass; }
-refute "a group name too long for the subject is noticed" long_group
 
 refute "CI never ran a project's pre-push hook" test -e "$TMP/project/pre-push-ran"
 

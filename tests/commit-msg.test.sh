@@ -80,6 +80,15 @@ ok|Reapply "feat: add login form"\n\nThis reverts commit 89abcde.
 ok|fixup! feat: add login form
 ok|squash! fix(auth): reject expired tokens
 ok|amend! feat: add login form
+# Dependabot's subjects may run past the limit; the type is still checked
+ok|chore: bump @typescript-eslint/eslint-plugin from 8.15.0 to 8.16.0 in the npm-sec group across 1 directory (#1234)
+ok|chore(deps): bump @typescript-eslint/eslint-plugin from 8.15.0 to 8.16.0 (#1234)
+ok|chore: bump the npm_and_yarn group across 12 directories with 140 updates (#12345)
+ok|ci: bump actions/checkout from 3d3c42e5aac5ba805825da76410c181273ba90b1 to 4e4e4e4 in the actions group (#77)
+bad|feat: bump @typescript-eslint/eslint-plugin from 8.15.0 to 8.16.0 in the npm-sec group (#1234)
+bad|chore: bump everything we have to the newest versions because they are better (#1234)
+bad|Bump @typescript-eslint/eslint-plugin from 8.15.0 to 8.16.0 in the npm group across 1 directory
+bad|chore: bump @typescript-eslint/eslint-plugin from 8.15.0 to 8.16.0 in the npm-sec group.
 # Rejected
 bad|
 bad|# only a comment

@@ -22,6 +22,9 @@ const max = 72;
 // The hook's subject shape: type(scope)!: summary, lower-case scope.
 const subject = new RegExp(`^(${types.join('|')})(\\([a-z0-9][a-z0-9._/-]*\\))?!?: [^ ]`);
 
+// Dependabot's subjects, which the hook lets run past the length limit.
+const dependabot = /^(chore|ci)(\([a-z0-9][a-z0-9._/-]*\))?: bump (the [^ ]+ group|[^ ]+ from [^ ]+ to [^ ]+)/;
+
 // Subjects the hook lets through unchecked: the ones git writes itself.
 const exempt =
   /^(Merge (branch|branches|remote-tracking branch|pull request|tag|commit) |Revert "|Reapply "|(fixup|squash|amend)! )/;
@@ -82,8 +85,12 @@ export default {
           "the subject must look like 'type(scope)!: summary' with an allowed type",
         ],
         'ai-workflow/subject-length': ({ raw }, _when, limit) => {
-          const length = [...(firstLines(raw)[0] || '')].length;
-          return [length <= limit, `the subject is ${length} characters; the limit is ${limit}`];
+          const first = firstLines(raw)[0] || '';
+          const length = [...first].length;
+          return [
+            length <= limit || dependabot.test(first),
+            `the subject is ${length} characters; the limit is ${limit}`,
+          ];
         },
         'ai-workflow/blank-second-line': ({ raw }) => {
           const lines = firstLines(raw);

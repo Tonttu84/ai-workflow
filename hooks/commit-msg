@@ -4,7 +4,8 @@
 #   type(scope)!: summary     scope and ! are optional
 #   - type is one of the allowed types below, in lower case
 #   - scope is lower case: letters, digits, . _ / -
-#   - the subject is at most 72 characters and does not end with a period
+#   - the subject is at most 72 characters (Dependabot's "chore: bump ..."
+#     subjects excepted) and does not end with a period
 #   - a blank line separates the subject from the body
 #
 # Subjects that start like git's own merge, revert, reapply and
@@ -97,7 +98,10 @@ if [ -n "$subject" ]; then
   # Characters, not bytes, in any locale: drop UTF-8 continuation bytes.
   length=$(printf '%s' "$subject" | LC_ALL=C tr -d '\200-\277' | wc -c)
   length=$((length + 0))
-  if [ "$length" -gt "$max" ]; then
+  # Dependabot's subjects name packages and versions and may run longer;
+  # only their length is let off.
+  dependabot="^(chore|ci)(\([a-z0-9][a-z0-9._/-]*\))?: bump (the [^ ]+ group|[^ ]+ from [^ ]+ to [^ ]+)"
+  if [ "$length" -gt "$max" ] && ! [[ $subject =~ $dependabot ]]; then
     errors+=("the subject is $length characters; the limit is $max")
   fi
   if [[ $subject == *. ]]; then
