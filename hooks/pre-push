@@ -6,8 +6,9 @@
 #
 # git passes <remote> <url>, and one line per ref on stdin:
 # <local ref> <local sha> <remote ref> <remote sha>. Deletions are
-# skipped; for a new branch, the commits no remote branch has yet are
-# checked.
+# skipped. For a new branch, the commits no remote-tracking branch has
+# yet are checked; with no remote-tracking branches at all, only the tip,
+# with a warning.
 #
 # Source: https://github.com/Tonttu84/ai-workflow (MIT). Install with
 # hooks/install.sh from that repo. Needs bash 3.2 or later and git.
@@ -25,8 +26,13 @@ while read -r _local_ref local_sha _remote_ref remote_sha; do
   [ -n "${local_sha//0/}" ] || continue # a deletion
   if [ -n "${remote_sha//0/}" ] && git cat-file -e "$remote_sha^{commit}" 2> /dev/null; then
     check_commits "$remote_sha..$local_sha" || status=1
+  elif [ -n "$(git for-each-ref --count=1 refs/remotes)" ]; then
+    # A new branch, or a remote this clone has not fetched from: the
+    # commits no remote branch has yet.
+    check_commits "$local_sha" --not --remotes || status=1
   else
-    check_commits "$local_sha" --not --remotes="$remote" || status=1
+    echo "pre-push: nothing is known about $remote yet; checking only the tip, $local_sha" >&2
+    check_commits -1 "$local_sha" || status=1
   fi
 done
 

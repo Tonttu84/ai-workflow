@@ -80,6 +80,39 @@ commit "WIP after the rewrite"
 refute "a force push with a bad commit is rejected" pushes -f origin main
 git -C "$repo" reset -q --hard HEAD~1
 
+# History from before the rules is not checked again when pushing to a
+# remote this clone knows nothing about.
+old_repo() { # old_repo <dir>: a clone with a bad commit from before the hooks
+  git init -q -b main "$1"
+  echo old > "$1/file" && git -C "$1" add -A && git -C "$1" commit -q -m "WIP from before the rules"
+}
+old_repo "$TMP/known"
+git init -q --bare -b main "$TMP/known-origin.git"
+git -C "$TMP/known" remote add origin "$TMP/known-origin.git"
+git -C "$TMP/known" push -q origin main 2> /dev/null
+bash "$ROOT/hooks/install.sh" "$TMP/known" > /dev/null 2>&1
+echo new >> "$TMP/known/file" && git -C "$TMP/known" commit -q -am "feat: work under the rules"
+git init -q --bare -b main "$TMP/by-url.git"
+push_known() { git -C "$TMP/known" push -q "$@" > "$TMP/push.out" 2>&1; }
+check "push by URL: commits another remote has are not checked again" push_known "$TMP/by-url.git" main
+git init -q --bare -b main "$TMP/second.git"
+git -C "$TMP/known" remote add second "$TMP/second.git"
+check "first push to a newly added remote: the same" push_known second main
+
+old_repo "$TMP/standalone"
+bash "$ROOT/hooks/install.sh" "$TMP/standalone" > /dev/null 2>&1
+echo new >> "$TMP/standalone/file" && git -C "$TMP/standalone" commit -q -am "feat: work under the rules"
+git init -q --bare -b main "$TMP/standalone-remote.git"
+git -C "$TMP/standalone" remote add origin "$TMP/standalone-remote.git"
+push_standalone() { git -C "$TMP/standalone" push -q origin "$@" > "$TMP/push.out" 2>&1; }
+check "no remote-tracking refs at all: only the tip is checked" push_standalone main
+check "it warns that only the tip was checked" grep -q 'only the tip' "$TMP/push.out"
+git -C "$TMP/standalone" checkout -q -b bad
+echo bad >> "$TMP/standalone/file" && git -C "$TMP/standalone" commit -q --no-verify -am "WIP tip"
+git -C "$TMP/standalone" remote remove origin
+git -C "$TMP/standalone" remote add origin "$TMP/standalone-remote.git"
+refute "no remote-tracking refs and a bad tip: rejected" push_standalone bad
+
 # check-commits is what pre-push and CI share: a range and a commit-msg hook.
 cd "$repo" || exit 1
 check "check-commits passes a good range" \
