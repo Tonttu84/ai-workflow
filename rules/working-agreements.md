@@ -1,23 +1,22 @@
 # Working agreements
 
-These rules apply to every project the owner runs with an AI coding agent. A project's `AGENTS.md` adds what is specific to it (its kind, stack, commands, domain rules, quirks) and wins where it says so explicitly. "The owner" is the human you work for. `templates/` and `hooks/` paths are in the ai-workflow clone that holds this file, not in the current project.
+These rules apply to every project the owner runs with an AI coding agent; a project's `AGENTS.md` adds its specifics and wins where it says so. "The owner" is the human you work for. `templates/` and `hooks/` paths are in the ai-workflow clone that holds this file, not in the current project.
 
 In repositories the owner does not own (course work, other people's projects) and the owner's inactive repositories that were never migrated: follow their conventions, never push without asking, and skip the kickoff, hook and escalation-log rules. The owner's other repositories without an `AGENTS.md` get the kickoff (new) or a migration; ask if unclear.
 
 ## Coordination and delegation
 
 - The main conversation is the coordinator. It plans, grills, writes briefs, reviews and merges. Small edits are fine there (a typo, a one-line config change); real work is delegated.
-- Coding, long test runs and review fixes go to subagents. Each gets a self-contained brief (`templates/agent-brief.md`): the goal, files to touch and to leave alone, the tests to write first, the commands that verify the work, and what to report. The brief is all the context the subagent has.
+- Coding, long test runs and review fixes go to subagents. Each gets a self-contained brief (`templates/agent-brief.md`), which is all the context it has.
 - A subagent's report is evidence, not a verdict: before telling the owner something is done, re-run the local gate, read the diff and spot-check the claims.
-- Parallel subagents each work in their own git worktree.
 
 ## Models and escalation
 
 - Subagents run on Opus 5.5 at normal effort by default (set in the user settings). Do not pass `model` or `effort` for ordinary tasks.
-- Never fork. Always start a fresh subagent with a brief. A fork inherits the whole conversation and runs on the coordinator's model, which defeats both the clean brief and the cheaper default.
-- Escalate on your own judgement when a task is hard: pass `model: "opus"` with `effort: "high"`, or `model: "fable"` with `effort: "high"`. These rules are the owner's standing request to set the effort level in those cases.
+- Never fork; start a fresh subagent with a brief. A fork inherits the whole conversation and the coordinator's model.
+- Escalate on your own judgement when a task is hard: pass `model: "opus"` or `model: "fable"` with `effort: "high"`. These rules are the owner's standing request to set the effort level in those cases.
 - Every escalation is explained, because the owner wants to learn what is hard for an AI:
-  - In the chat, explain in detail why this task is hard for an AI. Name the concrete difficulty (a long chain of dependent steps, an ambiguous or contradictory spec, concurrency, numeric precision, an API newer than the model's training, a large amount of code to hold at once). "It is complex" is not an explanation.
+  - In the chat, explain in detail why this task is hard for an AI. Name the concrete difficulty (such as a long chain of dependent steps, an ambiguous spec, or an API newer than the model's training). "It is complex" is not an explanation.
   - Append an entry to `escalation-log.md` in the ai-workflow clone, in its format; the file is public, so keep project details generic. There, `git pull --rebase --autostash`, commit that file only (`git commit -m "docs(escalation): ..." -- escalation-log.md`) and push; if the push is rejected, pull and push again. When the task ends, append its outcome the same way as a new line, never by editing the entry: was the escalation needed?
 
 ## Grilling
@@ -30,7 +29,7 @@ In repositories the owner does not own (course work, other people's projects) an
 ## Kickoff (new project)
 
 1. Grill the owner about the goal, the users, the scope and the kind (solo or showcase).
-2. Write `docs/kickoff.md` before any code (`templates/kickoff.md`): goal, kind, the stack decision with the alternatives considered, the first decisions, and the agent brief for this project.
+2. Write `docs/kickoff.md` from `templates/kickoff.md` before any code.
 3. The stack is discussed every time. Open with a proposal:
    - Web app: TypeScript (strict), Next.js, Tailwind, Prisma, Zod, Vitest, Playwright.
    - Compiled: Rust first. C++ when the project needs its libraries, a game engine or an embedded toolchain.
@@ -42,7 +41,7 @@ In repositories the owner does not own (course work, other people's projects) an
 - Test first for domain logic and for every bug fix: a failing test that shows the bug, then the fix.
 - UI changes come with behaviour tests (end-to-end, layout checks) written in the same change.
 - After each feature lands, a different agent runs a hardening pass on its tests (`templates/hardening-brief.md`): edge cases, property tests, "would a wrong line still pass?". Findings become a follow-up change.
-- Prefer automated pass/fail checks over an agent or a human looking at output. If you are checking something by eye, turn it into an assertion.
+- Prefer automated pass/fail checks to looking at output: turn a check by eye into an assertion.
 - Never weaken, skip or delete a test to go green. If a test is wrong, a subagent stops and reports why; the coordinator then fixes it as its own change.
 - Keep logic pure and IO at the edges. No network in unit tests; use fakes and fixtures.
 - Every wait has a deadline: network calls, polling loops, test waits and CI jobs all time out. Every command you run has a time limit: the tool's timeout, `timeout` (or an equivalent) around anything that might hang, a deadline on background jobs instead of endless polling. Loops get an exit condition and an iteration or time cap, and no command waits for interactive input (use non-interactive flags).
@@ -73,7 +72,7 @@ In repositories the owner does not own (course work, other people's projects) an
 
 ## Decisions
 
-- Every project keeps `docs/decisions.md` (`templates/decisions.md`): one row per decision with a D-number, the decision, the reason, and what was chosen against.
+- Every project keeps `docs/decisions.md` (`templates/decisions.md`), one row per decision.
 - Record a decision when the owner settles a design fork or when an agent chooses between real alternatives. Never rewrite an old row; a reversal is a new row that names the one it replaces.
 - No time logs in new work. A project that already keeps them may keep its own rule.
 
@@ -82,5 +81,4 @@ In repositories the owner does not own (course work, other people's projects) an
 - Lead with the answer, then the evidence.
 - Say what was done and what was not: not done, not verified, skipped, and why.
 - When you rely on something the owner said earlier, quote their words with the date.
-- Ask only what the owner must decide. Look up everything else.
 - Do not claim what you have not checked. "Should work" means run it.
