@@ -25,7 +25,8 @@ refute "a drifted type list is noticed" matches_hook "$TMP/drift-types.mjs"
 sed 's/^const max = 72;$/const max = 100;/' "$COMMITLINT" > "$TMP/drift-max.mjs"
 refute "a drifted limit is noticed" matches_hook "$TMP/drift-max.mjs"
 for rule in "'subject-case': \[0\]" "'body-max-line-length': \[0\]" "'footer-max-line-length': \[0\]" \
-  "'header-max-length': \[2, 'always', max\]" "defaultIgnores: false"; do
+  "'ai-workflow/subject-length': \[2, 'always', max\]" "'header-max-length': \[0\]" \
+  "defaultIgnores: false"; do
   check "commitlint config sets $rule" grep -q "$rule" "$COMMITLINT"
 done
 

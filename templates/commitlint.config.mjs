@@ -7,10 +7,14 @@
 // husky's commit-msg hook:  npx --no -- commitlint --edit "$1"
 //
 // Keep `types` and `max` in step with hooks/commit-msg (a test checks it).
-// Checked against the hook's test table with @commitlint/cli 21. Known
-// differences: commitlint passes an empty message (git aborts those
-// anyway), and this file assumes '#' comments and the default
-// commit.cleanup, where the hook reads both from git config.
+// tests/commitlint.test.sh compares the two over the hook's test table
+// when COMMITLINT_DIR names an installed commitlint; CI does not run it.
+// Like the hook, this counts the subject in characters (code points);
+// commitlint's own header-max-length counts UTF-16 units, so it is off.
+// Known difference: commitlint passes a message that is empty once
+// comment lines are dropped (git aborts an empty message anyway).
+
+import { execFileSync } from 'node:child_process';
 
 const types = ['feat', 'fix', 'docs', 'test', 'refactor', 'perf', 'build', 'ci', 'chore', 'revert'];
 const max = 72;
@@ -22,23 +26,44 @@ const subject = new RegExp(`^(${types.join('|')})(\\([a-z0-9][a-z0-9._/-]*\\))?!
 const exempt =
   /^(Merge (branch|branches|remote-tracking branch|pull request|tag|commit) |Revert "|Reapply "|(fixup|squash|amend)! )/;
 
-// The message lines as git saves them, read as the hook reads them: up to
-// the scissors line, without trailing spaces or leading blank lines, and
-// without comment lines only when git's editor template says git drops
-// them (with commit -m and -F git keeps them). Assumes '#' comments.
-const scissors = '# ------------------------ >8 ------------------------';
+const gitConfig = (key) => {
+  try {
+    return execFileSync('git', ['config', '--get', key], { encoding: 'utf8', timeout: 5000 }).trim();
+  } catch {
+    return '';
+  }
+};
+
+// The message lines as git saves them, read as the hook reads them. Git
+// exports GIT_EDITOR=: when no editor ran (-m, -F): comment lines and the
+// scissors line then stay, unless commit.cleanup is strip. After the
+// editor, git's template text decides, else commit.cleanup.
 const firstLines = (raw) => {
+  const configured = gitConfig('core.commentChar');
+  const c = configured.length === 1 ? configured : '#';
+  const cleanup = gitConfig('commit.cleanup');
+  const scissors = `${c} ------------------------ >8 ------------------------`;
   const all = (raw || '').split(/\r?\n/);
-  let strip = false;
-  for (const line of all) {
-    if (line.startsWith('# Please enter the commit message')) strip = true;
-    if (line.startsWith("# with '#' will be kept")) { strip = false; break; }
-    if (line.startsWith(scissors)) { strip = true; break; }
+  let strip;
+  let cut;
+  if (process.env.GIT_EDITOR === ':') {
+    cut = false;
+    strip = cleanup === 'strip';
+  } else {
+    cut = true;
+    strip = !['whitespace', 'scissors', 'verbatim'].includes(cleanup);
+    for (const line of all) {
+      if (line.startsWith(`${c} Please enter the commit message`)) strip = true;
+      else if (line.startsWith(`${c} with '${c}' will be kept`)) {
+        strip = false;
+        break;
+      } else if (line.startsWith(scissors)) break;
+    }
   }
   const lines = [];
   for (const line of all) {
-    if (line.startsWith(scissors)) break;
-    if (strip && line.startsWith('#')) continue;
+    if (cut && line.startsWith(scissors)) break;
+    if (strip && line.startsWith(c)) continue;
     const text = line.trimEnd();
     if (lines.length > 0 || text !== '') lines.push(text);
   }
@@ -56,6 +81,10 @@ export default {
           subject.test(firstLines(raw)[0] || ''),
           "the subject must look like 'type(scope)!: summary' with an allowed type",
         ],
+        'ai-workflow/subject-length': ({ raw }, _when, limit) => {
+          const length = [...(firstLines(raw)[0] || '')].length;
+          return [length <= limit, `the subject is ${length} characters; the limit is ${limit}`];
+        },
         'ai-workflow/blank-second-line': ({ raw }) => {
           const lines = firstLines(raw);
           return [lines.length < 2 || lines[1] === '', 'the second line must be blank'];
@@ -65,9 +94,10 @@ export default {
   ],
   rules: {
     'ai-workflow/subject': [2, 'always'],
+    'ai-workflow/subject-length': [2, 'always', max],
     'ai-workflow/blank-second-line': [2, 'always'],
     'type-enum': [2, 'always', types],
-    'header-max-length': [2, 'always', max],
+    'header-max-length': [0],
     'header-trim': [0],
     'subject-case': [0],
     'subject-full-stop': [2, 'never', '.'],
