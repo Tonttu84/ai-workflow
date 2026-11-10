@@ -12,7 +12,7 @@ This file holds only what is specific to this project and wins where it says so.
 
 **Solo** | **Showcase**  <!-- keep one -->
 
-- Solo: commit to `main` and push once the gate is green; fresh-agent review before pushing any non-trivial change.
+- Solo: commit to `main` and push once the local gate is green; fresh-agent review before pushing any non-trivial change.
 - Showcase: branch, pull request, fresh-agent review, squash-merge on the owner's word.
 
 ## Stack

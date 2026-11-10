@@ -16,7 +16,7 @@ These rules are how I keep AI-assisted work honest: decisions are written down, 
 ```
 
 - `rules/working-agreements.md` is the only file loaded into every session, so it is kept short: it costs context each time.
-- A project's `AGENTS.md` holds only what is specific to that project and says which kind it is. Solo projects commit to `main` once the gate is green; showcase projects go through a pull request, a fresh-agent review and a squash-merge. `AGENTS.md` is the open format other coding tools read; its `CLAUDE.md` is the single line `@AGENTS.md`.
+- A project's `AGENTS.md` holds only what is specific to that project and says which kind it is. Solo projects commit to `main` once the local gate (tests, lint, types, build) is green; showcase projects go through a pull request, a fresh-agent review and a squash-merge. `AGENTS.md` is the open format other coding tools read; its `CLAUDE.md` is the single line `@AGENTS.md`.
 - Everything else here (templates, briefs, the hook, the skills) is used on demand.
 
 ## Layout
@@ -144,7 +144,7 @@ The workflow runs the project's committed `.githooks/commit-msg`, as it was befo
 2. Install the commit hook with `hooks/install.sh` and add its `git config` line to the setup command: a fresh clone has the hook off until that runs.
 3. Smoke-check it in that repository: a bad message is rejected (`git commit --allow-empty -m "bad"`), a good one passes, and the project's existing hooks (pre-commit, Git LFS, husky) still run.
 4. Once the hook is committed and on `main`, add `templates/commit-check.yml` (a change that adds both is checked with its own copy of the hook, with a warning) and protect `main` with a ruleset (step 6 above); if pull requests are squash-merged, set `squash_merge_commit_title=PR_TITLE`. The first pull request should show the commit check running and passing.
-5. Turn on Dependabot from the template: copy `templates/dependabot.yml` to `.github/dependabot.yml`, uncomment the project's ecosystems, and enable Dependabot security updates in the repository settings. A repository with nothing to update skips this.
+5. Turn on Dependabot from the template: copy `templates/dependabot.yml` to `.github/dependabot.yml`, uncomment the project's ecosystems, and enable Dependabot security updates in the repository settings. A repository with nothing to update skips the version updates; security updates stay on everywhere.
 
 ## Updating
 

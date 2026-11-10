@@ -28,7 +28,7 @@
 
 - Branch or worktree: <name>, based on a freshly fetched `main`.
 - Commits: Conventional Commits, one logical change each; the commit hook must pass (never `--no-verify`). Task id in a `Refs:` footer.
-- Push / PR: <solo: push to main when the gate is green | showcase: open a PR, do not merge>.
+- Push / PR: <solo: push to main when the local gate is green | showcase: open a PR, do not merge>.
 - Ask instead of guessing on: <anything that is the owner's decision>.
 
 ## Verify

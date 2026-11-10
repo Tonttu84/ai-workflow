@@ -2,13 +2,13 @@
 
 These rules apply to every project the owner runs with an AI coding agent. A project's `AGENTS.md` adds what is specific to it (its kind, stack, commands, domain rules, quirks) and wins where it says so explicitly. "The owner" is the human you work for. `templates/` and `hooks/` paths are in the ai-workflow clone that holds this file, not in the current project.
 
-In repositories the owner does not own (course work, other people's projects) and inactive ones left unmigrated (D23): follow their conventions, never push without asking, and skip the kickoff, hook and escalation-log rules. The owner's other repositories without an `AGENTS.md` get the kickoff (new) or a migration; ask if unclear.
+In repositories the owner does not own (course work, other people's projects) and the owner's inactive repositories that were never migrated: follow their conventions, never push without asking, and skip the kickoff, hook and escalation-log rules. The owner's other repositories without an `AGENTS.md` get the kickoff (new) or a migration; ask if unclear.
 
 ## Coordination and delegation
 
 - The main conversation is the coordinator. It plans, grills, writes briefs, reviews and merges. Small edits are fine there (a typo, a one-line config change); real work is delegated.
 - Coding, long test runs and review fixes go to subagents. Each gets a self-contained brief (`templates/agent-brief.md`): the goal, files to touch and to leave alone, the tests to write first, the commands that verify the work, and what to report. The brief is all the context the subagent has.
-- A subagent's report is evidence, not a verdict: before telling the owner something is done, re-run the gate, read the diff and spot-check the claims.
+- A subagent's report is evidence, not a verdict: before telling the owner something is done, re-run the local gate, read the diff and spot-check the claims.
 - Parallel subagents each work in their own git worktree.
 
 ## Models and escalation
@@ -25,7 +25,7 @@ In repositories the owner does not own (course work, other people's projects) an
 - Grill before building whenever your confidence in the requirements is not high (the `grilling` skill).
 - One question at a time, each with your recommended answer, worded so that "yes" accepts it.
 - Facts are yours to find (code, docs, tools); decisions are the owner's.
-- A design fork is the owner's call: the shape of the product, the stack, the data model, public behaviour, anything that costs money. Shipping is not: once the work is agreed and the gate is green, follow the project's git rules without asking. The one exception is the merge of a showcase PR, which waits for the owner's word.
+- A design fork is the owner's call: the shape of the product, the stack, the data model, public behaviour, anything that costs money. Shipping is not: once the work is agreed and the local gate is green, follow the project's git rules without asking. The one exception is the merge of a showcase PR, which waits for the owner's word.
 
 ## Kickoff (new project)
 
@@ -50,7 +50,7 @@ In repositories the owner does not own (course work, other people's projects) an
 ## Git
 
 - The project kind, stated in `AGENTS.md`, sets the flow:
-  - Solo: commit to `main` and push once the gate (tests, lint, types, build) is green.
+  - Solo: commit to `main` and push once the local gate (tests, lint, types, build) is green.
   - Showcase or team: branch, pull request, fresh-agent review, squash-merge on the owner's word.
 - Fresh-agent review on every PR, and on solo projects on every non-trivial change before the push (trivial: a typo, formatting, a comment). The reviewer has none of the author's conversation and reads the diff cold (`templates/review-brief.md`). It posts its verdict (`gh pr review --comment` when there is a PR); the author fixes; a fix that goes beyond a finding is reviewed again.
 - Commit messages follow Conventional Commits plus good-message rules:
@@ -66,9 +66,9 @@ In repositories the owner does not own (course work, other people's projects) an
 
   - Types: `feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `build`, `ci`, `chore`, `revert`. The scope is optional and lower case; `!` before the colon marks a breaking change.
   - One logical change per commit. Task ids go in a `Refs:` footer, never in the subject.
-- Three layers enforce this. The commit hook (`hooks/install.sh`, wired into the setup command, since a fresh clone has it off) is feedback while writing; Node projects may use commitlint and husky instead (`templates/commitlint.config.mjs`). CI checking every commit (`templates/commit-check.yml`) is the gate. A ruleset on `main` makes it binding: PR-flow repos require the check and block force pushes; solo repos, which push to `main`, only block force pushes and deletion. GitHub Free offers rulesets only on public repos, so private repos are a recorded exception. Never use `--no-verify`; if the hook rejects a message, fix the message.
+- Three layers enforce this. The commit hook (`hooks/install.sh`, wired into the setup command, since a fresh clone has it off) is feedback while writing; Node projects may use commitlint and husky instead (`templates/commitlint.config.mjs`). CI checking every commit (`templates/commit-check.yml`) is the gate for commit messages. A ruleset on `main` makes it binding: PR-flow repos require the check and block force pushes; solo repos, which push to `main`, only block force pushes and deletion. GitHub Free offers rulesets only on public repos, so private repos are a recorded exception. Never use `--no-verify`; if the hook rejects a message, fix the message.
 - A squash merge makes the PR title the subject on `main` (repository setting `squash_merge_commit_title=PR_TITLE`), so it follows the same format; the CI check covers it.
-- Dependabot security updates are on in every repo (free on private repos too); version updates follow `templates/dependabot.yml`. A repo with nothing to update (such as a private secrets repo) skips them.
+- Dependabot security updates are on in every repo (free on private repos too); version updates follow `templates/dependabot.yml`, except in a repo with nothing to update (such as a private secrets repo).
 - Parallel agents: one worktree per task; merge one at a time. Before the first commit, check which branch you are on and fetch `main`.
 
 ## Decisions
