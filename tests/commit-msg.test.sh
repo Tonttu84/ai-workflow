@@ -44,8 +44,17 @@ ok|fix(parser): handle empty input\n\nThe parser crashed on an empty file.\n\nRe
 # What git strips before saving the message
 ok|\n\nfeat: add login form
 ok|feat: add login form
-ok|feat: add login form\n# Please enter the commit message for your changes.\n# Lines starting with '#' will be ignored.
 ok|feat: add login form\n# ------------------------ >8 ------------------------\ndiff --git a/x b/x
+# Comment lines: git drops them from a message written in its editor...
+ok|feat: add login form\n\n# Please enter the commit message for your changes. Lines starting\n# with '#' will be ignored, and an empty message aborts the commit.\n#\n# On branch main
+ok|# typed in the editor\nfeat: add login form\n\n# Please enter the commit message for your changes. Lines starting\n# with '#' will be ignored, and an empty message aborts the commit.
+ok|# typed in the editor\nfeat: add login form\n\n# ------------------------ >8 ------------------------\n# Do not modify or remove the line above.\ndiff --git a/x b/x
+bad|# typed in the editor\nfeat: add login form\n\n# Please enter the commit message for your changes. Lines starting\n# with '#' will be kept; you may remove them yourself if you want to.
+# ...but keeps them in a message given with -m or -F
+bad|# anything\nfeat: add login form
+bad|#WIP hack\n\nfeat: add login form
+bad|feat: add login form\n#42
+ok|feat: add login form\n\n#42 was the cause
 ok|feat: add login form\r\n\r\nWritten in an editor that saves CRLF.\r\n
 # Messages git writes itself
 ok|Merge branch 'main' into feature/login
@@ -98,5 +107,48 @@ for type in feat fix docs test refactor perf build ci chore revert; do
 done
 run_hook "oops"
 check "rejection message lists the allowed types" grep -q 'feat, fix, docs' "$TMP/out"
+run_hook "#42 fix login"
+refute "a -m subject starting with # is not reported as empty" grep -q 'empty' "$TMP/out"
+
+# End to end: real commits through the hook with -m, -F and an editor.
+repo="$TMP/e2e"
+git init -q -b main "$repo"
+git -C "$repo" config user.name test
+git -C "$repo" config user.email test@example.com
+git -C "$repo" config core.autocrlf false
+mkdir -p "$TMP/hooks"
+cp "$HOOK" "$TMP/hooks/commit-msg"
+git -C "$repo" config core.hooksPath "$TMP/hooks"
+# The editor prepends $EDIT_TEXT (printf %b escapes) to git's template.
+printf '%s\n' '{ printf "%b\n" "$EDIT_TEXT"; cat "$1"; } > "$1.new" && mv "$1.new" "$1"' \
+  > "$TMP/editor.sh"
+
+# commit_with <-m|-F|editor> <message with escapes> [git commit options...]
+commit_with() {
+  local how=$1 msg=$2
+  shift 2
+  echo "$msg" >> "$repo/file" && git -C "$repo" add file || return 2
+  case $how in
+    -m) git -C "$repo" commit -q "$@" -m "$(printf '%b' "$msg")" ;;
+    -F) printf '%b' "$msg" > "$TMP/msgfile" && git -C "$repo" commit -q "$@" -F "$TMP/msgfile" ;;
+    editor) EDIT_TEXT=$msg GIT_EDITOR="bash '$TMP/editor.sh'" git -C "$repo" commit -q "$@" ;;
+  esac > /dev/null 2>&1
+}
+saved_subject() { test "$(git -C "$repo" log -1 --format=%s)" = "$1"; }
+
+refute "-m: git keeps a leading # line, so it is the subject" commit_with -m '# anything\nfeat: add login form'
+refute "-F: git keeps '#WIP hack' as the subject" commit_with -F '#WIP hack\nfeat: add login form'
+refute "-m: '#42 fix login' is not a valid subject" commit_with -m '#42 fix login'
+refute "-m: a # line right under the subject is not blank" commit_with -m 'feat: add login form\n#42'
+check "-m: a body line starting with # is fine" commit_with -m 'feat: add login form\n\n#42 was the cause'
+check "editor: comment lines are dropped" commit_with editor '# a note\nfeat: add the editor flow'
+check "editor: git saved the subject without the comment" saved_subject 'feat: add the editor flow'
+check "editor -v: the scissors line and diff are dropped" commit_with editor '# a note\nfix: add the verbose flow' -v
+check "editor -v: git saved that subject" saved_subject 'fix: add the verbose flow'
+git -C "$repo" config core.commentChar ';'
+refute "-m with core.commentChar ;: git keeps a ; line" commit_with -m '; a note\nfix: use the comment char'
+check "editor with core.commentChar ;: ; lines are dropped" commit_with editor '; a note\nfix: use the comment char'
+check "editor with core.commentChar ;: git saved that subject" saved_subject 'fix: use the comment char'
+git -C "$repo" config --unset core.commentChar
 
 finish
