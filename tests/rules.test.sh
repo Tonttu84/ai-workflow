@@ -104,4 +104,7 @@ for text in 'git fetch origin' 'origin/<default branch>' 'identity' 'git ls-file
   check "the migration steps mention $text" in_migration_steps "$text"
 done
 
+# --- the agent brief keeps parallel agents' scratch files apart
+check "the agent brief names scratch files by project" grep -qF '`<project>-<task>-' "$ROOT/templates/agent-brief.md"
+
 finish

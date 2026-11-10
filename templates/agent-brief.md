@@ -30,6 +30,7 @@
 - Commits: Conventional Commits, one logical change each; the commit hook must pass (never `--no-verify`). Task id in a `Refs:` footer.
 - Push / PR: <solo: push to main when the local gate is green | showcase: open a PR, do not merge>.
 - Ask instead of guessing on: <anything that is the owner's decision>.
+- Scratch files (reports, CSVs, logs) outside the worktree get a name that starts with the project and task, such as `<project>-<task>-lizard.csv`: parallel agents share scratch folders and overwrite each other's `lizard.csv`.
 
 ## Verify
 
