@@ -4,33 +4,46 @@ Rules for projects that fit models to data. A project's `AGENTS.md` pulls this f
 
 ## 1. Leakage is tested, not judged
 
-Information from the test set or the future must not reach training. Each rule below comes with a test; the sketches use pytest, pandas and scikit-learn, and the names `make_features`, `split_by_time` and `build_pipeline` stand for the project's own functions.
+Information from the test set or the future must not reach training. Each rule below comes with a test. The tests call the project's own code, never a scikit-learn object built inside the test: a test that builds its own splitter tests scikit-learn, not the project. The sketches use pytest, pandas, scikit-learn and hypothesis; `load_raw`, `split_by_time`, `train_model` (the training entry point, raw data in, fitted pipeline out), `make_cv`, `make_features` and `encode_target` stand for the project's functions, and `CUTOFF`, `HORIZON` (in time steps), `STEP` (one time step, such as `pd.Timedelta(days=1)`), `FEATURES` and `TARGET` for its constants.
 
-- **Preprocessing that learns from data** (scaling, imputation, encoding, feature selection) is a step in a `sklearn.pipeline.Pipeline`, fitted on the training split only. Assert it never saw a test row:
+- **Preprocessing that learns from data** (scaling, imputation, encoding, feature selection) is a step in a `sklearn.pipeline.Pipeline`, fitted on the training split only. Looking inside the fitted scaler misses scaling done upstream, before the split, so the test changes the test rows and asserts training did not notice:
 
   ```python
-  def test_scaler_fitted_on_train_only(df):
-      train, test = split_by_time(df, cutoff="2024-01-01")
-      pipe = build_pipeline().fit(train[FEATURES], train[TARGET])
-      scaler = pipe.named_steps["scale"]
-      assert scaler.n_samples_seen_ == len(train)
-      np.testing.assert_allclose(scaler.mean_, train[FEATURES].mean())
+  def test_training_never_sees_test_rows():
+      raw = load_raw()
+      _, test = split_by_time(raw, CUTOFF)
+      changed = raw.copy()
+      changed.loc[test.index, FEATURES] *= 100.0
+      changed.loc[test.index, TARGET] += 1_000.0
+      probe = raw.loc[test.index, FEATURES]
+      np.testing.assert_allclose(
+          train_model(raw).predict(probe), train_model(changed).predict(probe)
+      )
   ```
 
-- **Time series predicting the future are split by time, never randomly.** Model selection uses expanding-window validation (`sklearn.model_selection.TimeSeriesSplit`; `max_train_size` makes it rolling, `gap` leaves out the rows a forecast horizon would not yet have):
+- **Time series predicting the future are split by time, never randomly.** Model selection uses expanding-window validation (`sklearn.model_selection.TimeSeriesSplit`) or rolling-origin (its `max_train_size`):
 
   ```python
-  def test_every_test_row_is_after_every_train_row(df):
-      train, test = split_by_time(df, cutoff="2024-01-01")
+  def test_every_test_row_is_after_every_train_row():
+      train, test = split_by_time(load_raw(), CUTOFF)
       assert train["ts"].max() < test["ts"].min()
 
-  def test_cv_folds_respect_time(df):
-      df = df.sort_values("ts")
-      for tr, te in TimeSeriesSplit(n_splits=5, gap=HORIZON).split(df):
-          assert df["ts"].iloc[tr].max() < df["ts"].iloc[te].min()
+  def test_cv_folds_respect_time():
+      ts = load_raw()["ts"]
+      for tr, te in make_cv(ts):  # test rows come HORIZON steps after training
+          assert ts.iloc[te].min() - ts.iloc[tr].max() > HORIZON * STEP
   ```
 
-- **Lagged and rolling features use only the past**: shift before rolling (`y.shift(1).rolling(7).mean()`). A property test changes the future and asserts the past features stay put:
+  `TimeSeriesSplit` counts rows: its `gap` and `max_train_size` are rows, not time steps. With several rows per time step (a panel, such as many cities a day), a gap of 7 rows is less than 7 days, and a fold boundary can put one day on both sides; the test above catches both. Split the sorted time steps instead, so that `gap` counts time steps:
+
+  ```python
+  def make_cv(ts, n_splits=5, gap=HORIZON):
+      steps = np.sort(ts.unique())
+      for tr, te in TimeSeriesSplit(n_splits=n_splits, gap=gap).split(steps):
+          yield np.flatnonzero(ts.isin(steps[tr])), np.flatnonzero(ts.isin(steps[te]))
+  ```
+
+- **Lagged and rolling features use only the past**: shift before rolling (`y.shift(1).rolling(7).mean()`). A property test changes the future and asserts the past features stay put. Row `cut` is compared too: its features must not see its own target.
 
   ```python
   @given(cut=st.integers(min_value=10, max_value=90))
@@ -39,20 +52,27 @@ Information from the test set or the future must not reach training. Each rule b
       changed = df.copy()
       changed.loc[changed.index[cut:], "y"] += 1_000.0
       pd.testing.assert_frame_equal(
-          make_features(df).iloc[:cut], make_features(changed).iloc[:cut]
+          make_features(df).iloc[: cut + 1], make_features(changed).iloc[: cut + 1]
       )
   ```
 
-- **Anything computed from the target** (target encoding, target-based feature selection) is computed out of fold. `sklearn.preprocessing.TargetEncoder.fit_transform` cross-fits; `fit(X, y).transform(X)` on the same rows does not, so use `fit_transform` on training data. Test: a row's own target never moves its own encoding:
+- **Anything computed from the target** (target encoding, target-based feature selection) is computed out of fold. `sklearn.preprocessing.TargetEncoder.fit_transform` cross-fits; `fit(X, y).transform(X)` on the same rows does not. Give it fixed folds through `cv`: newer scikit-learn deprecates the encoder's own `shuffle` and `random_state`, and with unseeded folds two fits differ and the test fails for the wrong reason. (Its smoothing parameter is `smooth`.)
 
   ```python
-  def test_target_encoding_is_out_of_fold(train):
-      enc = TargetEncoder(target_type="continuous", cv=5, random_state=0)
-      before = enc.fit_transform(train[["city"]], train["y"])
-      y = train["y"].copy()
+  def encode_target(X, y):
+      folds = KFold(n_splits=5, shuffle=True, random_state=0)
+      return TargetEncoder(target_type="continuous", cv=folds).fit_transform(X, y)
+  ```
+
+  Test: a row's own target never moves its own encoding.
+
+  ```python
+  def test_target_encoding_is_out_of_fold():
+      train, _ = split_by_time(load_raw(), CUTOFF)
+      X, y = train[["city"]], train[TARGET].copy()
+      before = encode_target(X, y)
       y.iloc[0] += 1_000.0
-      after = enc.fit_transform(train[["city"]], y)
-      assert after[0, 0] == pytest.approx(before[0, 0])
+      assert encode_target(X, y)[0, 0] == pytest.approx(before[0, 0])
   ```
 
 ## 2. Baseline first
