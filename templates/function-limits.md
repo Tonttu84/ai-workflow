@@ -46,6 +46,49 @@ export default [
 
 Change `warn` to `error` in step 3. `complexity` is cyclomatic; keep it as a backstop or drop it once the cognitive check is in place.
 
+### When the lint gate allows no warnings
+
+A gate that runs `eslint --max-warnings 0` fails on any warning, so step 1's warnings cannot go in the main config. Put them in a separate limits config that extends it, and run that as a report that never fails:
+
+```js
+// eslint.limits.config.mjs: the project's config plus the limits, as warnings
+import base from './eslint.config.mjs';
+import sonarjs from 'eslint-plugin-sonarjs';
+
+export default [
+  ...base,
+  {
+    plugins: { sonarjs }, // drop this line if the base config already registers sonarjs
+    rules: {
+      // the five rules above, as 'warn'
+    },
+  },
+];
+```
+
+```json
+"lint:limits": "eslint -c eslint.limits.config.mjs ."
+```
+
+ESLint exits 0 when it finds only warnings, so `npm run lint:limits` reports without failing; it is not part of the gate. In step 3, move the rules into the main config as errors and delete the limits config. Other stacks do the same with a `make limits` target (Ruff's `--exit-zero` command below, or Lizard's).
+
+## oxlint (TypeScript, JavaScript)
+
+oxlint 1.72 accepts the ESLint rule names. It has no cognitive-complexity rule, so the cyclomatic `complexity` stands in. Run `npx oxlint --rules` to confirm the project's version lists each rule. In `.oxlintrc.json` (or, under a no-warnings gate, a separate `.oxlintrc.limits.json` run as `oxlint -c .oxlintrc.limits.json` for the report):
+
+```json
+{
+  "rules": {
+    "complexity": ["warn", { "max": 15 }],
+    "max-lines-per-function": ["warn", { "max": 60, "skipBlankLines": true, "skipComments": true }],
+    "max-params": ["warn", { "max": 5 }],
+    "max-depth": ["warn", { "max": 3 }]
+  }
+}
+```
+
+oxlint exits 0 on warnings unless the gate passes `--deny-warnings` or `--max-warnings`.
+
 ## Ruff (Python)
 
 Ruff has no warning level: a selected rule fails the check. So in step 1 run the checks as a report that never fails (`--exit-zero`), and add them to `extend-select` in step 3. In `pyproject.toml`:
@@ -132,3 +175,20 @@ lizard -w -C 15 -L 60 -a 5 src/     # only the functions over a limit
 ```
 
 The summary at the end counts the functions and those over a limit; the share of flagged functions is the number to bring down to the worst few percent. Lizard measures cyclomatic complexity, not cognitive complexity, and has no nesting limit in these flags.
+
+Install: `uvx lizard ...` runs it without installing anything; without uv, `python -m pip install --user lizard`.
+
+Lizard exits 1 when it finds a function over a limit. A report-only target accepts that status but still fails when Lizard is missing (127) or breaks:
+
+```make
+limits:  # report only, not part of the gate
+	lizard -w -C 15 -L 60 -a 5 src/ || [ $$? -eq 1 ]
+```
+
+GDScript (Godot) has no linter with these limits; Lizard reads it as the language `GDScript`, and the name is case-sensitive:
+
+```bash
+lizard -l GDScript -C 15 -L 60 -a 5 scripts/
+```
+
+Write any report file (`--csv > ...`) under a name that starts with the project's, such as `<project>-lizard.csv`: agents working in parallel share scratch folders.

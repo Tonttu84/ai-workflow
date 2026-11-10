@@ -58,8 +58,20 @@ for line in "'sonarjs/cognitive-complexity': ['warn', 15]" "complexity: ['warn',
   'max-complexity = 15' 'max-args = 5' \
   'cognitive-complexity-threshold = 15' 'too-many-lines-threshold = 60' \
   'too-many-arguments-threshold = 5' 'excessive-nesting-threshold = 5' \
-  'lizard -C 15 -L 60 -a 5'; do
+  'lizard -C 15 -L 60 -a 5' \
+  '"complexity": ["warn", { "max": 15 }]' '"max-lines-per-function": ["warn", { "max": 60' \
+  '"max-params": ["warn", { "max": 5 }]' '"max-depth": ["warn", { "max": 3 }]' \
+  'lizard -l GDScript -C 15 -L 60 -a 5'; do
   check "function-limits.md sets $line" sets "$LIMITS" "$line"
+done
+# A gate with --max-warnings 0 keeps the limits in a report-only command,
+# and a report-only Lizard run accepts its exit status 1 (warnings found)
+# but not a missing tool.
+# SC2016: $$? is Makefile text, matched literally.
+# shellcheck disable=SC2016
+for text in '"lint:limits": "eslint -c eslint.limits.config.mjs ."' 'limits:' \
+  '|| [ $$? -eq 1 ]' 'uvx lizard' 'python -m pip install --user lizard'; do
+  check "function-limits.md has $text" grep -qF -- "$text" "$LIMITS"
 done
 sed 's/^max-args = 5 /max-args = 50/' "$LIMITS" > "$TMP/limits-50.md"
 check "the drifted copy differs" test -n "$(diff "$LIMITS" "$TMP/limits-50.md")"
