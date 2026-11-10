@@ -95,6 +95,8 @@ for title in "Merge branch 'main' into login" "Merge branches 'a' and 'b'" \
   refute "title step: '$title' fails" title_ok "$title"
 done
 hook_exemptions() {
+  # SC2016: $subject is text in the hook, matched literally.
+  # shellcheck disable=SC2016
   sed -n '/^case \$subject in/,/exit 0 ;;/p' "$HOOK" | grep -oE "\"[^\"]+\"\*|'[^']+'\*"
 }
 exemptions_in_sync() {

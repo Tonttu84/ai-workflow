@@ -215,6 +215,8 @@ git -C "$repo" config --unset commit.cleanup
 
 # The signal the hook relies on: git exports GIT_EDITOR=: when no editor ran.
 cat "$TMP/hooks/commit-msg" > "$TMP/hook.real"
+# SC2016: the probe hook expands GIT_EDITOR itself, not this script.
+# shellcheck disable=SC2016
 printf '#!/bin/sh\nprintf %%s "${GIT_EDITOR-unset}" > "%s"\n' "$TMP/seen" > "$TMP/hooks/commit-msg"
 seen() { test "$(cat "$TMP/seen")" "$1" :; }
 commit_with -m 'fix: probe'
