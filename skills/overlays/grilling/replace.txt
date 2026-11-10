@@ -1,0 +1,3 @@
+file: agents/openai.yaml
+old: a round of questions at a time
+new: one question at a time

@@ -11,6 +11,7 @@ The copies here are upstream's files plus a small overlay, kept apart in [`overl
 
 - `description-suffix.txt` adds one sentence to the skill's description: use the skill proactively when confidence in the requirements is only medium or low. Upstream fires it only when asked.
 - `append.md` adds a closing section: ask one question per message instead of a whole round. Upstream asks every open question at once; these working agreements ask one at a time.
+- `replace.txt` swaps exact text in other files of the skill: here the "a round of questions at a time" description in `agents/openai.yaml` becomes "one question at a time". The sync fails if upstream rewords that text, so the overlay is updated rather than silently skipped.
 
 ## Updating
 
