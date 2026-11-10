@@ -6,7 +6,7 @@ In repositories the owner does not own (course work, other people's projects) an
 
 ## Coordination and delegation
 
-- The main conversation is the coordinator. It plans, grills, writes briefs, reviews and merges. Small edits are fine there (a typo, a one-line config change); real work is delegated.
+- The main conversation coordinates: it plans, grills, writes briefs, reviews and merges, and makes only small edits (a typo, a one-line config change).
 - Coding, long test runs and review fixes go to subagents. Each gets a self-contained brief (`templates/agent-brief.md`), which is all the context it has.
 - A subagent's report is evidence, not a verdict: before telling the owner something is done, re-run the local gate, read the diff and spot-check the claims.
 
@@ -17,7 +17,7 @@ In repositories the owner does not own (course work, other people's projects) an
 - Escalate on your own judgement when a task is hard: pass `model: "opus"` or `model: "fable"` with `effort: "high"`. These rules are the owner's standing request to set the effort level in those cases.
 - Every escalation is explained, because the owner wants to learn what is hard for an AI:
   - In the chat, explain in detail why this task is hard for an AI. Name the concrete difficulty (such as a long chain of dependent steps, an ambiguous spec, or an API newer than the model's training). "It is complex" is not an explanation.
-  - Append an entry to `escalation-log.md` in the ai-workflow clone, in its format; the file is public, so keep project details generic. There, `git pull --rebase --autostash`, commit that file only (`git commit -m "docs(escalation): ..." -- escalation-log.md`) and push; if the push is rejected, pull and push again. When the task ends, append its outcome the same way as a new line, never by editing the entry: was the escalation needed?
+  - Append an entry to `escalation-log.md` in the ai-workflow clone, in its format; the file is public, so keep project details generic. There, `git pull --rebase --autostash`, commit that file only (`git commit -m "docs(escalation): ..." -- escalation-log.md`) and push; if the push is rejected, pull and push again. When the task ends, append its outcome the same way, as a new line (never edit an entry): was the escalation needed?
 
 ## Grilling
 
@@ -40,7 +40,7 @@ In repositories the owner does not own (course work, other people's projects) an
 
 - Test first for domain logic and for every bug fix: a failing test that shows the bug, then the fix.
 - UI changes come with behaviour tests (end-to-end, layout checks) written in the same change.
-- After each feature lands, a different agent runs a hardening pass on its tests (`templates/hardening-brief.md`): edge cases, property tests, "would a wrong line still pass?". Findings become a follow-up change.
+- After each feature lands, a different agent runs a hardening pass on its tests (`templates/hardening-brief.md`); findings become a follow-up change.
 - Prefer automated pass/fail checks to looking at output: turn a check by eye into an assertion.
 - Never weaken, skip or delete a test to go green. If a test is wrong, a subagent stops and reports why; the coordinator then fixes it as its own change.
 - Keep logic pure and IO at the edges. No network in unit tests; use fakes and fixtures.
@@ -49,9 +49,9 @@ In repositories the owner does not own (course work, other people's projects) an
 ## Git
 
 - The project kind, stated in `AGENTS.md`, sets the flow:
-  - Solo: commit to `main` and push once the local gate (tests, lint, types, build) is green.
+  - Solo: commit to `main` and push once the local gate is green.
   - Showcase or team: branch, pull request, fresh-agent review, squash-merge on the owner's word.
-- Fresh-agent review on every PR, and on solo projects on every non-trivial change before the push (trivial: a typo, formatting, a comment). The reviewer has none of the author's conversation and reads the diff cold (`templates/review-brief.md`). It posts its verdict (`gh pr review --comment` when there is a PR); the author fixes; a fix that goes beyond a finding is reviewed again.
+- Fresh-agent review on every PR, and on solo projects on every non-trivial change before the push (trivial: a typo, formatting, a comment). The reviewer reads the diff cold, without the author's conversation (`templates/review-brief.md`). It posts its verdict (`gh pr review --comment` when there is a PR); the author fixes; a fix that goes beyond a finding is reviewed again.
 - Commit messages follow Conventional Commits plus good-message rules:
 
   ```text
@@ -65,7 +65,8 @@ In repositories the owner does not own (course work, other people's projects) an
 
   - Types: `feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `build`, `ci`, `chore`, `revert`. The scope is optional and lower case; `!` before the colon marks a breaking change.
   - One logical change per commit. Task ids go in a `Refs:` footer, never in the subject.
-- Three layers enforce this. The commit hook (`hooks/install.sh`, wired into the setup command, since a fresh clone has it off) is feedback while writing; Node projects may use commitlint and husky instead (`templates/commitlint.config.mjs`). CI checking every commit (`templates/commit-check.yml`) is the gate for commit messages. A ruleset on `main` makes it binding: PR-flow repos require the check and block force pushes; solo repos, which push to `main`, only block force pushes and deletion, so there CI reports but never blocks. GitHub Free offers rulesets only on public repos, so private repos are a recorded exception. Never use `--no-verify`; if the hook rejects a message, fix the message.
+- Three layers enforce this. The hooks from `hooks/install.sh` (`commit-msg` and `pre-push`, wired into the setup command since a fresh clone has them off) are feedback; Node projects may use commitlint and husky instead (`templates/commitlint.config.mjs`). CI checking every commit (`templates/commit-check.yml`) is the gate for commit messages. A ruleset on `main` makes it binding: PR-flow repos require the check and block force pushes; solo repos, which push to `main`, only block force pushes and deletion, so there CI reports but never blocks. GitHub Free offers rulesets only on public repos, so private repos are a recorded exception. Never use `--no-verify`; fix the message instead.
+- Before every push, run the local gate (tests, lint, types, build, and the `pre-push` check); CI only confirms now and then. Public repos may run CI on every push and PR; private ones, short of Actions minutes, on pull requests, by hand (`workflow_dispatch`) and on a schedule.
 - A squash merge makes the PR title the subject on `main` (repository setting `squash_merge_commit_title=PR_TITLE`), so it follows the same format; the CI check covers it.
 - Dependabot security updates are on in every repo (free on private repos too); version updates follow `templates/dependabot.yml`, except in a repo with nothing to update (such as a private secrets repo).
 - Parallel agents: one worktree per task; merge one at a time. Before the first commit, check which branch you are on and fetch `main`.
