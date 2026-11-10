@@ -141,6 +141,8 @@ mkdir -p "$TMP/hooks"
 cp "$HOOK" "$TMP/hooks/commit-msg"
 git -C "$repo" config core.hooksPath "$TMP/hooks"
 # The editor prepends $EDIT_TEXT (printf %b escapes) to git's template.
+# SC2016: the editor script expands these itself.
+# shellcheck disable=SC2016
 printf '%s\n' '{ printf "%b\n" "$EDIT_TEXT"; cat "$1"; } > "$1.new" && mv "$1.new" "$1"' \
   > "$TMP/editor.sh"
 

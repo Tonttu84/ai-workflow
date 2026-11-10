@@ -55,7 +55,8 @@ refute "the refusal leaves core.hooksPath unset" hooks_path_is "$TMP/e" .githook
 check "--force installs anyway" run_install --force "$TMP/e"
 check "--force sets core.hooksPath" hooks_path_is "$TMP/e" .githooks
 new_repo "$TMP/e2"
-check ".sample hooks do not count" test -n "$(ls "$TMP/e2/.git/hooks"/*.sample 2> /dev/null)"
+has_samples() { compgen -G "$1/*.sample" > /dev/null; }
+check ".sample hooks do not count" has_samples "$TMP/e2/.git/hooks"
 check "install succeeds next to .sample hooks only" run_install "$TMP/e2"
 
 # Default mode warns when it overrides a global core.hooksPath
