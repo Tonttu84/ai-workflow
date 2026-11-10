@@ -33,6 +33,7 @@ templates/
   hardening-brief.md          the brief for the test hardening run after a feature
   commitlint.config.mjs       commitlint rules matching the hook, for Node projects
   commit-check.yml            CI gate: every commit message and PR title
+  dependabot.yml              grouped dependency updates every two weeks
 hooks/
   commit-msg                  portable bash hook enforcing the commit rules
   install.sh                  installs the hook into a project
@@ -135,7 +136,7 @@ The workflow runs the project's committed `.githooks/commit-msg`, as it was befo
 
 1. Grill the plan, then copy `templates/kickoff.md` to `docs/kickoff.md` and fill it in before writing code.
 2. Copy `templates/AGENTS.md`, `templates/CLAUDE.md` and `templates/decisions.md` (as `docs/decisions.md`).
-3. Install the commit hook, add `templates/commit-check.yml`, protect `main`, and set the squash setting if pull requests are squash-merged (step 6 above).
+3. Install the commit hook, add `templates/commit-check.yml` and `templates/dependabot.yml`, protect `main`, and set the squash setting if pull requests are squash-merged (step 6 above).
 
 ## Moving an existing project to these rules
 
@@ -143,6 +144,7 @@ The workflow runs the project's committed `.githooks/commit-msg`, as it was befo
 2. Install the commit hook with `hooks/install.sh` and add its `git config` line to the setup command: a fresh clone has the hook off until that runs.
 3. Smoke-check it in that repository: a bad message is rejected (`git commit --allow-empty -m "bad"`), a good one passes, and the project's existing hooks (pre-commit, Git LFS, husky) still run.
 4. Add `templates/commit-check.yml` and protect `main` with a ruleset (step 6 above); if pull requests are squash-merged, set `squash_merge_commit_title=PR_TITLE`. The first pull request should show the commit check running and passing.
+5. Turn on Dependabot from the template: copy `templates/dependabot.yml` to `.github/dependabot.yml`, uncomment the project's ecosystems, and enable Dependabot security updates in the repository settings. A repository with nothing to update skips this.
 
 ## Updating
 
