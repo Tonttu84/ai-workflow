@@ -11,6 +11,8 @@
 #                the git config line once (put it in the setup command).
 #                Stages the hooks as executable (100755): chmod does not
 #                reach the index under core.filemode=false (Windows).
+#                Adds `.githooks/* text eol=lf` to .gitattributes unless
+#                a rule already gives them LF: bash rejects CRLF hooks.
 #                Refuses when .git/hooks holds hooks (pre-commit, husky,
 #                lefthook, Git LFS), since git would stop running them,
 #                and warns when it overrides a global core.hooksPath.
@@ -104,6 +106,27 @@ index_exec() {
   echo "Staged ${files[*]} as executable (100755 in git ls-files -s .githooks)."
 }
 
+# hooks_eol: the line ending git gives .githooks/ files on checkout
+hooks_eol() {
+  git -C "$top" check-attr eol -- .githooks/commit-msg | sed 's/^.*: //'
+}
+
+# lf_rule: makes git check the hooks out with LF endings, which bash
+# needs; a core.autocrlf=true clone writes CRLF unless .gitattributes
+# says otherwise. Adds nothing when a rule (such as `* text=auto eol=lf`)
+# already does it. Runs before index_exec, so the index gets LF.
+lf_rule() {
+  local attrs="$top/.gitattributes" rule='.githooks/* text eol=lf'
+  [ "$(hooks_eol)" = lf ] && return 0
+  if [ -s "$attrs" ] && [ -n "$(tail -c 1 "$attrs")" ]; then echo >> "$attrs"; fi
+  echo "$rule" >> "$attrs"
+  echo "Added '$rule' to $attrs so clones check the hooks out with LF endings. Commit it."
+  if [ "$(hooks_eol)" != lf ]; then
+    echo "install.sh: warning: git still does not take .githooks/ as LF;" >&2
+    echo "  check .gitattributes files (git check-attr eol -- .githooks/commit-msg)" >&2
+  fi
+}
+
 # ours <file>: the file is one of the hooks this script installs
 ours() {
   local name
@@ -152,6 +175,7 @@ if [ "$mode" = hookspath ]; then
   install_hooks "$top/.githooks"
   git -C "$top" config core.hooksPath .githooks
   echo "Installed $HOOKS in $top/.githooks (core.hooksPath=.githooks). Commit .githooks/."
+  lf_rule
   index_exec
 else
   current=$(git -C "$top" config --get core.hooksPath || true)

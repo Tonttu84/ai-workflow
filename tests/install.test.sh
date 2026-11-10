@@ -74,6 +74,46 @@ refute "a locked index: the install fails" run_install "$TMP/fm2"
 check "it prints the command to run" said 'git update-index --add --chmod=+x -- .githooks/commit-msg'
 rm "$TMP/fm2/.git/index.lock"
 
+# The hooks are checked out with LF endings: bash rejects a CRLF hook,
+# which a core.autocrlf=true clone makes unless .gitattributes says LF.
+RULE='.githooks/* text eol=lf'
+eol_is() { test "$(git -C "$1" check-attr eol -- .githooks/commit-msg | sed 's/^.*: //')" = "$2"; }
+rule_count() { grep -cxF "$RULE" "$1/.gitattributes" 2> /dev/null; }
+new_repo "$TMP/crlf"
+git -C "$TMP/crlf" config core.autocrlf true
+check "autocrlf: install succeeds" run_install "$TMP/crlf"
+check "it adds the LF rule to .gitattributes" test "$(rule_count "$TMP/crlf")" = 1
+said_text() { grep -qF -- "$1" "$TMP/install.out"; }
+check "it says so" said_text "$RULE"
+check "git now takes the hooks as LF" eol_is "$TMP/crlf" lf
+check "a second install succeeds" run_install "$TMP/crlf"
+check "and does not repeat the rule" test "$(rule_count "$TMP/crlf")" = 1
+git -C "$TMP/crlf" add -A
+commits_ok "$TMP/crlf" "chore: add the commit hooks"
+git -c core.autocrlf=true clone -q "$TMP/crlf" "$TMP/crlf-clone" 2> /dev/null
+has_cr() { test "$(tr -d '\r' < "$1" | wc -c)" -ne "$(wc -c < "$1")"; } # Windows grep may drop CRs
+printf 'a\r\n' > "$TMP/cr" && check "has_cr sees a CR" has_cr "$TMP/cr"
+refute "a core.autocrlf=true clone checks the hook out without CR" has_cr "$TMP/crlf-clone/.githooks/commit-msg"
+printf 'feat: add the export\n' > "$TMP/good-msg"
+check "and that hook runs under bash" env GIT_EDITOR=: bash "$TMP/crlf-clone/.githooks/commit-msg" "$TMP/good-msg"
+# A broader rule already covering .githooks/ is left as it is.
+new_repo "$TMP/lf"
+printf '* text=auto eol=lf\n' > "$TMP/lf/.gitattributes"
+cp "$TMP/lf/.gitattributes" "$TMP/lf-attrs"
+check "with '* text=auto eol=lf': install succeeds" run_install "$TMP/lf"
+check "and leaves .gitattributes unchanged" cmp -s "$TMP/lf-attrs" "$TMP/lf/.gitattributes"
+# A file without a final newline keeps its last line whole.
+new_repo "$TMP/nonl"
+printf '*.png binary' > "$TMP/nonl/.gitattributes"
+check "no final newline: install succeeds" run_install "$TMP/nonl"
+check "the old last line is intact" grep -qx '\*\.png binary' "$TMP/nonl/.gitattributes"
+check "the rule is on a line of its own" test "$(rule_count "$TMP/nonl")" = 1
+# A CRLF rule for everything is overridden for the hooks.
+new_repo "$TMP/crlf2"
+printf '* text eol=crlf\n' > "$TMP/crlf2/.gitattributes"
+check "with '* text eol=crlf': install succeeds" run_install "$TMP/crlf2"
+check "the hooks are LF all the same" eol_is "$TMP/crlf2" lf
+
 # Default mode refuses to take over another hooks path (husky, say)
 new_repo "$TMP/b"
 git -C "$TMP/b" config core.hooksPath .husky/_
