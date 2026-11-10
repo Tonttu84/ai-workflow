@@ -288,7 +288,15 @@ refute "workflow_dispatch: the same" commits_ok workflow_dispatch
 
 # The triggers: pull requests, pushes to main, by hand, one run per ref.
 check "commit-check runs by hand" grep -qx '  workflow_dispatch:' "$WORKFLOW"
-check "commit-check cancels a superseded run" grep -qx '  cancel-in-progress: true' "$WORKFLOW"
+# Only a pull request's runs are cancelled: a push run checks that push's
+# own commits, which a later push's run would not cover.
+# SC2016: a GitHub expression, matched as text.
+# shellcheck disable=SC2016
+check "commit-check cancels superseded pull request runs only" \
+  grep -qxF '  cancel-in-progress: ${{ github.event_name == '"'pull_request'"' }}' "$WORKFLOW"
+# shellcheck disable=SC2016
+check "push runs never share a concurrency group" \
+  grep -qxF '  group: commit-check-${{ github.event_name == '"'pull_request'"' && github.ref || github.run_id }}' "$WORKFLOW"
 check "commit-check offers a schedule for private repos" grep -q '^  #   - cron: ' "$WORKFLOW"
 repo=$main_repo base=$main_base
 
