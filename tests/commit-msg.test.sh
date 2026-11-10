@@ -131,7 +131,12 @@ check "rejection message lists the allowed types" grep -q 'feat, fix, docs' "$TM
 run_hook "#42 fix login"
 refute "a -m subject starting with # is not reported as empty" grep -q 'empty' "$TMP/out"
 
-# End to end: real commits through the hook with -m, -F and an editor.
+# End to end: real commits through the hook with -m, -F and an editor,
+# without the machine's own git config (commit.template, commit.status).
+GIT_CONFIG_GLOBAL="$TMP/global.gitconfig"
+GIT_CONFIG_NOSYSTEM=1
+export GIT_CONFIG_GLOBAL GIT_CONFIG_NOSYSTEM
+: > "$GIT_CONFIG_GLOBAL"
 repo="$TMP/e2e"
 git init -q -b main "$repo"
 git -C "$repo" config user.name test
