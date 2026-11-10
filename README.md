@@ -149,6 +149,8 @@ gh api -X PATCH repos/OWNER/REPO \
 
 The workflow runs the project's committed `.githooks/commit-msg`, as it was before the change, on every commit of a pull request (base to head) and of a push to `main` (before to after; for a new branch only the head), so a change cannot weaken its own check. Merge commits git writes pass; `fixup!`, `squash!` and `amend!` commits fail. It also checks the PR title and rejects titles the hook would let through as git's own messages (`Merge ...`, `Revert "..."`, `fixup! ...`). Actions are pinned by SHA, the token is read-only and not persisted, and the title reaches the script through an environment variable, never pasted into it.
 
+A scheduled or manual run checks the last 15 days along the branch. In a project with older history, that would fail on messages written before the rules: set the repository variable `COMMIT_CHECK_SINCE` to the full SHA of the commit that added `.githooks/` (`gh variable set COMMIT_CHECK_SINCE --body <sha>`). That commit and its ancestors are never checked, and its hook checks the commits after it. The value reaches the script through an environment variable and must be a full SHA, or the run fails.
+
 ## Starting a new project
 
 1. Grill the plan, then copy `templates/kickoff.md` to `docs/kickoff.md` and fill it in before writing code.

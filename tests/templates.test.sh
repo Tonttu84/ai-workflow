@@ -4,6 +4,7 @@ set -u
 # shellcheck source=tests/lib.sh
 . "$(dirname "$0")/lib.sh"
 make_tmp
+clear_git_env # the tests run git; an outer hook's GIT_* must not steer it
 
 HOOK="$ROOT/hooks/commit-msg"
 COMMITLINT="$ROOT/templates/commitlint.config.mjs"
@@ -138,12 +139,14 @@ COMMITS_STEP=$(run_script 'Every commit follows the commit format')
 check "commits step: the script is found" test -n "$COMMITS_STEP"
 check "CI never names a project's pre-push hook" test "$(grep -c 'githooks/pre-push' "$WORKFLOW")" -eq 0
 # commits_ok <event> [before]: the step passes for a pull request from
-# $base to HEAD, or for a push from <before> (default $base) to HEAD
+# $base to HEAD, or for a push from <before> (default $base) to HEAD,
+# with $since as the COMMIT_CHECK_SINCE repository variable
+since=
 commits_ok() {
   (cd "$repo" && RUNNER_TEMP="$TMP/runner" EVENT=$1 \
     PR_BASE=$base PR_HEAD=$(git rev-parse HEAD) \
     PUSH_BEFORE=$(if [ "$1" = push ]; then echo "${2:-$base}"; fi) PUSH_AFTER=$(git rev-parse HEAD) \
-    env -u GIT_EDITOR bash -eo pipefail -c "$COMMITS_STEP") > "$TMP/step.out" 2>&1
+    COMMIT_CHECK_SINCE=$since env -u GIT_EDITOR bash -eo pipefail -c "$COMMITS_STEP") > "$TMP/step.out" 2>&1
 }
 tip=$(git -C "$repo" rev-parse HEAD)
 reset_tip() { git -C "$repo" reset -q --hard "$tip"; }
@@ -316,6 +319,47 @@ git -C "$repo" reset -q --hard HEAD~1
 GIT_AUTHOR_DATE=$(days_ago 10) GIT_COMMITTER_DATE=$(days_ago 10) commit "WIP ten days ago"
 commit "fix: today"
 refute "schedule: a bad commit ten days old is inside the window" commits_ok schedule
+
+# COMMIT_CHECK_SINCE (a repository variable) names the migration commit:
+# it and its ancestors are never checked, so messages written before the
+# rules do not fail a scheduled or manual run.
+repo="$TMP/since"
+git init -q -b main "$repo"
+git -C "$repo" config user.name test
+git -C "$repo" config user.email test@example.com
+git -C "$repo" config core.autocrlf false
+GIT_AUTHOR_DATE=$(days_ago 5) GIT_COMMITTER_DATE=$(days_ago 5) commit "chore: start"
+base=$(git -C "$repo" rev-parse HEAD)
+GIT_AUTHOR_DATE=$(days_ago 4) GIT_COMMITTER_DATE=$(days_ago 4) commit "Added stuff."
+mkdir -p "$repo/.githooks"
+cp "$HOOK" "$repo/.githooks/commit-msg"
+cp "$ROOT/hooks/check-commits" "$repo/.githooks/check-commits"
+git -C "$repo" add .githooks
+GIT_AUTHOR_DATE=$(days_ago 3) GIT_COMMITTER_DATE=$(days_ago 3) commit "ci: add the commit hooks"
+migration=$(git -C "$repo" rev-parse HEAD)
+commit "feat: work under the rules"
+since_tip=$(git -C "$repo" rev-parse HEAD)
+since=
+refute "no COMMIT_CHECK_SINCE: a legacy message in the window fails" commits_ok schedule
+since=$migration
+check "COMMIT_CHECK_SINCE: schedule skips the migration and its ancestors" commits_ok schedule
+check "it takes the hook from the migration commit, without a warning" \
+  test "$(grep -c '::warning::' "$TMP/step.out")" -eq 0
+check "COMMIT_CHECK_SINCE: workflow_dispatch the same" commits_ok workflow_dispatch
+check "COMMIT_CHECK_SINCE: a push from before the migration the same" commits_ok push
+commit "WIP after the migration"
+refute "COMMIT_CHECK_SINCE: a bad commit after it still fails" commits_ok schedule
+git -C "$repo" reset -q --hard "$since_tip"
+for bad in "--all" "${migration:0:12}" "$migration; touch pwned" "1234567890123456789012345678901234567890"; do
+  since=$bad
+  refute "COMMIT_CHECK_SINCE '$bad' fails" commits_ok schedule
+  check "and says what is wrong with it" grep -q '::error::.*COMMIT_CHECK_SINCE' "$TMP/step.out"
+done
+check "nothing ran from COMMIT_CHECK_SINCE" test ! -e "$repo/pwned"
+since=
+
+check "commit-check reads COMMIT_CHECK_SINCE from a repository variable" \
+  grep -qF 'COMMIT_CHECK_SINCE: ${{ vars.COMMIT_CHECK_SINCE }}' "$WORKFLOW"
 
 # The triggers: pull requests, pushes to main, by hand, one run per ref.
 check "commit-check runs by hand" grep -qx '  workflow_dispatch:' "$WORKFLOW"

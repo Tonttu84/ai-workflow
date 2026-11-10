@@ -29,6 +29,13 @@
 # so CI is a confirmation. A public repository keeps the push trigger; a
 # private one deletes it and uncomments the weekly schedule. A scheduled
 # or manual run checks the last 15 days of commits along the branch's own history.
+#
+# A project moved to these rules from older history: set the repository
+# variable COMMIT_CHECK_SINCE (Settings, Secrets and variables, Actions,
+# Variables; or `gh variable set COMMIT_CHECK_SINCE --body <sha>`) to the
+# full SHA of the commit that added .githooks/. That commit and its
+# ancestors are never checked, so messages from before the rules do not
+# fail a run. Leave it unset in a project that started under the rules.
 name: commit-check
 
 on:
@@ -103,6 +110,7 @@ jobs:
           PR_HEAD: ${{ github.event.pull_request.head.sha }}
           PUSH_BEFORE: ${{ github.event.before }}
           PUSH_AFTER: ${{ github.sha }}
+          COMMIT_CHECK_SINCE: ${{ vars.COMMIT_CHECK_SINCE }}
         run: |
           have() { git cat-file -e "$1^{commit}" 2> /dev/null; }
           # The commits to check ($@), the commit before them whose hook
@@ -142,6 +150,24 @@ jobs:
             echo "::error::.githooks/$1 is missing; commit the hooks first (hooks/install.sh)"
             return 1
           }
+          # COMMIT_CHECK_SINCE, a repository variable: the full SHA of the
+          # commit that brought in the commit rules (the migration). It and
+          # its ancestors are never checked, and its hook is trusted for the
+          # commits after it. The value is checked before git sees it.
+          if [ -n "$COMMIT_CHECK_SINCE" ]; then
+            if ! [[ $COMMIT_CHECK_SINCE =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]]; then
+              echo "::error::The COMMIT_CHECK_SINCE variable must be a full commit SHA"
+              exit 1
+            fi
+            if ! have "$COMMIT_CHECK_SINCE"; then
+              echo "::error::COMMIT_CHECK_SINCE $COMMIT_CHECK_SINCE is not a commit in this repository"
+              exit 1
+            fi
+            set -- "$@" "^$COMMIT_CHECK_SINCE"
+            if [ -z "$trusted" ] || git merge-base --is-ancestor "$trusted" "$COMMIT_CHECK_SINCE"; then
+              trusted=$COMMIT_CHECK_SINCE
+            fi
+          fi
           tool_from commit-msg
           tool_from check-commits
           if ! bash "$RUNNER_TEMP/check-commits" "$RUNNER_TEMP/commit-msg" "$@"; then
