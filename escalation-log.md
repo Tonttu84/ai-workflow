@@ -42,3 +42,12 @@ When the task ends, append its outcome as a new line at the bottom of the file. 
   it reads badly, no squashed layouts), which no check asserts: the agent
   needs judgement about what a page should look like, not only what passes.
 - Outcome: <to fill in>
+- Outcome (2026-11-10: Lease Loop, responsive layout fixes against a browser layout spec):
+  succeeded after three review rounds; the spec went from 889 findings (not
+  739: the first log miscounted) to 0 on every page, size, language and text
+  size. The escalation was needed: the agent ran about 20 four-to-ten-minute
+  browser runs, and each fresh reviewer still found what the checks could not
+  see (overlapping boxes, mid-word breaks, transformed boxes, a lone arrow at
+  320 px), so the hard part was making the checks see enough, not making the
+  page pass them. Lesson: a layout spec is only as good as its blind spots;
+  plant faults to prove every new check both ways, and look at screenshots.
