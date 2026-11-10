@@ -10,7 +10,7 @@ Ready config for the function guide in the working agreements: a function does o
 | Cyclomatic complexity (where the tool has no cognitive measure) | 15 |
 | Lines per function | about 60 |
 | Parameters | 5 |
-| Nesting depth | 3 (Clippy counts more levels: see its section) |
+| Nesting depth | 3 (Clippy and clang-tidy count more levels: see their sections) |
 
 These are a first guess, to revisit once real projects have been measured.
 
@@ -114,12 +114,12 @@ CheckOptions:
   - key: readability-function-size.ParameterThreshold
     value: 5
   - key: readability-function-size.NestingThreshold
-    value: 3
+    value: 4
   - key: readability-function-cognitive-complexity.Threshold
     value: 15
 ```
 
-Add the two names to the project's existing `Checks` list rather than replacing it. `readability-function-cognitive-complexity` defaults to 25, and `readability-function-size` flags nothing until a threshold is set.
+Add the two names to the project's existing `Checks` list rather than replacing it. `NestingThreshold` counts the function body as level 1, so 4 here is the same as ESLint's `max-depth` of 3. `readability-function-cognitive-complexity` defaults to 25; `readability-function-size` flags only functions over 800 statements by default, and its other thresholds are off until set.
 
 ## Lizard (any language, for measuring)
 

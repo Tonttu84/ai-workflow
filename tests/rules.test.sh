@@ -56,7 +56,7 @@ done
 tidy_value() { grep -A1 -F -- "key: $1" "$LIMITS" | sed -n 's/^ *value: //p'; }
 check "clang-tidy: 60 lines" test "$(tidy_value readability-function-size.LineThreshold)" = 60
 check "clang-tidy: 5 parameters" test "$(tidy_value readability-function-size.ParameterThreshold)" = 5
-check "clang-tidy: nesting 3" test "$(tidy_value readability-function-size.NestingThreshold)" = 3
+check "clang-tidy: nesting 4 (the body is level 1)" test "$(tidy_value readability-function-size.NestingThreshold)" = 4
 check "clang-tidy: cognitive 15" test "$(tidy_value readability-function-cognitive-complexity.Threshold)" = 15
 check "the review brief checks over-splitting" grep -q 'single-use helper' "$ROOT/templates/review-brief.md"
 
