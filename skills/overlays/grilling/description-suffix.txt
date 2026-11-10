@@ -1,0 +1,1 @@
+Also use it proactively, unprompted, before starting a large or ambiguous plan or implementation when your own confidence in the requirements is only medium or low. Err toward firing it too often rather than too rarely; staying aligned with the user outranks moving fast.
