@@ -32,7 +32,7 @@ templates/
   review-brief.md             the brief for a cold reviewer
   hardening-brief.md          the brief for the test hardening run after a feature
   commitlint.config.mjs       commitlint rules matching the hook, for Node projects
-  commit-check.yml            CI check of PR titles and fixup! commits before a squash merge
+  commit-check.yml            CI gate: every commit message and PR title
 hooks/
   commit-msg                  portable bash hook enforcing the commit rules
   install.sh                  installs the hook into a project
@@ -112,30 +112,37 @@ Setting `core.hooksPath` makes git ignore every hook in `.git/hooks`, so the def
 
 Node projects may use [commitlint](https://commitlint.js.org) and husky instead, with [`templates/commitlint.config.mjs`](templates/commitlint.config.mjs). It extends `@commitlint/config-conventional` so that it accepts and rejects the same messages as the hook; its header lists the few differences.
 
-The hook checks: a subject of the form `type(scope)!: summary` with an allowed type (`feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `build`, `ci`, `chore`, `revert`), a lower-case scope, at most 72 characters, no trailing period, and a blank line before the body. Subjects that start the way git's own merge, revert, reapply, `fixup!`, `squash!` and `amend!` messages do pass unchecked, whether git wrote them or a person typed them; `templates/commit-check.yml` keeps `fixup!`, `squash!` and `amend!` commits out of squash-merged pull requests. Comment lines count unless git drops them (it does in its editor, not with `-m` or `-F`), and the length is counted in characters. It does not check body wrapping, so long URLs and logs can go in a body.
+The hook checks: a subject of the form `type(scope)!: summary` with an allowed type (`feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `build`, `ci`, `chore`, `revert`), a lower-case scope, at most 72 characters, no trailing period, and a blank line before the body. Subjects that start the way git's own merge, revert, reapply, `fixup!`, `squash!` and `amend!` messages do pass unchecked, whether git wrote them or a person typed them; `templates/commit-check.yml` keeps `fixup!`, `squash!` and `amend!` commits off `main`. Comment lines count unless git drops them (it does in its editor, not with `-m` or `-F`), and the length is counted in characters. It does not check body wrapping, so long URLs and logs can go in a body.
 
-### 6. CI for squash-merged pull requests
+### 6. CI: the gate for commit messages
 
-A squash merge turns the PR title into the commit subject on `main`, and no local hook sees it. By default GitHub does that only for pull requests with more than one commit; a one-commit PR gets that commit's subject. Make the PR title the subject in every case, once per repository:
+The hook is feedback while writing, not a gate: `core.hooksPath` is local config that a clone does not copy, `--no-verify` and GitHub's web editor skip it, and a squash merge writes its commit on GitHub. Three layers:
+
+1. The hook catches a bad message as it is written.
+2. CI checks every commit that reaches `main` and every PR title: copy [`templates/commit-check.yml`](templates/commit-check.yml) to the project's `.github/workflows/`. This is the gate.
+3. A ruleset on `main` that requires the `commit-check` jobs and blocks force pushes makes the gate binding. On GitHub Free, rulesets work only on public repositories; a private repository is a recorded exception (the check is visible but does not block) until the plan changes.
+
+A squash merge turns the PR title into the commit subject on `main`. By default GitHub does that only for pull requests with more than one commit; a one-commit PR gets that commit's subject. Make the PR title the subject in every case, once per repository:
 
 ```bash
 gh api -X PATCH repos/OWNER/REPO \
   -f squash_merge_commit_title=PR_TITLE -f squash_merge_commit_message=PR_BODY
 ```
 
-Then copy [`templates/commit-check.yml`](templates/commit-check.yml) to the project's `.github/workflows/`. On every pull request it runs the project's committed `.githooks/commit-msg`, taken from the base commit, on the title, rejects titles the hook would let through as git's own messages (`Merge ...`, `Revert "..."`, `fixup! ...`), and fails when the PR holds `fixup!`, `squash!` or `amend!` commits. Actions are pinned by SHA, the token is read-only and not persisted, and the title reaches the script through an environment variable, never pasted into it.
+The workflow runs the project's committed `.githooks/commit-msg`, as it was before the change, on every commit of a pull request (base to head) and of a push to `main` (before to after; for a new branch only the head), so a change cannot weaken its own check. Merge commits git writes pass; `fixup!`, `squash!` and `amend!` commits fail. It also checks the PR title and rejects titles the hook would let through as git's own messages (`Merge ...`, `Revert "..."`, `fixup! ...`). Actions are pinned by SHA, the token is read-only and not persisted, and the title reaches the script through an environment variable, never pasted into it.
 
 ## Starting a new project
 
 1. Grill the plan, then copy `templates/kickoff.md` to `docs/kickoff.md` and fill it in before writing code.
 2. Copy `templates/AGENTS.md`, `templates/CLAUDE.md` and `templates/decisions.md` (as `docs/decisions.md`).
-3. Install the commit hook and set up CI; projects that squash-merge pull requests add `templates/commit-check.yml` and the squash setting (step 6 above).
+3. Install the commit hook, add `templates/commit-check.yml`, protect `main`, and set the squash setting if pull requests are squash-merged (step 6 above).
 
 ## Moving an existing project to these rules
 
 1. Add `AGENTS.md` (stating the kind), the one-line `CLAUDE.md` and `docs/decisions.md` from `templates/`.
-2. Install the commit hook with `hooks/install.sh` and add its `git config` line to the setup command.
-3. If pull requests are squash-merged: set `squash_merge_commit_title=PR_TITLE` and add `templates/commit-check.yml` (step 6 above).
+2. Install the commit hook with `hooks/install.sh` and add its `git config` line to the setup command: a fresh clone has the hook off until that runs.
+3. Smoke-check it in that repository: a bad message is rejected (`git commit --allow-empty -m "bad"`), a good one passes, and the project's existing hooks (pre-commit, Git LFS, husky) still run.
+4. Add `templates/commit-check.yml` and protect `main` with a ruleset (step 6 above); if pull requests are squash-merged, set `squash_merge_commit_title=PR_TITLE`. The first pull request should show the commit check running and passing.
 
 ## Updating
 
