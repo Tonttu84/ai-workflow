@@ -223,7 +223,13 @@ check "every ecosystem runs on the 1st and 15th" \
   test "$(uncommented | grep -c "cronjob: '0 6 1,15 \* \*'")" -eq "$entries"
 check "every ecosystem has a commit-message prefix" \
   test "$(uncommented | grep -c '^      prefix: ')" -eq "$entries"
-check "every ecosystem has one group" test "$(uncommented | grep -c '^    groups:$')" -eq "$entries"
+check "every ecosystem has a groups block" test "$(uncommented | grep -c '^    groups:$')" -eq "$entries"
+# Groups apply to version updates by default; security updates need their
+# own group or each arrives as an ungrouped PR with a long title.
+check "every ecosystem groups its version updates" \
+  test "$(uncommented | grep -c '^        applies-to: version-updates$')" -eq "$entries"
+check "every ecosystem groups its security updates" \
+  test "$(uncommented | grep -c '^        applies-to: security-updates$')" -eq "$entries"
 # Dependabot's grouped title: "<prefix>: bump the <group> group across 1
 # directory with <n> updates", and a squash merge appends " (#<PR>)".
 # Each must pass the hook at a large n and PR number.
