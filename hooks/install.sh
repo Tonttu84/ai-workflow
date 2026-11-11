@@ -37,11 +37,13 @@ dir=.
 while [ $# -gt 0 ]; do
   case $1 in
     --git-hooks | --copy-only)
-      if [ "$mode" != hookspath ]; then
+      new=githooks
+      [ "$1" = --copy-only ] && new=copyonly
+      if [ "$mode" != hookspath ] && [ "$mode" != "$new" ]; then
         echo "install.sh: --git-hooks and --copy-only exclude each other" >&2
         exit 2
       fi
-      case $1 in --git-hooks) mode=githooks ;; *) mode=copyonly ;; esac ;;
+      mode=$new ;;
     --force) force=1 ;;
     -h | --help) awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; exit 0 ;;
     -*) echo "install.sh: unknown option $1" >&2; exit 2 ;;
@@ -102,12 +104,15 @@ index_exec() {
   for name in $HOOKS pre-push.local; do
     [ -e "$top/.githooks/$name" ] && files+=(".githooks/$name")
   done
-  git -C "$top" update-index --add --chmod=+x -- "${files[@]}" 2> /dev/null || ok=0
+  local err
+  err=$(git -C "$top" update-index --add --chmod=+x -- "${files[@]}" 2>&1) || ok=0
   for f in "${files[@]}"; do
     [ "$(git -C "$top" ls-files -s -- "$f" | cut -d ' ' -f 1)" = 100755 ] || ok=0
   done
   if [ "$ok" -eq 0 ]; then
-    echo "install.sh: could not stage the hooks as executable; in $top run" >&2
+    echo "install.sh: could not stage the hooks as executable:" >&2
+    [ -z "$err" ] || printf '%s\n' "$err" | sed 's/^/  /' >&2
+    echo "  Fix the cause and rerun install.sh (safe to repeat), or in $top run" >&2
     echo "  git update-index --add --chmod=+x -- ${files[*]}" >&2
     echo "  and check that git ls-files -s .githooks shows 100755 for each" >&2
     exit 1
@@ -115,9 +120,20 @@ index_exec() {
   echo "Staged ${files[*]} as executable (100755 in git ls-files -s .githooks)."
 }
 
-# hooks_eol: the line ending git gives .githooks/ files on checkout
+# hooks_eol: the line ending the project's own .gitattributes files give
+# .githooks/ on checkout. Only those reach other clones, so git runs with
+# an empty repository as its git dir (no .git/info/attributes), an empty
+# core.attributesFile and no system attributes.
 hooks_eol() {
-  git -C "$top" check-attr eol -- .githooks/commit-msg | sed 's/^.*: //'
+  local scratch eol
+  scratch=$(mktemp -d)
+  git init -q --bare "$scratch/repo.git"
+  : > "$scratch/empty"
+  eol=$(cd "$top" && GIT_ATTR_NOSYSTEM=1 git --git-dir="$scratch/repo.git" --work-tree="$top" \
+    -c core.attributesFile="$scratch/empty" check-attr eol -- .githooks/commit-msg |
+    sed 's/^.*: //')
+  rm -rf "$scratch"
+  printf '%s\n' "$eol"
 }
 
 # lf_rule: makes git check the hooks out with LF endings, which bash
@@ -183,10 +199,10 @@ if [ "$mode" = hookspath ]; then
     echo "  so the hooks in '$effective' stop running here" >&2
   fi
   install_hooks "$top/.githooks"
-  git -C "$top" config core.hooksPath .githooks
-  echo "Installed $HOOKS in $top/.githooks (core.hooksPath=.githooks). Commit .githooks/."
   lf_rule
   index_exec
+  git -C "$top" config core.hooksPath .githooks
+  echo "Installed $HOOKS in $top/.githooks (core.hooksPath=.githooks). Commit .githooks/."
 elif [ "$mode" = copyonly ]; then
   install_hooks "$top/.githooks"
   current=$(git -C "$top" config --get core.hooksPath || true)

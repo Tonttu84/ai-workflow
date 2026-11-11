@@ -66,13 +66,6 @@ commits_ok "$TMP/fm" "chore: add the commit hooks"
 check "filemode=false: the commit records them as 100755" modes_are 100755 "$TMP/fm" HEAD
 check "a later install keeps them 100755" run_install "$TMP/fm"
 check "and the index still has 100755" modes_are 100755 "$TMP/fm"
-# When the index cannot be updated, the install fails and prints the command.
-new_repo "$TMP/fm2"
-git -C "$TMP/fm2" config core.filemode false
-: > "$TMP/fm2/.git/index.lock"
-refute "a locked index: the install fails" run_install "$TMP/fm2"
-check "it prints the command to run" said 'git update-index --add --chmod=+x -- .githooks/commit-msg'
-rm "$TMP/fm2/.git/index.lock"
 
 # The hooks are checked out with LF endings: bash rejects a CRLF hook,
 # which a core.autocrlf=true clone makes unless .gitattributes says LF.
@@ -113,6 +106,37 @@ new_repo "$TMP/crlf2"
 printf '* text eol=crlf\n' > "$TMP/crlf2/.gitattributes"
 check "with '* text eol=crlf': install succeeds" run_install "$TMP/crlf2"
 check "the hooks are LF all the same" eol_is "$TMP/crlf2" lf
+
+# Only committed .gitattributes files count: a rule in .git/info/attributes
+# or in a global core.attributesFile gives LF here but not in other clones.
+new_repo "$TMP/info"
+mkdir -p "$TMP/info/.git/info"
+printf '%s\n' "$RULE" > "$TMP/info/.git/info/attributes"
+check "an LF rule in .git/info/attributes: install succeeds" run_install "$TMP/info"
+check "the rule still goes into .gitattributes" test "$(rule_count "$TMP/info")" = 1
+new_repo "$TMP/glob"
+printf '* text eol=lf\n' > "$TMP/global.attributes"
+git config --global core.attributesFile "$TMP/global.attributes"
+check "an LF rule in a global attributes file: install succeeds" run_install "$TMP/glob"
+check "the rule still goes into .gitattributes" test "$(rule_count "$TMP/glob")" = 1
+git config --global --unset core.attributesFile
+
+# When the index cannot be updated, the install fails before it sets
+# core.hooksPath, shows git's own error and the command, and a rerun
+# once the cause is gone finishes the job.
+new_repo "$TMP/fm2"
+git -C "$TMP/fm2" config core.filemode false
+: > "$TMP/fm2/.git/index.lock"
+refute "a locked index: the install fails" run_install "$TMP/fm2"
+check "it prints the command to run" said 'git update-index --add --chmod=+x -- .githooks/commit-msg'
+check "it shows git's own error" said 'index\.lock'
+check "it says a rerun is safe" said 'rerun'
+refute "core.hooksPath is not set yet" hooks_path_is "$TMP/fm2" .githooks
+rm "$TMP/fm2/.git/index.lock"
+check "the rerun succeeds" run_install "$TMP/fm2"
+check "the rerun sets core.hooksPath" hooks_path_is "$TMP/fm2" .githooks
+check "the rerun stages 100755" modes_are 100755 "$TMP/fm2"
+check "the rerun does not repeat the LF rule" test "$(rule_count "$TMP/fm2")" -le 1
 
 # Default mode refuses to take over another hooks path (husky, say)
 new_repo "$TMP/b"
@@ -265,6 +289,10 @@ done
 check "--copy-only stages them as 100755" modes_are 100755 "$TMP/husky"
 check "--copy-only adds the LF rule" test "$(rule_count "$TMP/husky")" = 1
 refute "--copy-only with --git-hooks is rejected" run_install --copy-only --git-hooks "$TMP/husky"
+check "it names the conflict" said "exclude each other"
+new_repo "$TMP/twice"
+check "--git-hooks given twice is fine" run_install --git-hooks --git-hooks "$TMP/twice"
+check "--copy-only given twice is fine" run_install --copy-only --copy-only "$TMP/husky"
 # The README's husky recipe. Husky 9 sets core.hooksPath to .husky/_,
 # whose generated hooks run the project's .husky/<hook> with sh -e; here
 # a stand-in for that wrapper. The project's .husky/pre-push calls
