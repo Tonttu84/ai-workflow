@@ -51,3 +51,20 @@ When the task ends, append its outcome as a new line at the bottom of the file. 
   320 px), so the hard part was making the checks see enough, not making the
   page pass them. Lesson: a layout spec is only as good as its blind spots;
   plant faults to prove every new check both ways, and look at screenshots.
+
+### 2026-11-12: smartHeating, acknowledging device writes in a control loop
+
+- Model and effort: opus, high
+- Task: make a heating controller count a write to a home-automation entity
+  as applied only when the automation server acknowledges it (a reply body,
+  then a follow-up state read), with a re-send safety net, measured against
+  the real server image first.
+- Why it is hard for an AI: the bug lives in the gap between three systems
+  (the controller's landing state machine, the server's event model, a vendor
+  integration), and the obvious signal (HTTP 200) lies. The fix touches a
+  safety-relevant state machine with a history of silent-hold bugs, so every
+  change must be traced through a long chain of dependent rules (landing,
+  override detection, alerts, retry cadence). The existing test fakes hide the
+  very mechanism at fault (a state age that is always zero), so the agent has
+  to notice and repair the fake rather than trust a green run. It also has to
+  measure the server's behaviour before relying on it, not reason from source.
