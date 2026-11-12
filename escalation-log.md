@@ -68,3 +68,22 @@ When the task ends, append its outcome as a new line at the bottom of the file. 
   very mechanism at fault (a state age that is always zero), so the agent has
   to notice and repair the fake rather than trust a green run. It also has to
   measure the server's behaviour before relying on it, not reason from source.
+
+### 2026-11-12: upstream contribution, a fix in a performance-tuned core state machine
+
+- Model and effort: fable, high
+- Task: design, implement, test and benchmark several candidate fixes for a
+  stale cached timestamp in a large open-source project's core state object,
+  so that the owner can argue one of them to maintainers who already
+  rejected a simpler patch on performance grounds.
+- Why it is hard for an AI: the acceptance test is a sceptical human, not a
+  green suite. The constraints that matter (which paths are hot, what
+  "churn" means, why the field was kept off the public API) live in four old
+  pull requests and two maintainers' comments, not in the code. The cache is
+  a C-level descriptor whose behaviour cannot be read off the Python source,
+  so intuitions about cost are wrong until measured. One candidate needs a
+  hand-spliced serialisation to be byte-identical to the encoder for
+  arbitrary data. The agent must compare five designs honestly, including
+  discarding the coordinator's own earlier proposal, in an unfamiliar repo
+  whose toolchain is newer than its training, on a machine where timings are
+  noisy and a mistake with Docker would touch a live system.
