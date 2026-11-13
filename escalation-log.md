@@ -87,3 +87,20 @@ When the task ends, append its outcome as a new line at the bottom of the file. 
   discarding the coordinator's own earlier proposal, in an unfamiliar repo
   whose toolchain is newer than its training, on a machine where timings are
   noisy and a mistake with Docker would touch a live system.
+- Outcome (2026-11-13: smartHeating, acknowledging device writes in a control loop):
+  succeeded, and the escalation was needed. The agent stopped twice on its
+  own measurements before writing the fix: the server's REST view served a
+  stale timestamp, and the vendor integration reported two seconds after
+  some calls, so the first two agreed rules were both wrong. A cold reviewer
+  then found by mutation one untested path per round, three rounds. Lesson:
+  for a rule about another system's behaviour, measure first and let the
+  agent stop; the design changed more from measurements than from thinking.
+- Outcome (2026-11-13: upstream contribution, a fix in a performance-tuned core state machine):
+  the prototype succeeded: seven candidates measured, three finished with
+  tests that fail without the fix, and the coordinator's re-run on a quiet
+  machine reproduced the numbers. The escalation was needed for the
+  judgement, not the code: the agent corrected the coordinator's framing in
+  four places (what the main cost was, which reply was affected, a wrong
+  corner case in the "simple" option, a C descriptor that was not faster
+  than plain Python). Whether maintainers accept it is still open; the
+  project's AI policy leaves the arguing to the human.
