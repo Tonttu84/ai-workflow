@@ -104,3 +104,21 @@ When the task ends, append its outcome as a new line at the bottom of the file. 
   corner case in the "simple" option, a C descriptor that was not faster
   than plain Python). Whether maintainers accept it is still open; the
   project's AI policy leaves the arguing to the human.
+
+### 2026-11-15: hackathon web app, browser tests red after combining two feature branches
+
+- Model and effort: fable, high
+- Task: sort 16 failing browser tests (beside 17 out-of-memory crashes) on a tree that combines two independently built feature branches, fix test or screen for each, and get every browser test green with five-minute runs on a memory-starved laptop.
+- Why it is hard for an AI: each failure has three possible causes that look
+  alike in the log (a real defect in a screen, a test written for one branch
+  that does not know the other branch's redirects, seed and wording, or a
+  knock-on from a crashed page or from state an earlier spec left in the
+  database), and telling them apart needs the intended product behaviour of
+  two branches held at once, which no file states in one place. The
+  feedback loop is slow and noisy: a run takes five minutes and the machine
+  crashes browsers at random, so a red test is not evidence by itself. And
+  the tempting fix is the wrong one: cheaper agents on this project loosened
+  guarding tests to go green three times in one night, so the judgement of
+  "update the assertion to the new truth" against "the screen is wrong" is
+  the whole task. The owner asked for the stronger model by name.
+- Outcome: <to fill in>
