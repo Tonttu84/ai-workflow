@@ -28,7 +28,7 @@ die() { echo "check-citations.sh: $*" >&2; exit 2; }
 case ${1:-} in
   -h | --help) awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; exit 0 ;;
 esac
-[ "$#" -ge 1 ] && [ "$#" -le 2 ] || usage
+if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then usage; fi
 report=$1
 [ -f "$report" ] || die "no such report: $report"
 if [ "$#" -eq 2 ]; then

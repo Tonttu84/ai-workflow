@@ -55,7 +55,6 @@ status_is() {
 }
 default_run() { status_is "$1" docs/features e2e tests; }
 says() { grep -qF -- "$1" "$TMP/err"; }
-prints() { grep -qF -- "$1" "$TMP/out"; }
 # row_has <id> <text>: the table row for the item contains the text
 row_has() { grep -E "^$1[[:space:]]" "$TMP/out" | grep -qF -- "$2"; }
 # row_is <id> <rev> <tests>: the whole row, as an extended regex

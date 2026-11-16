@@ -39,6 +39,8 @@ git -C "$repo" commit -q -m "feat: start"
 before=$(git -C "$repo" rev-parse HEAD)
 
 # Each test finds the code from its own place, so it runs from anywhere.
+# SC2016: the tests are shell text, written out unexpanded.
+# shellcheck disable=SC2016
 greet_test() { # greet_test <file> <expected greeting>
   printf 'here=$(dirname "$0")\n[ "$(bash "$here/../src/greet.sh")" = %s ]\n' "$2" > "$1"
 }
@@ -140,6 +142,7 @@ check "a locked test weakened in the working tree is the one run on the base" \
 reset_repo
 
 # --- time limits: a run that hangs is not a pass or a fail
+# shellcheck disable=SC2016
 printf 'here=$(dirname "$0")\n[ -n "$(bash "$here/../src/greet.sh")" ] || sleep 30\n' > "$repo/e2e/slow.test.sh"
 check "a test that hangs on the base fails the check" status_is 1 --timeout 2 "$before" "$CMD" e2e/slow.test.sh
 check "it says it timed out" says 'timed out'
@@ -148,6 +151,7 @@ check "the hung run is cleaned up" clean
 reset_repo
 
 # --- the setup command runs in the temporary worktree first
+# shellcheck disable=SC2016
 printf 'here=$(dirname "$0")\n[ -f "$here/../.deps" ]\n' > "$repo/e2e/deps.test.sh"
 touch "$repo/.deps"
 check "a test that only needs installed dependencies passes on the base with setup" \

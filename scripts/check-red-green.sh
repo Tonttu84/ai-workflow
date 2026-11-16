@@ -75,12 +75,7 @@ prefix=$(git rev-parse --show-prefix) # where this directory is in the repo
 
 tmp=$(mktemp -d) || die "could not make a temporary directory"
 wt=$tmp/base
-cleanup() {
-  command git worktree remove --force "$wt" > /dev/null 2>&1 || true
-  rm -rf "$tmp"
-  command git worktree prune > /dev/null 2>&1 || true
-}
-trap cleanup EXIT
+trap 'command git worktree remove --force "$wt" > /dev/null 2>&1; rm -rf "$tmp"; command git worktree prune > /dev/null 2>&1' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 trap 'exit 129' HUP

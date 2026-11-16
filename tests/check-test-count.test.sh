@@ -53,7 +53,6 @@ status_is() {
   [ "$?" -eq "$want" ]
 }
 says() { grep -qF -- "$1" "$TMP/err"; }
-prints() { grep -qF -- "$1" "$TMP/out"; }
 # row_is <report> <cells...>: the report's table row, as an extended regex
 row_is() {
   local report=$1

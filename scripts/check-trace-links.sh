@@ -40,13 +40,14 @@ shift
 for path in "$@"; do
   [ -e "$path" ] || die "no such test path: $path"
 done
-docs=$(find "$features" -maxdepth 1 -type f -name '*.md' | LC_ALL=C sort)
-[ -n "$docs" ] || die "no Markdown files in $features"
+docs=()
+while IFS= read -r doc; do docs+=("$doc"); done < <(find "$features" -maxdepth 1 -type f -name '*.md' | LC_ALL=C sort)
+[ "${#docs[@]}" -gt 0 ] || die "no Markdown files in $features"
 
 # Items: "I<TAB>id<TAB>rev<TAB>file:line" per row; "P<TAB>message" per
 # problem.
 items=$(
-  printf '%s\n' "$docs" | tr '\n' '\0' | xargs -0 awk '
+  awk '
       function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
       function cells(row,    n, i, part) {
         gsub(/\\\|/, "\001", row)
@@ -85,7 +86,7 @@ items=$(
         else
           printf "I\t%s\t%s\t%s\n", cell[1], cell[2], where
       }
-    '
+    ' "${docs[@]}"
 ) || die "could not read $features"
 
 # Tags: "T<TAB>file<TAB>line<TAB>tag" for every whole word that looks like
