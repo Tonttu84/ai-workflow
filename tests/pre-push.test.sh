@@ -160,6 +160,10 @@ wcommit "feat: change the export"
 refute "a Rev bump after the commit watched: refused" wpush origin main
 check "it says the walkthrough is stale" said stale
 check "another branch is checked as it is, not as the working tree is" wpush origin side
+git -C "$wrepo" checkout -q --detach main~3
+check "the old checkout has no docs/features" test ! -e "$wrepo/docs/features"
+refute "pushed from a checkout without docs/features: main is still checked" wpush origin main
+git -C "$wrepo" checkout -q main
 git -C "$wrepo" tag -a v2 -m v2
 refute "an annotated tag on a stale commit: refused" wpush origin v2
 git -C "$wrepo" commit -q --no-verify --allow-empty -m "WIP"
@@ -180,6 +184,15 @@ wfeature 2 "Walkthrough: done 2026-11-17 at $rewatched"
 wcommit "docs: record the export walkthrough again"
 check "walked again at the new revision: the push passes" wpush origin main
 check "the remote has it" test "$(remote_main)" = "$(git -C "$wrepo" rev-parse HEAD)"
+
+# pre-push needs check-walkthrough next to it, as it needs check-commits,
+# even in a project without feature files.
+commit "feat: one more change"
+mv "$repo/.githooks/check-walkthrough" "$TMP/check-walkthrough.kept"
+refute "without check-walkthrough next to it: the push is refused" pushes origin main
+check "it says to rerun install.sh" grep -q 'rerun hooks/install.sh' "$TMP/push.out"
+mv "$TMP/check-walkthrough.kept" "$repo/.githooks/check-walkthrough"
+check "with it back: the push passes" pushes origin main
 
 # check-commits is what pre-push and CI share: a range and a commit-msg hook.
 cd "$repo" || exit 1
