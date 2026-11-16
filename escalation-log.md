@@ -133,3 +133,20 @@ When the task ends, append its outcome as a new line at the bottom of the file. 
   running in the same folder and stopped itself instead of fighting it.
   Lesson: "flaky, must be memory" is a guess until someone reproduces it in
   isolation; and verify that a stopped agent is really gone.
+
+### 2026-11-16: workflow rules repository, restructuring always-loaded rules into tiers and skills
+
+- Model and effort: opus, xhigh
+- Task: Restructure a shared rules file that loads into every agent session
+  into a short set of universal rules, coordinator-only skills and a setup
+  file, folding in about forty new decisions, without losing or softening
+  any existing rule.
+- Why it is hard for an AI: the meaning must survive a large rewrite, and
+  nothing mechanical notices a dropped or weakened rule: the tests check only
+  the word count and that named files exist. Every rule has to be sorted by
+  audience (every agent, the coordinator only, project setup only), which is
+  judgement, and the result spans several files whose cross-references must
+  agree: rules, skills, setup notes, README, decision log. Moved rules only
+  work if the skills that now hold them trigger reliably, a mechanism newer
+  than the model's training. And it must stay under a word cap while adding
+  rules.
