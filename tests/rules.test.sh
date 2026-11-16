@@ -68,7 +68,7 @@ done
 # shellcheck disable=SC2016
 for text in '--no-verify' 'Never weaken, skip or delete a test' 'deterministic check' \
   '`instruction`' '`preference`' '`idea`' 'twice' '<project>/credentials/' \
-  'locked' 'Refs:' 'never push without asking'; do
+  'Locked tests' 'Refs:' 'never push without asking'; do
   check "the rules keep $text" grep -qF -- "$text" "$RULES"
 done
 
