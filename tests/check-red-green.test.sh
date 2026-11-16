@@ -123,6 +123,55 @@ check "only the vacuous test is named" test "$(grep -c 'e2e/' "$TMP/err")" -eq 1
 check "an untracked test is copied to the base" status_is 1 "$before" "$CMD" e2e/vacuous.test.sh
 reset_repo
 
+# --- a locked directory runs each test file in it on its own
+printf 'true\n' > "$repo/e2e/vacuous.test.sh"
+git -C "$repo" add -A
+git -C "$repo" commit -q -m "test: add a vacuous test"
+check "a vacuous test inside a locked directory is not hidden by a failing one" \
+  status_is 1 "$before" "$CMD" e2e
+check "it names the vacuous file" says 'e2e/vacuous.test.sh'
+check "it says it passed on the base" says 'passes on the base'
+check "the other files are reported on their own" prints 'e2e/one.test.sh: base failed, head passed'
+reset_repo
+
+# A file in a locked directory that is not a test (a helper the tests
+# use) is copied to the base but not run on its own.
+# shellcheck disable=SC2016
+printf 'expected=hello\n' > "$repo/e2e/helper.sh"
+printf 'here=$(dirname "$0")\n. "$here/helper.sh" || exit 1\n[ "$(bash "$here/../src/greet.sh")" = "$expected" ]\n' \
+  > "$repo/e2e/uses-helper.test.sh"
+git -C "$repo" add -A
+git -C "$repo" commit -q -m "test: share a helper"
+check "a helper in a locked directory is copied but not run" status_is 0 "$before" "$CMD" e2e
+refute "the helper is not reported as a test" prints 'e2e/helper.sh'
+check "the test that sources it ran on both sides" prints 'e2e/uses-helper.test.sh: base failed, head passed'
+check "--match picks the test files in a directory" \
+  status_is 0 --match 'uses-*.sh' "$before" "$CMD" e2e
+check "only the matching file ran" test "$(grep -c ': base' "$TMP/out")" -eq 1
+check "a directory with no file that matches: error" \
+  status_is 2 --match '*.nothing' "$before" "$CMD" e2e
+check "it says no test file matched" says 'no test file'
+check "a file given by name runs whatever its name" status_is 0 --match '*.nothing' "$before" "$CMD" e2e/uses-helper.test.sh
+reset_repo
+
+# --- a locked path git does not track and would not track is an error,
+# not a red: the base would lack it and the run there would fail
+mkdir -p "$repo/e2e/ignored"
+printf 'e2e/ignored/\n' > "$repo/.gitignore"
+git -C "$repo" add .gitignore
+git -C "$repo" commit -q -m "chore: ignore a directory"
+printf 'true\n' > "$repo/e2e/ignored/vacuous.test.sh"
+check "a locked path whose files git ignores: error" status_is 2 "$before" "$CMD" e2e/ignored
+check "it says git tracks nothing there" says 'no files git tracks'
+reset_repo
+
+# --- a test file deleted in the working tree is not copied or run
+rm "$repo/e2e/two words.test.sh"
+rg "$before" "$CMD" e2e
+check "the other files in the directory still run" prints 'e2e/one.test.sh: base failed, head passed'
+refute "the deleted file is not copied" says 'cannot stat'
+reset_repo
+
 # --- a test that fails on the head
 greet_test "$repo/e2e/wrong.test.sh" goodbye
 check "a test that fails on the head fails" status_is 1 "$before" "$CMD" e2e/wrong.test.sh
@@ -150,6 +199,19 @@ check "it says where" says 'on the base'
 check "the hung run is cleaned up" clean
 reset_repo
 
+# A test that ignores SIGTERM (run directly, so nothing between timeout
+# and it dies of the signal) is killed with SIGKILL after the grace
+# period: timeout then exits 137, not 124, and that is a hang too.
+# shellcheck disable=SC2016
+printf 'trap "" TERM\nhere=$(dirname "$0")\n[ -n "$(bash "$here/../src/greet.sh")" ] || while :; do sleep 1; done\n' \
+  > "$repo/e2e/stubborn.test.sh"
+check "a test that ignores SIGTERM and hangs on the base fails the check" \
+  status_is 1 --timeout 1 "$before" 'bash {path}' e2e/stubborn.test.sh
+check "it says it timed out" says 'timed out'
+refute "it is not taken for a red" prints 'base failed'
+check "the killed run is cleaned up" clean
+reset_repo
+
 # --- the setup command runs in the temporary worktree first
 # shellcheck disable=SC2016
 printf 'here=$(dirname "$0")\n[ -f "$here/../.deps" ]\n' > "$repo/e2e/deps.test.sh"
@@ -168,5 +230,7 @@ check "a command that is not found is an error" \
   status_is 2 "$before" 'no-such-command-for-check-red-green {path}' e2e/one.test.sh
 check "it names the exit status" says '127'
 check "it is cleaned up" clean
+check "a command that cannot be run (126) is an error" status_is 2 "$before" 'exit 126; {path}' e2e/one.test.sh
+check "it names that exit status" says '126'
 
 finish

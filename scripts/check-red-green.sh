@@ -3,11 +3,11 @@
 # before the feature and passes on the code with it.
 #
 # Usage: check-red-green.sh [--timeout <seconds>] [--setup <command>]
-#                           <base> <command> <path>...
+#                           [--match <glob>]... <base> <command> <path>...
 #
 #   base       the code before the feature: the commit the test writer
 #              started from, or the test: commit itself
-#   command    the project's test command for one test path, with {path}
+#   command    the project's test command for one test file, with {path}
 #              where the path goes, such as 'npx vitest run {path}' or
 #              'uv run pytest {path}'; it runs in bash, in the directory
 #              this script runs in
@@ -18,27 +18,34 @@
 #   --setup    a command run once in the base checkout before its tests,
 #              such as 'npm ci' or 'uv sync': a fresh checkout has no
 #              installed dependencies
+#   --match    which files in a locked directory are test files, as a
+#              shell glob on the file name; repeat it for more than one.
+#              The default: *.test.* *.spec.* test_*.py *_test.py
 #
 # The base is checked out in a temporary git worktree, and the locked
-# tests are copied into it from the working tree (the files git tracks or
-# would track under each path). Each path then runs on its own, so one
-# test that passes on the base is not hidden by others that fail: on the
-# base it must fail, and in the working tree (the head, uncommitted
-# changes included) it must pass. The temporary worktree is always
-# removed.
+# tests are copied into it from the working tree: every file git tracks
+# or would track under each path, helpers included. Each test file then
+# runs on its own, a file given by name whatever its name, and in a
+# directory each file --match picks: one test that passes on the base is
+# not hidden by others that fail. On the base it must fail, and in the
+# working tree (the head, uncommitted changes included) it must pass. The
+# temporary worktree is always removed.
 #
-# The script cannot tell why a test failed on the base: a test that fails
-# only because a dependency is missing counts as failing. Give --setup the
+# Limits: the tests inside one file still run together, so a vacuous
+# test next to a failing one in the same file is not found. The script
+# cannot tell why a test failed on the base: a test that fails only
+# because a dependency is missing counts as failing. Give --setup the
 # install command, and check the reason in the test writer's report.
 #
-# Exit status: 0 every path failed on the base and passed on the head,
-# 1 a path passed on the base, or failed on the head, or a run timed out
-# (each is named on stderr), 2 bad arguments or a setup failure (no
-# worktree, a failed --setup, a command that is not found).
+# Exit status: 0 every test file failed on the base and passed on the
+# head, 1 a file passed on the base, or failed on the head, or a run timed
+# out (each is named on stderr), 2 bad arguments or a setup failure (no
+# worktree, a failed --setup, a command that is not found, a locked path
+# with no file git tracks, a directory with no test file).
 set -eu
 
 usage() {
-  echo "Usage: check-red-green.sh [--timeout <seconds>] [--setup <command>] <base> <command> <path>..." >&2
+  echo "Usage: check-red-green.sh [--timeout <seconds>] [--setup <command>] [--match <glob>]... <base> <command> <path>..." >&2
   exit 2
 }
 die() { echo "check-red-green.sh: $*" >&2; exit 2; }
@@ -48,10 +55,12 @@ esac
 
 limit=600
 setup=
+globs=()
 while [ "$#" -gt 0 ]; do
   case $1 in
     --timeout) [ "$#" -ge 2 ] || usage; limit=$2; shift 2 ;;
     --setup) [ "$#" -ge 2 ] || usage; setup=$2; shift 2 ;;
+    --match) [ "$#" -ge 2 ] && [ -n "$2" ] || usage; globs+=("$2"); shift 2 ;;
     --) shift; break ;;
     -*) die "unknown option: $1" ;;
     *) break ;;
@@ -59,6 +68,7 @@ while [ "$#" -gt 0 ]; do
 done
 [ "$#" -ge 3 ] || usage
 [[ $limit =~ ^[1-9][0-9]*$ ]] || die "the timeout must be whole seconds, not '$limit'"
+[ "${#globs[@]}" -gt 0 ] || globs=('*.test.*' '*.spec.*' 'test_*.py' '*_test.py')
 command -v timeout > /dev/null 2>&1 || die "needs timeout (GNU coreutils)"
 
 git() { command git --literal-pathspecs -c core.quotePath=false "$@"; }
@@ -83,15 +93,39 @@ trap 'exit 129' HUP
 timeout -k 10 "$limit" git worktree add --quiet --detach "$wt" "$base" > "$tmp/add.log" 2>&1 ||
   die "could not check out $base in a temporary worktree: $(tail -n 3 "$tmp/add.log")"
 
+# test_file <file>: is the file a test file by its name (--match)?
+test_file() {
+  local name=${1##*/} glob
+  for glob in "${globs[@]}"; do
+    # The glob is a pattern here, on purpose.
+    # shellcheck disable=SC2254
+    case $name in $glob) return 0 ;; esac
+  done
+  return 1
+}
+
+# Copy the locked files to the base, and list the test files to run, one
+# per line in $tmp/runs (paths cannot hold a newline here).
+: > "$tmp/runs"
 for path in "$@"; do
-  copied=0
+  copied=0 tests=0
   while IFS= read -r -d '' file; do
     [ -f "$file" ] || continue # deleted in the working tree
+    case $file in *$'\n'*) die "a path with a newline cannot be run: $file" ;; esac
     mkdir -p "$(dirname "$wt/$prefix$file")"
     cp "$file" "$wt/$prefix$file"
     copied=$((copied + 1))
+    if [ -d "$path" ] && test_file "$file"; then
+      printf '%s\n' "$file" >> "$tmp/runs"
+      tests=$((tests + 1))
+    fi
   done < <(git ls-files -z --cached --others --exclude-standard -- "$path")
   [ "$copied" -gt 0 ] || die "no files git tracks or would track under $path"
+  if [ ! -d "$path" ]; then
+    printf '%s\n' "$path" >> "$tmp/runs"
+  elif [ "$tests" -eq 0 ]; then
+    die "no test file in $path matches ${globs[*]}: name the files, or give --match"
+  fi
 done
 
 # run <dir> <log> <command>: runs the command in the directory with the
@@ -114,12 +148,14 @@ expand() {
 # tail_of <log>: the end of a run's output, indented, for a report
 tail_of() { tail -n 20 "$1" | sed 's/^/    | /'; }
 
+# timeout exits 124 when the limit is hit, and 137 when the command
+# ignored SIGTERM and was killed with SIGKILL 10 seconds later.
 if [ -n "$setup" ]; then
   status=0
   run "$wt/$prefix" "$tmp/setup.log" "$setup" || status=$?
   if [ "$status" -ne 0 ]; then
     why="exited with $status"
-    [ "$status" -ne 124 ] || why="timed out after ${limit}s"
+    case $status in 124 | 137) why="timed out after ${limit}s" ;; esac
     die "the setup command $why in the base checkout: $setup
 $(tail_of "$tmp/setup.log")"
   fi
@@ -127,7 +163,7 @@ fi
 
 short=$(git rev-parse --short "$base")
 problems=0
-# check <side> <dir> <path>: runs one path on one side and judges it
+# check <side> <dir> <path>: runs one test file on one side and judges it
 check() {
   local side=$1 dir=$2 path=$3 status=0 log="$tmp/run.log"
   run "$dir" "$log" "$(expand "$path")" || status=$?
@@ -135,7 +171,7 @@ check() {
     *:126 | *:127)
       die "$path: the test command exited with $status on the $side (not found or not runnable): $(expand "$path")
 $(tail_of "$log")" ;;
-    *:124)
+    *:124 | *:137)
       echo "check-red-green.sh: $path timed out on the $side after ${limit}s: neither a pass nor a fail" >&2 ;;
     base:0)
       echo "check-red-green.sh: $path passes on the base $short: it does not need the feature" >&2 ;;
@@ -150,10 +186,10 @@ $(tail_of "$log")" ;;
 }
 
 echo "Base $short with the locked tests copied in; head is the working tree."
-for path in "$@"; do
+while IFS= read -r path; do
   red=failed green=passed
   check base "$wt/$prefix" "$path" || red=PROBLEM
   check head "." "$path" || green=PROBLEM
   echo "  $path: base $red, head $green"
-done
+done < "$tmp/runs"
 [ "$problems" -eq 0 ]
