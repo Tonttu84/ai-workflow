@@ -1,0 +1,59 @@
+# Project setup
+
+The steps for an agent starting a new project or moving an existing one to the working agreements. Paths such as `templates/`, `hooks/` and `scripts/` are in the ai-workflow clone that holds this file. The [README](../README.md) explains the hooks, the CI check and the repository settings for a human reader; this file is the procedure.
+
+Repositories the owner does not own, and the owner's inactive repositories that were never migrated, get none of this (the opening rule of the working agreements).
+
+## Kickoff (new project)
+
+1. Grill the owner (the `grilling` skill) about the goal, the users, the scope and the kind: solo or showcase. Solo projects run tier 1 (alignment); showcase projects run tier 1 and tier 2 (audit evidence). `templates/AGENTS.md` says what each tier covers.
+2. Write `docs/kickoff.md` from `templates/kickoff.md` before any code.
+3. The stack is discussed every time. Open with a proposal:
+   - Web app: TypeScript (strict), Next.js, Tailwind, Prisma, Zod, Vitest, Playwright.
+   - Compiled: Rust first. C++ when the project needs its libraries, a game engine or an embedded toolchain.
+   - Python (uv, FastAPI, pydantic, pytest, ruff, pyright strict in the gate and CI) for services, scripts and data work, but not by default when the project would benefit from a compiled language.
+   - Testing tools are the agent's choice; put one to the owner only when there is a real trade-off to weigh, not just a pick between equals.
+4. Copy from `templates/`: `AGENTS.md` (state the kind, and whether the project uses feature files), `CLAUDE.md` (the one line `@AGENTS.md`), `decisions.md` as `docs/decisions.md` and `escapes.md` as `docs/escapes.md` (`templates/escapes.md`).
+5. Install the hooks, then set up CI, the repository settings and Dependabot: the sections below.
+6. Turn on the function limits from `templates/function-limits.md` at the starting values, as warnings; make them errors once the first code settles.
+7. Test credentials: commit the variable names with empty values; the values live in the private repository under `<project>/credentials/`.
+8. A data or ML project: point `AGENTS.md` at `templates/data-science.md` by its GitHub URL and state the project's split, metric and baseline there.
+
+## Migrating an existing project
+
+1. Start from what is on GitHub, not from the local `main`: `git fetch origin`, then base the work on `origin/<default branch>` (a new branch or worktree from it). `git status` compares with the last fetch, so "up to date" can hide a `main` many commits behind; that happened in three migrations.
+2. Commit with the identity the project's history on origin already uses (`git log -5 --format='%an <%ae>' origin/<default branch>`), set with `git config user.name` and `user.email` in that clone, not the machine's global one.
+3. Add `AGENTS.md` (stating the kind, and whether the project uses feature files), the one-line `CLAUDE.md`, `docs/decisions.md` and `docs/escapes.md` from `templates/`. A team repository with several collaborators is showcase (pull requests) unless the owner says otherwise. Where the project already has rules of its own that the shared rules would replace, keep them and list each for the owner, with the shared rule that would replace it: dropping a project's rule is the owner's decision, not the agent's.
+4. Install the hooks (below) and add the `git config` line to the setup command (not with `--copy-only`): a fresh clone has the hooks off until that runs. Commit `.githooks/` and `.gitattributes`, then check that `git ls-files -s .githooks` shows `100755` for every hook: git on Linux skips a hook committed as `100644`.
+5. Smoke-check it in that repository: a bad message is rejected (`git commit --allow-empty -m "bad"`), a good one passes, and the project's existing hooks (pre-commit, Git LFS, husky) still run.
+6. Once the hook is committed and on `main`, add `templates/commit-check.yml` (a change that adds both is checked with its own copy of the hook, with a warning) and the repository settings (below). Set the repository variable `COMMIT_CHECK_SINCE` to the full SHA of the commit that added `.githooks/` (`gh variable set COMMIT_CHECK_SINCE --body <sha>`), so manual and scheduled runs skip the messages written before the rules. The first pull request, or a manual run, should show the commit check running and passing.
+7. Turn on Dependabot (below).
+8. Set the function limits (`templates/function-limits.md`): turn the linter checks on as warnings (in a separate report-only config if the lint gate allows no warnings), measure the existing code, pick limits that flag only the worst few percent, record them in `docs/decisions.md`, then make them errors.
+9. Move committed test secrets into the private repository (`<secrets>/<project>/credentials/<file>`), leaving their variable names with empty values in the project, and rotate every moved value at its provider: git history keeps the old ones.
+10. A data or ML project: point `AGENTS.md` at `templates/data-science.md` by its GitHub URL (collaborators may not have the clone) and add the leakage tests it lists.
+
+## The hooks
+
+- Install with `hooks/install.sh /path/to/project`: it copies `commit-msg`, `pre-push` and their helpers to `.githooks/`, sets `core.hooksPath`, stages them as executable and adds the LF rule to `.gitattributes`. `--git-hooks` copies into `.git/hooks` instead. When it refuses (hooks already in `.git/hooks`, a different `commit-msg`), read the README's "The commit hook in each project" before reaching for `--force`.
+- A project that already uses husky keeps it: `install.sh --copy-only` and the README's husky recipe.
+- Node projects may use commitlint and husky with `templates/commitlint.config.mjs` instead of `commit-msg`.
+- The setup command runs `git config core.hooksPath .githooks`: a fresh clone has the hooks off until it does.
+
+## CI and repository settings
+
+- Copy `templates/commit-check.yml` to `.github/workflows/`. It is the gate for commit messages and confirms the local check: public repositories run it on every push and pull request; private ones, short of Actions minutes, delete the push trigger and run it on pull requests, by hand (`workflow_dispatch`) and on its schedule.
+- A ruleset on `main` blocks force pushes and deletion. In a repository that works through pull requests it also requires the `commit-check` jobs; a solo repository's does not, since a required check would reject its direct pushes. GitHub Free offers rulesets only on public repositories, so private ones have none (a recorded exception).
+- So in a private solo repository: the local gate and `pre-push` before every push, CI by hand and on a schedule, no ruleset.
+- A repository that squash-merges sets the PR title as the squash subject, once: `gh api -X PATCH repos/OWNER/REPO -f squash_merge_commit_title=PR_TITLE -f squash_merge_commit_message=PR_BODY`. By default a one-commit PR gets that commit's subject instead.
+- A showcase project that squash-merges fetches pull-request refs in its setup command, so the commit a walkthrough names stays findable after the merge deletes its branch:
+
+  ```sh
+  git config --get-all remote.origin.fetch | grep -qF 'refs/pull/' ||
+    git config --add remote.origin.fetch '+refs/pull/*/head:refs/remotes/origin/pr/*'
+  git fetch origin
+  ```
+
+## Dependabot
+
+- Security updates are on in every repository, private ones too: Settings, Code security, Dependabot security updates.
+- Version updates: copy `templates/dependabot.yml` to `.github/dependabot.yml`, uncomment the project's ecosystems and delete the examples it does not use. A repository with nothing to update (such as a private secrets repository) skips version updates.
