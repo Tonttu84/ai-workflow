@@ -17,6 +17,7 @@ You check, item by item, that a feature is really built: reached from where the 
 - Project rules: `AGENTS.md`.
 - The feature file: `docs/features/<feature>.md`: items, entry points, expected outcomes, locked tests.
 - The code at <branch or SHA>, based on <base SHA>.
+- Background: <the facts you need, each marked `(checked: <source>)` or `(memory)`, and the owner's words with their level and date: Owner (instruction, 2026-11-16): "...". Or none.>
 
 Do not read the diff, the author's report or any review: trace from the entry point, not from what changed. To find code no item asked for, you may list the changed files (`git diff --name-only <base SHA>...<branch or SHA>`), not their diff.
 
@@ -51,3 +52,5 @@ Every claim cites `path:line` or `path:start-end`, with the path from the reposi
 
 3. Code no item asked for, with `path:line`.
 4. The test commands you ran and their pass/fail counts.
+- Decisions you made between real alternatives, one per line in the format of `docs/decisions.md`: `<decision> | <reason> | <chosen against> | YYYY-MM-DD · agent · <evidence> · <one-way or two-way>` (`agent under Dn` when it falls within decision Dn), or none.
+- Assumptions you could not verify, one per line: `<assumption> | <why it matters>; <why it could not be checked> | — | YYYY-MM-DD · agent · assumed · two-way`, or none.

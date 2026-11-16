@@ -23,7 +23,7 @@ For the coordinator. A research subagent works from `templates/research-brief.md
 
 - Casual: a quick lookup you do yourself, with no brief. When it feeds a decision, record `checked (<url>)` in that decision's Meta evidence; a lookup that feeds no decision leaves no trace.
 - Normal: one general-purpose agent on Opus at high effort, briefed from `templates/research-brief.md`.
-- Deep: several general-purpose agents on Opus at xhigh effort. A second round on Fable at high effort runs only if the first fell short.
+- Deep: several general-purpose agents on Opus at xhigh effort, one sub-question each, with its own brief and report (`Depth: deep (<n> of <m>)`); you read the reports together. A second round on Fable at high effort runs only if the first fell short.
 - These settings are not escalations and are not logged.
 - Never on the built-in Explore or Plan agents: they do not load the owner's rules.
 - At most two rounds. A fact still open after them goes to the owner as "unknown" and is recorded as an `assumed` decision row.

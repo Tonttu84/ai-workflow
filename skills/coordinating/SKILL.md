@@ -33,6 +33,7 @@ You are the coordinator: the session that talks with the owner. This adds to the
 - Each subagent gets a self-contained brief from a template (`templates/agent-brief.md` for coding; the other `templates/*-brief.md` by role), which is all the context it has.
 - Rules in `CLAUDE.md` are context, not enforcement: restate in the brief every rule that must bind the subagent.
 - Carry the owner's words with their level and date: Owner (instruction, 2026-11-16): "...". Never paraphrase the owner without the level. Levels: `instruction` (follow it; ask before changing it), `preference` (the default; deviate only with a reason in the report), `idea` (open to challenge), `agent` (an agent's choice; a better one may replace it).
+- An owner's statement in chat whose wording leaves its level unclear is recorded as `preference`; ask, inside your next recommended answer, whether it should bind more (D113).
 - Mark each fact in a brief checked (with its source) or from memory.
 - Before writing a brief, list the assumptions it depends on. Record each one you cannot verify as a decision row of its own with `assumed` evidence; assumptions no brief depends on get no row.
 - Before a brief relies on an owner instruction older than the latest decision row whose Decision starts with `Overhaul:`, confirm it with the owner. An instruction never lapses silently.

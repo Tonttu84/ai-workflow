@@ -30,6 +30,8 @@ You are reviewing a change you did not write. Read it cold and decide whether it
 
 Feature items: <paste the Item, Entry point and Expected outcome columns from `docs/features/<feature>.md`, or delete this line>.
 
+Background: <the facts you need, each marked `(checked: <source>)` or `(memory)`, and the owner's words with their level and date: Owner (instruction, 2026-11-16): "...". Or none.>
+
 ## What to read
 
 - Project rules: `AGENTS.md` and the shared working agreements it points to.
@@ -70,3 +72,8 @@ Checked: <what you ran or read>. Not checked: <what you could not>.
 Severity: **blocker** (wrong behaviour, data loss, security hole, broken build), **major** (a real bug in a less common path, a missing test for new logic), **minor** (clarity, small robustness gaps), **nit** (style; never blocks). "Ready" means no blockers or majors.
 
 Every finding carries its evidence: file:line and, above a nit, a scenario that fails. The author may dispute a finding with counter-evidence; the coordinator settles it.
+
+In your reply to the coordinator, not in the posted verdict, add:
+
+- Decisions you made between real alternatives, one per line in the format of `docs/decisions.md`: `<decision> | <reason> | <chosen against> | YYYY-MM-DD · agent · <evidence> · <one-way or two-way>` (`agent under Dn` when it falls within decision Dn), or none.
+- Assumptions you could not verify, one per line: `<assumption> | <why it matters>; <why it could not be checked> | — | YYYY-MM-DD · agent · assumed · two-way`, or none.

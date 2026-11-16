@@ -5,8 +5,10 @@
      not load the owner's rules. Depth normal: one agent on Opus at high
      effort. Depth deep: several agents on Opus at xhigh effort, and a
      second round on Fable at high effort only if the first fell short.
-     These settings are not escalations and are not logged as such. Every
-     agent follows this brief, its rules and its output path. Casual
+     These settings are not escalations and are not logged as such. A deep
+     run splits the question into one sub-question per agent, each with
+     its own brief, Save as path and report, numbered deep (<n> of <m>);
+     the coordinator reads them together and cites each report it uses. Casual
      research (a quick lookup) needs no brief: the coordinator does it
      itself and, when it feeds a decision, records `checked (<url>)` in
      that decision's Meta evidence.
@@ -23,7 +25,7 @@
 
 - Question: <one question>.
 - The decision it feeds: <Dn, or the decision still to be made>.
-- Depth: normal | deep  <!-- keep one -->
+- Depth: normal | deep (<n> of <m>)  <!-- keep one; a deep run gives each agent its own sub-question and Save as path -->
 - Save as: <path>  <!-- general research (tools, practices, models): the
   ai-workflow repo's docs/research/<topic>.md, which is public; project
   research: the project's docs/research/<topic>.md; private research:
@@ -32,7 +34,7 @@
 
 ## What is known
 
-<The facts so far, each marked `(checked: <source>)` or `(memory)`, and the options on the table. State them neutrally: never the coordinator's preferred answer, since an agent handed a hypothesis tends to confirm it.>
+<The facts so far, each marked `(checked: <source>)` or `(memory)`, and the options on the table. State them neutrally: never the coordinator's preferred answer, since an agent handed a hypothesis tends to confirm it. Quote the owner's words on the question with their level and date, such as Owner (preference, 2026-11-16): "...", or none.>
 
 ## Budget
 
@@ -66,7 +68,7 @@ Save the report at the path under "The question", answer first, at most about 1,
 ```text
 # Research: <topic>
 
-Date: YYYY-MM-DD · Depth: normal | deep
+Date: YYYY-MM-DD · Depth: normal | deep (<n> of <m>)
 Volatility: fast | slow | stable
 Question: <the question>
 Feeds: <Dn or the decision>

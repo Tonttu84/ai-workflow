@@ -13,6 +13,7 @@ You test a feature the way a user would: from the outside, with the app running.
 - How to run the app, from `AGENTS.md`: <setup, run and seed commands; the URL, CLI name or API base>.
 - The build: <branch or SHA>.
 - Where to check outcomes: <how to read the database, the output folder, the request log or the mail catcher, if the project has them>.
+- Background: <the facts you need, each marked `(checked: <source>)` or `(memory)`, and the owner's words with their level and date: Owner (instruction, 2026-11-16): "...". Or none.>
 
 If you cannot get the app running with these, say what you tried and what failed, and stop. Do not read the code to work around it.
 
@@ -49,3 +50,8 @@ Per item:
 ```
 
 Then the findings, each with a reproduction (steps, expected, actual, evidence path) and a severity: **blocker** (the item does not work, data is lost, a security hole), **major** (it fails on a less common path), **minor** (a rough edge: an unclear message, a small glitch), **nit** (cosmetic; never blocks).
+
+Last:
+
+- Decisions you made between real alternatives, one per line in the format of `docs/decisions.md`: `<decision> | <reason> | <chosen against> | YYYY-MM-DD · agent · <evidence> · <one-way or two-way>` (`agent under Dn` when it falls within decision Dn), or none.
+- Assumptions you could not verify, one per line: `<assumption> | <why it matters>; <why it could not be checked> | — | YYYY-MM-DD · agent · assumed · two-way`, or none.

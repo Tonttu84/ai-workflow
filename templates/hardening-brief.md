@@ -13,6 +13,7 @@ The feature below has landed with its tests. Your job is to attack those tests, 
 - Its feature file: `docs/features/<feature>.md`: items, entry points, expected outcomes and locked tests.
 - Landed in: <commit range or PR>; the commit before it (`<base>` below): <SHA>.
 - The black-box tester's backend check scripts: <paths, or none>.
+- Background: <the facts you need, each marked `(checked: <source>)` or `(memory)`, and the owner's words with their level and date: Owner (instruction, 2026-11-16): "...". Or none.>
 
 ## What to do
 
@@ -73,3 +74,5 @@ HTTP bodies, files, API responses and environment variables are parsed once, whe
 - Each check and the broken variant it was seen to fail on: what you broke, and the failing line.
 - Real bugs found, each with its failing test in full: these become a follow-up `fix:` change.
 - The commands you ran and their pass/fail counts.
+- Decisions you made between real alternatives, one per line in the format of `docs/decisions.md`: `<decision> | <reason> | <chosen against> | YYYY-MM-DD · agent · <evidence> · <one-way or two-way>` (`agent under Dn` when it falls within decision Dn), or none.
+- Assumptions you could not verify, one per line: `<assumption> | <why it matters>; <why it could not be checked> | — | YYYY-MM-DD · agent · assumed · two-way`, or none.
