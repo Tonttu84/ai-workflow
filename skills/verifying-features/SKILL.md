@@ -26,7 +26,7 @@ For the coordinator. Each step's agent gets its template, which carries the rule
 
 5. Trace: a fresh agent from `templates/trace-brief.md` traces each item white-box from the plan and its entry point. It may list the names of the changed files but never reads the diff. Run `scripts/check-citations.sh` on its report at the traced commit; a level line whose citation does not resolve drops to the level below.
 6. Black-box test: a fresh agent from `templates/blackbox-test-brief.md` uses the running app and never reads the source. An item passes only on its check script's verdict over recorded backend evidence. Third-party services are mocked by default.
-7. Review: a fresh agent from `templates/review-brief.md`, on Opus at xhigh effort for a whole feature or a one-way change. Give it the feature's items and entry points, not the Level column. Experiment: plant a known bug in a copy of the change first; a review that misses it does not count, and you run it again with a fresh reviewer. Record hit or miss. When the author disputes a finding with evidence, you decide.
+7. Review: a fresh agent from `templates/review-brief.md`, on Opus at xhigh effort for a whole feature or a one-way change. Give it the feature's items and entry points, not the Level column. Experiment (the owner's preference): plant a known bug in a copy of the change first; a review that misses it does not count, and you run it again with a fresh reviewer. Record hit or miss. When the author disputes a finding with evidence, you decide.
 
 ## The push gate, on every push
 
@@ -45,7 +45,7 @@ For the coordinator. Each step's agent gets its template, which carries the rule
 ## Choices per project
 
 - Traceability: the light check (item tags in test names, `scripts/check-trace-links.sh`) is the default. A showcase project may learn OpenFastTrace instead (`templates/openfasttrace.md`), accepting its Java 17 dependency.
-- Agent-driven UI runs: before each release while a project has no users, on a schedule once it has users, never on finished or abandoned projects. Their cost is decided later.
+- Agent-driven UI runs (the owner's preference): before each release while a project has no users, on a schedule once it has users, never on finished or abandoned projects. Their cost is decided later.
 - Testing tools are your call; put a choice to the owner only when there is a real trade-off.
 - Session recordings (the Entire trial) are part of no verification step: a missing record proves nothing.
 - A bug that got past these steps goes to `docs/escapes.md`, with the step that should have caught it (the `coordinating` skill).

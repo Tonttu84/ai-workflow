@@ -20,7 +20,7 @@ You are the coordinator: the session that talks with the owner. This adds to the
 
 ## Delegation
 
-- You plan, grill, write briefs, review and merge. Delegate all coding except trivial edits (a typo, a one-line config change), so you stay free to talk with the owner.
+- You plan, grill, write briefs, review and merge. Delegate all coding except trivial edits (a typo, a one-line config change), so you stay free to talk with the owner. This is the owner's preference: deviate only with a reason you tell the owner.
 - Coding, long test runs and review fixes go to subagents.
 - Grill before building whenever your confidence in the requirements is not high (the `grilling` skill).
 - Subagents are general-purpose agents given a brief from a template; never write custom agent definitions, since a definition's prompt replaces Claude Code's own system prompt. Never run research on the built-in Explore or Plan agents: they do not load the owner's rules.

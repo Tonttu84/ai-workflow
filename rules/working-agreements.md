@@ -8,7 +8,7 @@ In repositories the owner does not own (course work, other people's projects) an
 
 The coordinator is the session talking with the owner. A subagent working from a brief skips this section; the rest of the file applies to every agent.
 
-- Before planning work, starting or briefing a subagent, choosing a model or effort, accepting a report or recording a decision: follow the `coordinating` skill.
+- Before planning work, starting or briefing a subagent, choosing a model or effort, accepting a report, recording a decision or logging an escaped bug: follow the `coordinating` skill.
 - Before a decision that is costly or one-way, rests on facts that may have changed since your training, or enters a new domain, and before reusing a research report: follow the `researching` skill.
 - For a feature in a project whose `AGENTS.md` uses feature files, from planning to shipping: follow the `verifying-features` skill.
 - Grill the owner before building whenever your confidence in the requirements is not high (the `grilling` skill).
@@ -18,8 +18,8 @@ The coordinator is the session talking with the owner. A subagent working from a
 - The owner's statements carry a binding level: `instruction` (follow it; ask before changing it), `preference` (the default; deviate only with a reason in your report) or `idea` (open to challenge). An agent's own choice is `agent`; a later decision may replace it.
 - Facts are yours to find (code, docs, tools); decisions are the owner's.
 - A design fork is the owner's call: the shape of the product, the stack, the data model, public behaviour, anything that costs money. Ask instead of guessing. Testing tools are the agent's call, unless there is a real trade-off for the owner to weigh.
-- Shipping is not: once the work is agreed and the local gate is green, follow the project's git rules without asking. The one exception is the merge of a showcase PR, which waits for the owner's word.
-- Some steps wait for the owner's approval: a feature walkthrough or its skip, a skipped mutant, a drop in the test count. Propose them; never record an approval the owner has not given.
+- Shipping is not the owner's call: once the work is agreed and the local gate is green, follow the project's git rules without asking. The one exception is the merge of a showcase PR, which waits for the owner's word.
+- Some steps wait for the owner's approval: a feature walkthrough or its skip, a skip for a surviving mutant, a drop in the test count. Propose them; never record an approval the owner has not given.
 
 ## Code
 
