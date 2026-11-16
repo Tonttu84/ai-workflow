@@ -37,6 +37,8 @@ check "hook is executable" test -x "$TMP/a/.githooks/commit-msg"
 check "pre-push copied to .githooks" cmp -s "$ROOT/hooks/pre-push" "$TMP/a/.githooks/pre-push"
 check "pre-push is executable" test -x "$TMP/a/.githooks/pre-push"
 check "check-commits copied to .githooks" cmp -s "$ROOT/hooks/check-commits" "$TMP/a/.githooks/check-commits"
+check "check-walkthrough copied to .githooks" cmp -s "$ROOT/hooks/check-walkthrough" "$TMP/a/.githooks/check-walkthrough"
+check "check-walkthrough is executable" test -x "$TMP/a/.githooks/check-walkthrough"
 check "core.hooksPath is .githooks" test "$(git -C "$TMP/a" config core.hooksPath)" = .githooks
 refute "bad message rejected after install" commits_ok "$TMP/a" "added stuff."
 check "good message accepted after install" commits_ok "$TMP/a" "chore: start the project"
@@ -45,7 +47,7 @@ check "second install is a no-op" run_install "$TMP/a"
 # The hooks reach the index as executable even when chmod cannot (Git for
 # Windows sets core.filemode=false); git on Linux skips a 100644 hook.
 # modes_are <mode> <repo> [tree]: every .githooks file has that mode in
-# the index, or in the tree given, and there are at least three
+# the index, or in the tree given, and there are at least four
 modes_are() {
   local listing
   if [ -n "${3-}" ]; then
@@ -53,7 +55,7 @@ modes_are() {
   else
     listing=$(git -C "$2" ls-files -s -- .githooks)
   fi
-  [ "$(printf '%s\n' "$listing" | grep -c .)" -ge 3 ] &&
+  [ "$(printf '%s\n' "$listing" | grep -c .)" -ge 4 ] &&
     [ "$(printf '%s\n' "$listing" | awk '{ print $1 }' | sort -u)" = "$1" ]
 }
 new_repo "$TMP/fm"
@@ -209,6 +211,8 @@ check "--git-hooks install succeeds" run_install --git-hooks "$TMP/c"
 check "hook copied to .git/hooks" cmp -s "$ROOT/hooks/commit-msg" "$TMP/c/.git/hooks/commit-msg"
 check "pre-push copied to .git/hooks" cmp -s "$ROOT/hooks/pre-push" "$TMP/c/.git/hooks/pre-push"
 check "check-commits copied to .git/hooks" cmp -s "$ROOT/hooks/check-commits" "$TMP/c/.git/hooks/check-commits"
+check "check-walkthrough copied to .git/hooks" cmp -s "$ROOT/hooks/check-walkthrough" "$TMP/c/.git/hooks/check-walkthrough"
+check "check-walkthrough is executable there" test -x "$TMP/c/.git/hooks/check-walkthrough"
 refute "--git-hooks leaves core.hooksPath unset" git -C "$TMP/c" config core.hooksPath
 refute "bad message rejected via .git/hooks" commits_ok "$TMP/c" "WIP"
 check "good message accepted via .git/hooks" commits_ok "$TMP/c" "chore: start the project"
@@ -283,7 +287,7 @@ git -C "$TMP/husky" config core.filemode false
 git -C "$TMP/husky" config core.hooksPath .husky/_
 check "--copy-only succeeds under another hooks path" run_install --copy-only "$TMP/husky"
 check "--copy-only leaves core.hooksPath alone" hooks_path_is "$TMP/husky" .husky/_
-for name in commit-msg pre-push check-commits; do
+for name in commit-msg pre-push check-commits check-walkthrough; do
   check "--copy-only copies $name" cmp -s "$ROOT/hooks/$name" "$TMP/husky/.githooks/$name"
 done
 check "--copy-only stages them as 100755" modes_are 100755 "$TMP/husky"

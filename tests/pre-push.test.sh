@@ -29,6 +29,7 @@ remote_has() { git -C "$TMP/remote.git" rev-parse -q --verify "$1" > /dev/null; 
 
 check "pre-push is installed next to commit-msg" test -x "$repo/.githooks/pre-push"
 check "check-commits is installed next to them" test -x "$repo/.githooks/check-commits"
+check "check-walkthrough is installed next to them" test -x "$repo/.githooks/check-walkthrough"
 commit "chore: start"
 check "a first push of good commits passes" pushes origin main
 commit "feat: add the export"
@@ -112,6 +113,73 @@ echo bad >> "$TMP/standalone/file" && git -C "$TMP/standalone" commit -q --no-ve
 git -C "$TMP/standalone" remote remove origin
 git -C "$TMP/standalone" remote add origin "$TMP/standalone-remote.git"
 refute "no remote-tracking refs and a bad tip: rejected" push_standalone bad
+
+# The walkthrough check: in a project with docs/features/, each commit
+# pushed must record a walkthrough for every finished feature, and not a
+# stale one. Without docs/features/ nothing changes.
+wrepo="$TMP/features"
+git init -q --bare -b main "$TMP/features-remote.git"
+git init -q -b main "$wrepo"
+git -C "$wrepo" remote add origin "$TMP/features-remote.git"
+bash "$ROOT/hooks/install.sh" "$wrepo" > /dev/null 2>&1
+wpush() { git -C "$wrepo" push -q "$@" > "$TMP/push.out" 2>&1; }
+wcommit() { git -C "$wrepo" add -A && git -C "$wrepo" commit -q --no-verify --allow-empty -m "$1"; }
+said() { grep -qF -- "$1" "$TMP/push.out"; }
+remote_main() { git -C "$TMP/features-remote.git" rev-parse -q --verify main; }
+# wfeature <Rev of F1-1> <Walkthrough: line>: one finished feature
+wfeature() {
+  mkdir -p "$wrepo/docs/features"
+  {
+    printf '# Feature F1: export\n\n'
+    printf '| ID | Rev | Item | Entry point | Expected outcome | Level | Test |\n'
+    printf '| --- | --- | --- | --- | --- | --- | --- |\n'
+    printf '| F1-1 | %s | export | a button | a CSV | functional | e2e/a.spec.ts |\n\n' "$1"
+    printf '%s\n' "$2"
+  } > "$wrepo/docs/features/export.md"
+}
+
+wcommit "chore: add the hooks"
+check "no docs/features: the push passes" wpush origin main
+refute "and says nothing of walkthroughs" said walkthrough
+wfeature 1 'Walkthrough:'
+wcommit "feat: add the export"
+watched=$(git -C "$wrepo" rev-parse HEAD)
+refute "a finished feature without a walkthrough: the push is refused" wpush origin main
+check "it names the feature file" said docs/features/export.md
+check "it says to record the walkthrough" said 'record the walkthrough'
+check "the remote did not move" test "$(remote_main)" != "$watched"
+wfeature 1 "Walkthrough: done 2026-11-16 at $watched"
+refute "recorded in the working tree but not committed: still refused" wpush origin main
+wcommit "docs: record the export walkthrough"
+check "with the walkthrough committed: the push passes" wpush origin main
+git -C "$wrepo" checkout -q -b side
+wcommit "chore: work on the side"
+git -C "$wrepo" checkout -q main
+wfeature 2 "Walkthrough: done 2026-11-16 at $watched"
+wcommit "feat: change the export"
+refute "a Rev bump after the commit watched: refused" wpush origin main
+check "it says the walkthrough is stale" said stale
+check "another branch is checked as it is, not as the working tree is" wpush origin side
+git -C "$wrepo" tag -a v2 -m v2
+refute "an annotated tag on a stale commit: refused" wpush origin v2
+git -C "$wrepo" commit -q --no-verify --allow-empty -m "WIP"
+refute "a bad message and a stale walkthrough: refused" wpush origin main
+check "the message is named" said 'breaks the commit rules'
+check "and so is the walkthrough" said stale
+git -C "$wrepo" reset -q --hard HEAD~1
+refute "one commit pushed under two names: refused" wpush origin HEAD:refs/heads/a HEAD:refs/heads/b
+check "and the walkthrough is reported once" test "$(grep -c '^check-walkthrough:' "$TMP/push.out")" -eq 1
+printf '#!/bin/sh\ntouch "%s"\n' "$TMP/local.ran" > "$wrepo/.githooks/pre-push.local"
+chmod +x "$wrepo/.githooks/pre-push.local"
+refute "with a pre-push.local: a stale walkthrough is still refused" wpush origin main
+check "and the pre-push.local ran first" test -e "$TMP/local.ran"
+rm "$wrepo/.githooks/pre-push.local"
+check "deleting a branch checks nothing" wpush origin --delete side
+rewatched=$(git -C "$wrepo" rev-parse HEAD)
+wfeature 2 "Walkthrough: done 2026-11-17 at $rewatched"
+wcommit "docs: record the export walkthrough again"
+check "walked again at the new revision: the push passes" wpush origin main
+check "the remote has it" test "$(remote_main)" = "$(git -C "$wrepo" rev-parse HEAD)"
 
 # check-commits is what pre-push and CI share: a range and a commit-msg hook.
 cd "$repo" || exit 1
