@@ -168,6 +168,38 @@ junit "$repo/reports/unit.xml" "$PASS" "$PASS" "$ERROR"
 check "an errored test fails" status_is 1 .test-count
 reset_repo
 
+# A suite that failed to load reports its error outside any testcase, or
+# only in its errors= and failures= counts.
+printf '<testsuites><testsuite tests="1" errors="1"><error message="import failed"/><testcase name="a"/></testsuite></testsuites>\n' \
+  > "$repo/reports/e2e.xml"
+check "an error outside every testcase fails" status_is 1 .test-count
+check "it says a test failed or errored" says 'reports/e2e.xml: 1 failed or errored'
+printf '<testsuites><testsuite tests="1"><testcase name="a"/><failure message="teardown failed"/></testsuite></testsuites>\n' \
+  > "$repo/reports/e2e.xml"
+check "a failure element outside every testcase, without counts, fails" status_is 1 .test-count
+printf '<testsuites tests="1" failures="2"><testsuite tests="1" failures="2"><testcase name="a"/></testsuite></testsuites>\n' \
+  > "$repo/reports/e2e.xml"
+check "a failures= count with no failed testcase fails" status_is 1 .test-count
+printf '<testsuites tests="1" failures="0" errors="0"><testsuite tests="1" failures="0" errors="0"><testcase name="a"/></testsuite></testsuites>\n' \
+  > "$repo/reports/e2e.xml"
+check "zero failures= and errors= counts pass" status_is 0 .test-count
+reset_repo
+
+# --- a report left from an earlier run: with --since, every report must be
+# newer than the stamp file made before the run
+touch -t 202601010000 "$repo/reports/unit.xml" "$repo/reports/e2e.xml"
+touch "$repo/stamp"
+check "a report older than the stamp fails" status_is 1 --since stamp .test-count
+check "it names the report" says 'reports/unit.xml'
+check "it says the report is from an earlier run" says 'earlier run'
+junit "$repo/reports/unit.xml" "$PASS" "$PASS" "$PASS"
+junit "$repo/reports/e2e.xml" "$PASS"
+touch -t 203001010000 "$repo/reports/unit.xml" "$repo/reports/e2e.xml"
+check "reports newer than the stamp pass" status_is 0 --since stamp .test-count
+check "a missing stamp file: error" status_is 2 --since no-stamp .test-count
+rm -f "$repo/stamp"
+reset_repo
+
 # --- paths are relative to the count file's directory
 printf '1 reports/ci.xml\n' > "$repo/ci/test-count"
 junit "$repo/ci/reports/ci.xml" "$PASS"
@@ -217,8 +249,18 @@ reset_repo
 git -C "$repo" rm -q -r --cached .test-count reports
 git -C "$repo" commit -q -m "chore: stop tracking the count file"
 nocount=$(git -C "$repo" rev-parse HEAD)
-check "a base without the count file passes, with a note" status_is 0 --base "$nocount" .test-count
+check "a base without the count file fails: moving the file would skip the ratchet" \
+  status_is 1 --base "$nocount" .test-count
 check "it says the base has no count file" says 'no count file'
+check "it names the flag for a first count file" says '--allow-new-count-file'
+check "a base without the count file passes with --allow-new-count-file, with a note" \
+  status_is 0 --base "$nocount" --allow-new-count-file .test-count
+check "it says the base has no count file" says 'no count file'
+check "--allow-new-count-file without --base: usage error" status_is 2 --allow-new-count-file .test-count
+junit "$repo/reports/unit.xml" "$PASS" "$PASS"
+printf '2 reports/unit.xml\n1 reports/e2e.xml\n' > "$repo/.test-count"
+check "--allow-new-count-file does not excuse a drop when the base has the file" \
+  status_is 1 --base "$base" --allow-new-count-file .test-count
 check "an absolute count file path with --base: error" status_is 2 --base "$base" "$repo/.test-count"
 
 finish

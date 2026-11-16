@@ -1,0 +1,109 @@
+# junit-cases.awk: reads one JUnit XML report (Vitest, Playwright, pytest
+# and cargo-nextest write them) and prints tab-separated records:
+#
+#   C <status> <name>   per <testcase>: status pass, skip or fail (a
+#                       <failure> or <error> in it), and its name
+#                       attribute with the XML entities decoded
+#   O <count>           failures and errors outside every testcase: a
+#                       <failure> or <error> element there, or the largest
+#                       errors= plus failures= of a <testsuite(s)> tag,
+#                       whichever is more (a suite that failed to load)
+#   E <message>         instead of everything else, when the report is
+#                       empty, not JUnit, or not complete (the runner did
+#                       not finish writing it)
+#
+# Comments, CDATA sections and processing instructions are skipped, and
+# a ">" inside a quoted attribute does not end a tag. Used by
+# check-test-count.sh and check-trace-links.sh.
+function problem(msg) { if (!err) printf "E\t%s\n", msg; err = 1 }
+# strip(s, start, end): s without every start...end section
+function strip(s, start, end,    i, j, out) {
+  out = ""
+  while ((i = index(s, start)) > 0) {
+    out = out substr(s, 1, i - 1)
+    s = substr(s, i + length(start))
+    if ((j = index(s, end)) == 0) { problem("an unclosed " start " section: the runner did not finish writing it"); return out }
+    s = substr(s, j + length(end))
+  }
+  return out s
+}
+# tag_end(s): where the tag that s starts with ends, quotes respected
+function tag_end(s,    i, n, c, q) {
+  n = length(s)
+  q = ""
+  for (i = 1; i <= n; i++) {
+    c = substr(s, i, 1)
+    if (q != "") { if (c == q) q = "" }
+    else if (c == "\"" || c == "'") q = c
+    else if (c == ">") return i
+  }
+  return 0
+}
+# attr(tag, key): the value of the attribute in the tag text, decoded
+function attr(tag, key,    v) {
+  if (!match(tag, "[ \t\n]" key "[ \t\n]*=[ \t\n]*(\"[^\"]*\"|'[^']*')")) return ""
+  v = substr(tag, RSTART, RLENGTH)
+  sub(/^[^=]*=[ \t\n]*/, "", v)
+  v = substr(v, 2, length(v) - 2)
+  gsub(/&lt;/, "<", v)
+  gsub(/&gt;/, ">", v)
+  gsub(/&quot;/, "\"", v)
+  gsub(/&apos;/, "'", v)
+  gsub(/&#10;|&#xA;|&#xa;/, " ", v)
+  gsub(/[\t\n]/, " ", v)
+  gsub(/&amp;/, "\\&", v)
+  return v
+}
+# suite_counts(s): the largest errors= plus failures= of the testsuite and
+# testsuites tags in s
+function suite_counts(s,    i, e, tag, n, best) {
+  best = 0
+  while ((i = index(s, "<testsuite")) > 0) {
+    s = substr(s, i + 1)
+    e = tag_end(s)
+    if (e == 0) break
+    tag = substr(s, 1, e)
+    n = attr(tag, "errors") + attr(tag, "failures")
+    if (n > best) best = n
+  }
+  return best
+}
+{ sub(/\r$/, ""); s = s $0 "\n" }
+END {
+  s = strip(s, "<![CDATA[", "]]>")
+  s = strip(s, "<!--", "-->")
+  s = strip(s, "<?", "?>")
+  sub(/^[ \t\n]+/, "", s)
+  sub(/[ \t\n]+$/, "", s)
+  if (s == "") problem("is empty")
+  else if (s !~ /^<testsuites?[ \t\n\/>]/) problem("has no <testsuites> or <testsuite> root: not a JUnit report")
+  else {
+    root = s ~ /^<testsuites[ \t\n\/>]/ ? "testsuites" : "testsuite"
+    closed = substr(s, length(s) - length(root) - 2) == "</" root ">"
+    empty = tag_end(s) == length(s) && substr(s, length(s) - 1) == "/>" # <testsuites/>
+    if (!closed && !empty) problem("is not closed: the runner did not finish writing it")
+  }
+  if (err) exit
+  n = split(s, part, "<testcase")
+  outside = part[1]
+  for (i = 2; i <= n; i++) {
+    p = part[i]
+    if (substr(p, 1, 1) !~ /[ \t\n\/>]/) { outside = outside "<testcase" p; continue } # a longer tag name
+    e = tag_end(p)
+    if (e == 0) { problem("a <testcase> tag is not closed"); exit }
+    tag = substr(p, 1, e)
+    name = attr(tag, "name")
+    if (substr(p, e - 1, 1) == "/") { cases[++m] = "pass\t" name; outside = outside substr(p, e + 1); continue } # <testcase .../>
+    k = index(p, "</testcase>")
+    if (k == 0) { problem("a <testcase> is never closed"); exit }
+    body = substr(p, e + 1, k - e - 1)
+    outside = outside substr(p, k + length("</testcase>"))
+    if (body ~ /<skipped[ \t\n\/>]/) cases[++m] = "skip\t" name
+    else if (body ~ /<(failure|error)[ \t\n\/>]/) cases[++m] = "fail\t" name
+    else cases[++m] = "pass\t" name
+  }
+  for (i = 1; i <= m; i++) printf "C\t%s\n", cases[i]
+  loose = gsub(/<(failure|error)[ \t\n\/>]/, "&", outside)
+  attrs = suite_counts(outside)
+  printf "O\t%d\n", (loose > attrs) ? loose : attrs
+}

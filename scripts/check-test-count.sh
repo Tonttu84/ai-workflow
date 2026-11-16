@@ -3,7 +3,9 @@
 # drop, from JUnit XML reports (Vitest, Playwright, pytest and
 # cargo-nextest can all write them).
 #
-# Usage: check-test-count.sh [--base <commit>] <count-file>
+# Usage: check-test-count.sh [--since <stamp-file>]
+#                            [--base <commit> [--allow-new-count-file]]
+#                            <count-file>
 #
 # The count file is committed. Each line names a report, relative to the
 # count file's directory (no spaces in the path), and how many tests must
@@ -15,10 +17,16 @@
 #
 # Every listed report must be complete (a closed <testsuites> or
 # <testsuite> root), with no failed or errored test, and exactly the
-# listed number of tests run (skipped ones do not count). More tests than
-# listed also fails, until the count file is raised: a count left low
-# would let later tests go unnoticed. Delete the reports before the test
-# run, or a report left from an earlier run is read as this one's.
+# listed number of tests run (skipped ones do not count). A <failure> or
+# <error> outside every testcase, or an errors= or failures= count above
+# 0 on a <testsuite> or <testsuites> tag, counts as a failed test too (a
+# suite that failed to load). More tests than listed also fails, until
+# the count file is raised: a count left low would let later tests go
+# unnoticed.
+#
+# A report left from an earlier run would be read as this one's. Give
+# --since a file touched before the test run (or delete the reports
+# before it): every report must then be newer than that file.
 #
 # With --base (such as the remote branch the push goes to), the count
 # file is also compared with its version in that commit: a count below
@@ -26,29 +34,45 @@
 # fails unless an approved-drop line names that report and exactly those
 # two counts. Only the owner approves a drop; the line records the date
 # and reason, and it counts only in the change that adds it (a line the
-# base already has approves nothing). A base without the count file is
-# noted and not compared. The count file path must then be relative.
+# base already has approves nothing). A base without the count file at
+# that path fails, since moving the file would skip the comparison;
+# --allow-new-count-file lets it pass, with a note, in the change that
+# first adds the count file. The count file path must then be relative.
 #
-# Exit status: 0 everything holds, 1 a report is missing, incomplete or
-# unreadable, a test failed, or a count differs (each is named on
-# stderr), 2 bad arguments or a malformed count file.
+# Exit status: 0 everything holds, 1 a report is missing, incomplete,
+# unreadable or older than the stamp, a test failed, a count differs, or
+# the base has no count file (each is named on stderr), 2 bad arguments
+# or a malformed count file.
 set -eu
 
-usage() { echo "Usage: check-test-count.sh [--base <commit>] <count-file>" >&2; exit 2; }
+usage() {
+  echo "Usage: check-test-count.sh [--since <stamp-file>] [--base <commit> [--allow-new-count-file]] <count-file>" >&2
+  exit 2
+}
 die() { echo "check-test-count.sh: $*" >&2; exit 2; }
 case ${1:-} in
   -h | --help) awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; exit 0 ;;
 esac
+here=$(cd "$(dirname "$0")" && pwd)
 
 base=
-if [ "${1:-}" = --base ]; then
-  [ "$#" -ge 2 ] || usage
-  base=$2
-  shift 2
-fi
+since=
+allow_new=0
+while [ "$#" -gt 0 ]; do
+  case $1 in
+    --base) [ "$#" -ge 2 ] || usage; base=$2; shift 2 ;;
+    --since) [ "$#" -ge 2 ] || usage; since=$2; shift 2 ;;
+    --allow-new-count-file) allow_new=1; shift ;;
+    --) shift; break ;;
+    -*) die "unknown option: $1" ;;
+    *) break ;;
+  esac
+done
 [ "$#" -eq 1 ] || usage
+[ "$allow_new" -eq 0 ] || [ -n "$base" ] || die "--allow-new-count-file needs --base"
 file=$1
 [ -f "$file" ] || die "no such count file: $file"
+[ -z "$since" ] || [ -f "$since" ] || die "no such stamp file: $since"
 dir=$(dirname "$file")
 
 # parse <name>: reads a count file on stdin and prints
@@ -84,6 +108,7 @@ current=$(parse "$file" < "$file") || exit 2
 printf '%s\n' "$current" | grep -q '^C' || die "$file lists no report"
 
 previous=
+missing_base=0
 if [ -n "$base" ]; then
   case $file in /* | [A-Za-z]:*) die "with --base, give the count file relative to the current directory: $file" ;; esac
   git rev-parse --is-inside-work-tree > /dev/null 2>&1 || die "--base needs a git work tree"
@@ -91,75 +116,35 @@ if [ -n "$base" ]; then
   if git cat-file -e "$commit:./$file" 2> /dev/null; then
     previous=$(git show "$commit:./$file" | parse "$base:$file") || exit 2
     previous=$(printf '%s\n' "$previous" | sed 's/^C/B/; s/^A/O/')
-  else
-    echo "check-test-count.sh: the base $base has no count file at $file: nothing to compare with" >&2
+  elif [ "$allow_new" -eq 1 ]; then
+    echo "check-test-count.sh: note: the base $base has no count file at $file; a first count file, so nothing to compare with" >&2
     previous=none
+  else
+    echo "check-test-count.sh: the base $base has no count file at $file, so a drop cannot be seen: in the change that first adds the count file, pass --allow-new-count-file; a moved count file needs the owner's approval" >&2
+    previous=none
+    missing_base=1
   fi
 fi
 
 # junit <report>: "J<TAB>report<TAB>tests<TAB>skipped<TAB>failed", or
-# "E<TAB>report<TAB>message" when the report cannot be read as complete.
+# "E<TAB>report<TAB>message" when the report cannot be read as complete
+# or is older than the stamp file.
 junit() {
   local path=$1 xml="$dir/$1"
   if [ ! -f "$xml" ]; then printf 'E\t%s\tno such report\n' "$path"; return; fi
-  LC_ALL=C awk -v report="$path" '
-    function problem(msg) { if (!err) printf "E\t%s\t%s\n", report, msg; err = 1 }
-    # strip(s, start, end): s without every start...end section
-    function strip(s, start, end,    i, j, out) {
-      out = ""
-      while ((i = index(s, start)) > 0) {
-        out = out substr(s, 1, i - 1)
-        s = substr(s, i + length(start))
-        if ((j = index(s, end)) == 0) { problem("an unclosed " start " section: the runner did not finish writing it"); return out }
-        s = substr(s, j + length(end))
-      }
-      return out s
-    }
-    # tag_end(s): where the tag that s starts with ends, quotes respected
-    function tag_end(s,    i, n, c, q) {
-      n = length(s)
-      q = ""
-      for (i = 1; i <= n; i++) {
-        c = substr(s, i, 1)
-        if (q != "") { if (c == q) q = "" }
-        else if (c == "\"" || c == "\047") q = c
-        else if (c == ">") return i
-      }
-      return 0
-    }
-    { sub(/\r$/, ""); s = s $0 "\n" }
+  if [ -n "$since" ] && ! [ "$xml" -nt "$since" ]; then
+    printf 'E\t%s\tis not newer than %s: a report left from an earlier run\n' "$path" "$since"
+    return
+  fi
+  LC_ALL=C awk -f "$here/junit-cases.awk" "$xml" | awk -F '\t' -v report="$path" '
+    $1 == "E" { printf "E\t%s\t%s\n", report, $2; bad = 1; exit }
+    $1 == "C" { tests++; if ($2 == "skip") skipped++; else if ($2 == "fail") failed++ }
+    $1 == "O" { failed += $2; done = 1 }
     END {
-      s = strip(s, "<![CDATA[", "]]>")
-      s = strip(s, "<!--", "-->")
-      s = strip(s, "<?", "?>")
-      sub(/^[ \t\n]+/, "", s)
-      sub(/[ \t\n]+$/, "", s)
-      if (s == "") problem("is empty")
-      else if (s !~ /^<testsuites?[ \t\n\/>]/) problem("has no <testsuites> or <testsuite> root: not a JUnit report")
-      else {
-        root = s ~ /^<testsuites[ \t\n\/>]/ ? "testsuites" : "testsuite"
-        closed = substr(s, length(s) - length(root) - 2) == "</" root ">"
-        empty = tag_end(s) == length(s) && substr(s, length(s) - 1) == "/>" # <testsuites/>
-        if (!closed && !empty) problem("is not closed: the runner did not finish writing it")
-      }
-      if (err) exit
-      n = split(s, part, "<testcase")
-      for (i = 2; i <= n; i++) {
-        p = part[i]
-        if (substr(p, 1, 1) !~ /[ \t\n\/>]/) continue # a longer tag name
-        e = tag_end(p)
-        if (e == 0) { problem("a <testcase> tag is not closed"); exit }
-        tests++
-        if (substr(p, e - 1, 1) == "/") continue # <testcase .../>
-        k = index(p, "</testcase>")
-        if (k == 0) { problem("a <testcase> is never closed"); exit }
-        body = substr(p, e + 1, k - e - 1)
-        if (body ~ /<skipped[ \t\n\/>]/) skipped++
-        else if (body ~ /<(failure|error)[ \t\n\/>]/) failed++
-      }
-      printf "J\t%s\t%d\t%d\t%d\n", report, tests, skipped, failed
+      if (!bad && !done) printf "E\t%s\tcould not be read\n", report
+      else if (!bad) printf "J\t%s\t%d\t%d\t%d\n", report, tests, skipped, failed
     }
-  ' "$xml"
+  '
 }
 
 results=$(
@@ -206,4 +191,4 @@ printf '%s\n%s\n%s\n' "$current" "$previous" "$results" | awk -F '\t' -v file="$
     }
     exit bad
   }
-'
+' && [ "$missing_base" -eq 0 ]
