@@ -39,9 +39,19 @@ See `docs/kickoff.md` for why this stack was chosen.
 
 <Rules of the problem the code must keep: invariants, units, money and rounding, time zones, permissions. One line each.>
 
+## Features
+
+**Used** | **Not used**  <!-- keep one; a project without user-visible features (a library, data work) may not use them -->
+
+- Feature files: `docs/features/<feature>.md`, one per feature, from the ai-workflow `templates/feature.md`.
+- An entry point here means: <a screen and control | a command | a route | a public function>.
+- Expected outcomes are checked in: <the database, output files, a request log, a mail catcher>.
+
 ## Layout
 
 <Where things live: entry points, domain logic, IO adapters, tests, fixtures.>
+
+Records under `docs/`: `decisions.md` (the decision log), `escapes.md` (what got past the workflow, and the fix), `research/` (research reports), `features/` (feature files, if used).
 
 ## Quirks
 
