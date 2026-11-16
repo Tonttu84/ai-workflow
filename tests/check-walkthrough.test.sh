@@ -323,6 +323,70 @@ check "a row too short to have a Level is not functional" status_is 0
 feature export.md 'Walkthrough:' "$(row F1-1 1 functional)" "| F1-2 | 1 | a \\| b | c | d | functional | e |"
 check "an escaped pipe in a cell does not shift the Level column" status_is 1
 
+# --- Level values: one of the four levels, or empty or a dash while the
+# item is not traced; anything else fails rather than read as "not
+# finished", which would let a finished feature through unwalked
+reset_features
+for level in '4. functional' 'functional ✓' '✅ functional' 'functional (traced)' '4 (functional)' 'done' 'wird'; do
+  feature export.md 'Walkthrough:' "$(row F1-1 1 functional)" "$(row F1-2 1 "$level")"
+  check "Level '$level' fails" status_is 1
+  check "it names the Level '$level'" says "'$level'"
+  check "it names the item with Level '$level'" says 'F1-2'
+done
+for level in '' '—' '–' '-' 'exists' 'Substantive' '**wired**'; do
+  feature export.md 'Walkthrough:' "$(row F1-1 1 functional)" "$(row F1-2 1 "$level")"
+  check "Level '$level' is a known level, not functional: passes" status_is 0
+done
+
+# --- tables as GitHub Markdown reads them: the outer pipes are optional
+reset_features
+both 'Walkthrough:'
+commit_all "feat: the export"
+watched=$(head_sha)
+feature export.md "Walkthrough: done 2026-11-16 at $watched" \
+  "$(row F1-1 1 functional)" "$(row F1-2 1 functional)" \
+  'F1-3 | 1 | item F1-3 | a button | a row exists | functional | e2e/a.spec.ts |'
+check "a row without its leading pipe, added after the commit watched: fails" status_is 1
+check "it names the new item" says 'F1-3 was added'
+{
+  printf 'ID | Rev | Item | Entry point | Expected outcome | Level | Test\n'
+  printf -- '--- | --- | --- | --- | --- | --- | ---\n'
+  printf 'F1-1 | 1 | a | b | c | functional | d\n\nWalkthrough:\n'
+} > "$proj/docs/features/export.md"
+check "a table without outer pipes, all functional, empty field: fails" status_is 1
+check "it says what to record" says 'done YYYY-MM-DD at <commit>'
+{
+  printf '| ID | Rev | Item | Entry point | Expected outcome | Level | Test |\n'
+  printf '| --- | --- | --- | --- | --- | --- | --- |\n'
+  printf '%s\nWalkthrough:\n' "$(row F1-1 1 functional)"
+} > "$proj/docs/features/export.md"
+check "a Walkthrough: line right after the table is still the field: fails" status_is 1
+check "it says the walkthrough is not recorded" says 'not recorded'
+reset_features
+printf '| Id | Rev | Thing |\n| --- | --- | --- |\n| F2-1 | 1 | x |\n\nWalkthrough:\n' \
+  > "$proj/docs/features/other.md"
+check "an item row in a table that is not an item table: fails" status_is 1
+check "it names the row" says 'F2-1'
+check "it names the line" says 'line 3'
+printf '| F2-1 | 1 | x |\n| F2-2 | 1 | y |\n\nWalkthrough:\n' > "$proj/docs/features/other.md"
+check "item rows in pipe lines without a header: fail" status_is 1
+check "it names them" says 'F2-2'
+# A delimiter row with fewer cells than the header makes no table.
+printf '| ID | Rev | Level |\n| --- | --- |\n| F2-1 | 1 | wired |\n\nWalkthrough:\n' > "$proj/docs/features/other.md"
+check "item rows under a header whose delimiter row is short: fail" status_is 1
+check "it names the row" says 'F2-1'
+both 'Walkthrough:'
+printf 'F1-3 a third item\n' > "$TMP/extra"
+awk -v extra="$(cat "$TMP/extra")" '{ print } /^\| F1-2 / { print extra }' \
+  "$proj/docs/features/export.md" > "$TMP/f" && mv "$TMP/f" "$proj/docs/features/export.md"
+check "an item row without pipes right after a table: fails" status_is 1
+check "it names the line" says 'F1-3 a third item'
+
+# The same table parser as scripts/feature-tables.awk, word for word.
+embedded() { awk '/^# BEGIN feature-tables.awk$/ { on = 1; next } /^# END feature-tables.awk$/ { on = 0 } on' "$WALK" | sed '1d;$d'; }
+check "check-walkthrough embeds scripts/feature-tables.awk unchanged" \
+  test "$(embedded)" = "$(cat "$ROOT/scripts/feature-tables.awk")"
+
 # --- CRLF line endings
 reset_features
 crlf() { sed 's/$/\r/' "$proj/docs/features/export.md" > "$TMP/crlf" && mv "$TMP/crlf" "$proj/docs/features/export.md"; }
