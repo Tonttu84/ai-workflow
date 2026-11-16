@@ -4,7 +4,8 @@
 # both use to check the messages of a range of commits, and
 # check-walkthrough, which pre-push runs in a project with feature files.
 #
-# Usage: install.sh [--git-hooks | --copy-only] [--force] [project-dir]
+# Usage: install.sh [--git-hooks | --copy-only] [--gate] [--force]
+#                   [project-dir]
 #
 #   default      copy the hooks to <project>/.githooks/ and run
 #                git config core.hooksPath .githooks. Commit .githooks/
@@ -27,6 +28,15 @@
 #                off the hooks in .git/hooks. A pre-push that is not ours
 #                (Git LFS has one) is never replaced, even with --force:
 #                it is kept as pre-push.local, and ours runs it first.
+#   --gate       also copy the push-gate scripts to <project>/.ai-workflow/
+#                (check-features.sh, the checks it runs, their awk
+#                helpers and stryker-mutate-ranges.sh), stage them, the
+#                scripts as executable, and add `.ai-workflow/* text
+#                eol=lf` unless a rule already gives them LF. Commit
+#                .ai-workflow/: the project gate, its CI and every
+#                clone then run .ai-workflow/check-features.sh with no
+#                path to an ai-workflow clone. Rerun it to update them;
+#                it replaces the copies. Works with every mode.
 #
 # Node projects may use commitlint and husky instead of this hook, with
 # templates/commitlint.config.mjs from the same repository.
@@ -34,6 +44,7 @@ set -eu
 
 mode=hookspath
 force=0
+gate=0
 dir=.
 while [ $# -gt 0 ]; do
   case $1 in
@@ -46,6 +57,7 @@ while [ $# -gt 0 ]; do
       fi
       mode=$new ;;
     --force) force=1 ;;
+    --gate) gate=1 ;;
     -h | --help) awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; exit 0 ;;
     -*) echo "install.sh: unknown option $1" >&2; exit 2 ;;
     *) dir=$1 ;;
@@ -55,6 +67,7 @@ done
 
 here="$(cd "$(dirname "$0")" && pwd)"
 HOOKS="commit-msg pre-push check-commits check-walkthrough"
+GATE="check-features.sh check-locked-tests.sh check-red-green.sh check-test-count.sh check-trace-links.sh stryker-mutate-ranges.sh feature-tables.awk junit-cases.awk"
 
 if ! git -C "$dir" rev-parse --git-dir > /dev/null 2>&1; then
   echo "install.sh: $dir is not inside a git repository" >&2
@@ -121,35 +134,37 @@ index_exec() {
   echo "Staged ${files[*]} as executable (100755 in git ls-files -s .githooks)."
 }
 
-# hooks_eol: the line ending the project's own .gitattributes files give
-# .githooks/ on checkout. Only those reach other clones, so git runs with
-# an empty repository as its git dir (no .git/info/attributes), an empty
-# core.attributesFile and no system attributes.
-hooks_eol() {
+# eol_of <path>: the line ending the project's own .gitattributes files
+# give the path on checkout. Only those reach other clones, so git runs
+# with an empty repository as its git dir (no .git/info/attributes), an
+# empty core.attributesFile and no system attributes.
+eol_of() {
   local scratch eol
   scratch=$(mktemp -d)
   git init -q --bare "$scratch/repo.git"
   : > "$scratch/empty"
   eol=$(cd "$top" && GIT_ATTR_NOSYSTEM=1 git --git-dir="$scratch/repo.git" --work-tree="$top" \
-    -c core.attributesFile="$scratch/empty" check-attr eol -- .githooks/commit-msg |
+    -c core.attributesFile="$scratch/empty" check-attr eol -- "$1" |
     sed 's/^.*: //')
   rm -rf "$scratch"
   printf '%s\n' "$eol"
 }
 
-# lf_rule: makes git check the hooks out with LF endings, which bash
-# needs; a core.autocrlf=true clone writes CRLF unless .gitattributes
-# says otherwise. Adds nothing when a rule (such as `* text=auto eol=lf`)
-# already does it. Runs before index_exec, so the index gets LF.
+# lf_rule <dir> <file>: makes git check the files in the directory (the
+# hooks, or the gate scripts) out with LF endings, which bash needs; a
+# core.autocrlf=true clone writes CRLF unless .gitattributes says
+# otherwise. Adds nothing when a rule (such as `* text=auto eol=lf`)
+# already does it; the file is one to ask git about. Runs before
+# anything is staged, so the index gets LF.
 lf_rule() {
-  local attrs="$top/.gitattributes" rule='.githooks/* text eol=lf'
-  [ "$(hooks_eol)" = lf ] && return 0
+  local attrs="$top/.gitattributes" rule="$1/* text eol=lf"
+  [ "$(eol_of "$1/$2")" = lf ] && return 0
   if [ -s "$attrs" ] && [ -n "$(tail -c 1 "$attrs")" ]; then echo >> "$attrs"; fi
   echo "$rule" >> "$attrs"
-  echo "Added '$rule' to $attrs so clones check the hooks out with LF endings. Commit it."
-  if [ "$(hooks_eol)" != lf ]; then
-    echo "install.sh: warning: git still does not take .githooks/ as LF;" >&2
-    echo "  check .gitattributes files (git check-attr eol -- .githooks/commit-msg)" >&2
+  echo "Added '$rule' to $attrs so clones check $1/ out with LF endings. Commit it."
+  if [ "$(eol_of "$1/$2")" != lf ]; then
+    echo "install.sh: warning: git still does not take $1/ as LF;" >&2
+    echo "  check .gitattributes files (git check-attr eol -- $1/$2)" >&2
   fi
 }
 
@@ -167,6 +182,41 @@ hooks_dir() {
   h=$(cd "$top" && git rev-parse --git-path hooks)
   case $h in /* | [A-Za-z]:*) ;; *) h="$top/$h" ;; esac
   printf '%s\n' "$h"
+}
+
+# install_gate: copies the push-gate scripts to .ai-workflow/ (--gate),
+# with the LF rule, and stages them: the scripts as executable (100755),
+# the awk files as plain files. Checked with git ls-files -s.
+install_gate() {
+  local dest="$top/.ai-workflow" name f err ok=1 scripts=() others=()
+  for name in $GATE; do
+    [ -f "$here/../scripts/$name" ] || { echo "install.sh: $here/../scripts/$name not found" >&2; exit 1; }
+  done
+  mkdir -p "$dest"
+  for name in $GATE; do
+    cp "$here/../scripts/$name" "$dest/$name"
+    case $name in
+      *.sh) chmod +x "$dest/$name"; scripts+=(".ai-workflow/$name") ;;
+      *) others+=(".ai-workflow/$name") ;;
+    esac
+  done
+  lf_rule .ai-workflow check-features.sh
+  err=$({ git -C "$top" update-index --add --chmod=+x -- "${scripts[@]}" &&
+    git -C "$top" update-index --add --chmod=-x -- "${others[@]}"; } 2>&1) || ok=0
+  for f in "${scripts[@]}"; do
+    [ "$(git -C "$top" ls-files -s -- "$f" | cut -d ' ' -f 1)" = 100755 ] || ok=0
+  done
+  for f in "${others[@]}"; do
+    [ -n "$(git -C "$top" ls-files -s -- "$f")" ] || ok=0
+  done
+  if [ "$ok" -eq 0 ]; then
+    echo "install.sh: could not stage the gate scripts:" >&2
+    [ -z "$err" ] || printf '%s\n' "$err" | sed 's/^/  /' >&2
+    echo "  Fix the cause and rerun install.sh --gate (safe to repeat)." >&2
+    exit 1
+  fi
+  echo "Copied the gate scripts to $dest and staged them (the scripts as 100755). Commit .ai-workflow/."
+  echo "The gate runs .ai-workflow/check-features.sh --base <the branch pushed to>, with feature-checks.conf."
 }
 
 if [ "$mode" = hookspath ]; then
@@ -200,7 +250,7 @@ if [ "$mode" = hookspath ]; then
     echo "  so the hooks in '$effective' stop running here" >&2
   fi
   install_hooks "$top/.githooks"
-  lf_rule
+  lf_rule .githooks commit-msg
   index_exec
   git -C "$top" config core.hooksPath .githooks
   echo "Installed $HOOKS in $top/.githooks (core.hooksPath=.githooks). Commit .githooks/."
@@ -209,7 +259,7 @@ elif [ "$mode" = copyonly ]; then
   current=$(git -C "$top" config --get core.hooksPath || true)
   echo "Copied $HOOKS to $top/.githooks; core.hooksPath stays '${current:-unset}'. Commit .githooks/."
   echo "Call .githooks/pre-push \"\$@\" from the project's own pre-push (husky: .husky/pre-push)."
-  lf_rule
+  lf_rule .githooks commit-msg
   index_exec
 else
   current=$(git -C "$top" config --get core.hooksPath || true)
@@ -223,3 +273,5 @@ else
   install_hooks "$hooks"
   echo "Installed $HOOKS in $hooks"
 fi
+
+if [ "$gate" -eq 1 ]; then install_gate; fi

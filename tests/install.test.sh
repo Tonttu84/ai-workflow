@@ -317,6 +317,53 @@ git -C "$TMP/husky" commit -q --no-verify --allow-empty -m "WIP"
 refute "husky recipe: a bad commit stops the push" git -C "$TMP/husky" push -q origin main 2> "$TMP/husky-push.out"
 check "and the check said why" grep -q 'breaks the commit rules' "$TMP/husky-push.out"
 
+# --gate: the push-gate scripts are copied into the project's .ai-workflow/,
+# so its gate command, its CI and a collaborator's clone need no path to
+# an ai-workflow clone.
+GATE_FILES="check-features.sh check-locked-tests.sh check-red-green.sh check-test-count.sh check-trace-links.sh stryker-mutate-ranges.sh feature-tables.awk junit-cases.awk"
+check "without --gate nothing goes to .ai-workflow/" test ! -e "$TMP/a/.ai-workflow"
+new_repo "$TMP/gate"
+git -C "$TMP/gate" config core.filemode false
+git -C "$TMP/gate" config core.autocrlf true
+check "--gate install succeeds" run_install --gate "$TMP/gate"
+check "the hooks are installed as usual" cmp -s "$ROOT/hooks/pre-push" "$TMP/gate/.githooks/pre-push"
+for name in $GATE_FILES; do
+  check "--gate copies $name" cmp -s "$ROOT/scripts/$name" "$TMP/gate/.ai-workflow/$name"
+done
+gate_mode() { git -C "$TMP/gate" ls-files -s -- ".ai-workflow/$1" | cut -d ' ' -f 1; }
+check "the scripts are staged as 100755" test "$(gate_mode check-features.sh)" = 100755
+check "every script is" test "$(git -C "$TMP/gate" ls-files -s -- '.ai-workflow/*.sh' | awk '{ print $1 }' | sort -u)" = 100755
+check "the awk files are staged" test "$(gate_mode junit-cases.awk)" = 100644
+check "it adds an LF rule for .ai-workflow/" grep -qxF '.ai-workflow/* text eol=lf' "$TMP/gate/.gitattributes"
+check "git takes the scripts as LF" \
+  test "$(git -C "$TMP/gate" check-attr eol -- .ai-workflow/check-features.sh | sed 's/^.*: //')" = lf
+check "a second --gate install succeeds" run_install --gate "$TMP/gate"
+check "and does not repeat the rule" test "$(grep -cxF '.ai-workflow/* text eol=lf' "$TMP/gate/.gitattributes")" = 1
+# The copies run on their own: each finds its helpers next to it.
+printf '<testsuites><testsuite><testcase name="F1-1-r1 works"/></testsuite></testsuites>\n' > "$TMP/gate/r.xml"
+printf '1 r.xml\n' > "$TMP/gate/count"
+check "the copied check-test-count runs, with the copied JUnit reader" \
+  q bash "$TMP/gate/.ai-workflow/check-test-count.sh" "$TMP/gate/count"
+mkdir -p "$TMP/gate/docs/features"
+printf '| ID | Rev | Item | Level | Test |\n| --- | --- | --- | --- | --- |\n| F1-1 | 1 | a | — | b |\n' \
+  > "$TMP/gate/docs/features/a.md"
+check "the copied check-trace-links runs, with the copied parsers" \
+  q bash "$TMP/gate/.ai-workflow/check-trace-links.sh" "$TMP/gate/docs/features" "$TMP/gate/r.xml"
+git -C "$TMP/gate" add -A
+commits_ok "$TMP/gate" "chore: add the hooks and the gate"
+git -c core.autocrlf=true clone -q "$TMP/gate" "$TMP/gate-clone" 2> /dev/null
+refute "a core.autocrlf=true clone checks the scripts out without CR" has_cr "$TMP/gate-clone/.ai-workflow/check-features.sh"
+gate_in_clone() { (cd "$TMP/gate-clone" && bash .ai-workflow/check-features.sh --base HEAD) > "$TMP/install.out" 2>&1; }
+gate_in_clone
+check "the clone's check-features runs and wants its config" test "$?" -eq 2
+check "it names the config file" said 'feature-checks.conf'
+new_repo "$TMP/gate2"
+check "--git-hooks --gate succeeds" run_install --git-hooks --gate "$TMP/gate2"
+check "it copies the scripts" cmp -s "$ROOT/scripts/check-features.sh" "$TMP/gate2/.ai-workflow/check-features.sh"
+new_repo "$TMP/gate3"
+check "--copy-only --gate succeeds" run_install --gate --copy-only "$TMP/gate3"
+check "it copies the scripts too" cmp -s "$ROOT/scripts/check-red-green.sh" "$TMP/gate3/.ai-workflow/check-red-green.sh"
+
 # Not a git repository
 mkdir -p "$TMP/plain"
 refute "refuses a directory that is not a git repo" run_install "$TMP/plain"
