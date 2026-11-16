@@ -180,7 +180,7 @@ tier2_is_a_bonus() { # every file naming tier 2 calls it a bonus
   for f in "$@"; do
     grep -qi 'tier 2' "$f" || continue
     grep -qi 'bonus' "$f" || { printf '  %s: tier 2 without "bonus"\n' "$f" >&2; bad=1; }
-    if grep -qiE 'runs? (tier 1 and tier 2|both)' "$f"; then
+    if grep -i 'tier' "$f" | grep -qiE 'runs? (tier 1 and tier 2|both)'; then
       printf '  %s: says tier 2 runs\n' "$f" >&2
       bad=1
     fi

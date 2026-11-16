@@ -6,7 +6,7 @@ Repositories the owner does not own, and the owner's inactive repositories that 
 
 ## Kickoff (new project)
 
-1. Grill the owner (the `grilling` skill) about the goal, the users, the scope and the kind: solo or showcase. Solo projects run tier 1 (alignment); showcase projects run tier 1 and tier 2 (audit evidence). `templates/AGENTS.md` says what each tier covers.
+1. Grill the owner (the `grilling` skill) about the goal, the users, the scope and the kind: solo or showcase. Every project gets tier 1 (alignment). A showcase project adds tier 2 (audit evidence) as a bonus: today, OpenFastTrace tracing if it uses feature files, which the owner chose to learn now in a showcase project (D91, `templates/openfasttrace.md`), and the review metrics. `templates/AGENTS.md` says what each tier covers.
 2. Write `docs/kickoff.md` from `templates/kickoff.md` before any code.
 3. The stack is discussed every time. Open with a proposal:
    - Web app: TypeScript (strict), Next.js, Tailwind, Prisma, Zod, Vitest, Playwright.

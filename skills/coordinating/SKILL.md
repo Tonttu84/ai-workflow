@@ -10,8 +10,8 @@ You are the coordinator: the session that talks with the owner. This adds to the
 ## Two tiers
 
 - Tier 1, alignment, runs in every project: it keeps the owner, the AI, the code and the documentation aligned, and guards against forgetting, hallucination and a false "done". It does not guard against tampering.
-- Tier 2, audit evidence (OpenFastTrace, metrics, tamper-resistant records), is a bonus for showcase projects.
-- Solo projects run tier 1; showcase projects run both. The kind is in the project's `AGENTS.md`.
+- Tier 2, audit evidence, is a bonus for showcase projects, on top of tier 1 (D59, D99). Today it means two things: OpenFastTrace tracing in a showcase project that uses feature files, which the owner chose to learn now (D91, `templates/openfasttrace.md`); and the review metrics, the planted-bug record (Metrics, below). Tamper-resistant records are not yet defined; Entire's session records are not evidence of anything (D93).
+- The kind is in the project's `AGENTS.md`.
 
 ## Quality first
 

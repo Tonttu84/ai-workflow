@@ -47,7 +47,7 @@ A feature's work stays on its own branch from the test writer to the walkthrough
 
 ## Choices per project
 
-- Traceability: the light check (item tags in test names, `scripts/check-trace-links.sh`) is the default. A showcase project may learn OpenFastTrace instead (`templates/openfasttrace.md`), accepting its Java 17 dependency.
+- Traceability: the light check (item tags in test names, `scripts/check-trace-links.sh`) is the default and runs in every project with feature files. A showcase project also traces with OpenFastTrace (`templates/openfasttrace.md`), accepting its Java 17 dependency: the owner chose to learn it now in a showcase project (D91), and it is that project's tier 2 bonus.
 - Agent-driven UI runs (the owner's preference): before each release while a project has no users, on a schedule once it has users, never on finished or abandoned projects. Their cost is decided later.
 - Testing tools are your call; put a choice to the owner only when there is a real trade-off.
 - Session recordings (the Entire trial) are part of no verification step: a missing record proves nothing.
