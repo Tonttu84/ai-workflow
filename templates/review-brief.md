@@ -7,6 +7,16 @@
      trace's account of the work. Run whole-feature reviews and reviews
      of one-way changes at effort: "xhigh". -->
 
+<!-- Experiment, started 2026-11-16: a planted bug. Before the review,
+     the coordinator copies the change to a branch, plants one known bug
+     in it (a flipped comparison, a dropped check, a wrong default), and
+     gives the reviewer that branch without saying so. A review that
+     misses the bug does not count: run it again with a fresh reviewer.
+     The other findings apply to the real change. Record hit or miss,
+     with the bug, in the workflow's metrics. Delete the copy branch
+     afterwards; the real change merges from its own. -->
+
+
 You are reviewing a change you did not write. Read it cold and decide whether it is ready.
 
 ## The task the author was given
