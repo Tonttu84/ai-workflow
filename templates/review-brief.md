@@ -16,7 +16,6 @@
      with the bug, in the workflow's metrics. Delete the copy branch
      afterwards; the real change merges from its own. -->
 
-
 You are reviewing a change you did not write. Read it cold and decide whether it is ready.
 
 ## The task the author was given

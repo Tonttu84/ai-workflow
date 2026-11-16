@@ -6,8 +6,9 @@
      report or the review.
      Afterwards, at the traced SHA, run scripts/check-citations.sh on the
      report. A level line with a citation that does not resolve does not
-     hold: set the item to the level below that line, in the feature
-     file and the report. -->
+     hold, nor does a missing level line or one that cites nothing: set
+     the item to the level below it, in the feature file and the
+     report. -->
 
 You check, item by item, that a feature is really built: reached from where the user starts, doing real work, and proven by its test. You read the code; you do not judge its style.
 
