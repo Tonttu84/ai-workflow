@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Tests for the templates that must stay in step with the hook.
+# Tests for the templates that must stay in step with the hook, and for
+# the shape of the tables in every Markdown template.
 set -u
 # shellcheck source=tests/lib.sh
 . "$(dirname "$0")/lib.sh"
@@ -451,5 +452,28 @@ bad_titles() { DEPENDABOT="$TMP/bad-prefix.yml" titles_pass; }
 refute "a prefix that is not a commit type is noticed" bad_titles
 
 refute "CI never ran a project's pre-push hook" test -e "$TMP/project/pre-push-ran"
+
+# --- Markdown tables: every row has its header's number of cells, so a
+# row filled in from a template (a decision's Meta, a feature's Level)
+# lands in the right column
+tables_ok() { # tables_ok <file...>: names each bad row on stderr
+  awk '
+    function cells(row, parts) {
+      gsub(/\\\|/, "", row); sub(/\r$/, "", row)
+      sub(/^[ \t]*\|/, "", row); sub(/\|[ \t]*$/, "", row)
+      return split(row, parts, "|")
+    }
+    FNR == 1 { intable = 0 }
+    !/^[ \t]*\|/ { intable = 0; next }
+    !intable { intable = 1; want = cells($0); next }
+    cells($0) != want { printf "  %s:%d: %d cells, the header has %d\n", FILENAME, FNR, cells($0), want; bad = 1 }
+    END { exit bad }
+  ' "$@" >&2
+}
+check "every table row in the templates has its header's cells" tables_ok "$ROOT"/templates/*.md
+sed 's/ | — | 2026-11-16 · agent / | 2026-11-16 · agent /' "$ROOT/templates/decisions.md" > "$TMP/short-row.md"
+check "the short-row mutant differs" test -n "$(diff "$ROOT/templates/decisions.md" "$TMP/short-row.md")"
+short_row_ok() { tables_ok "$TMP/short-row.md" 2> /dev/null; }
+refute "a row missing a cell is noticed" short_row_ok
 
 finish
