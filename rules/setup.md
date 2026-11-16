@@ -14,7 +14,7 @@ Repositories the owner does not own, and the owner's inactive repositories that 
    - Python (uv, FastAPI, pydantic, pytest, ruff, pyright strict in the gate and CI) for services, scripts and data work, but not by default when the project would benefit from a compiled language.
    - Testing tools are the agent's choice; put one to the owner only when there is a real trade-off to weigh, not just a pick between equals.
 4. Copy from `templates/`: `AGENTS.md` (state the kind, and whether the project uses feature files), `CLAUDE.md` (the one line `@AGENTS.md`), `decisions.md` as `docs/decisions.md` and `escapes.md` as `docs/escapes.md` (`templates/escapes.md`).
-5. Install the hooks, then set up CI, the repository settings and Dependabot: the sections below.
+5. Install the hooks (with `--gate` if the project uses feature files), then set up CI, the repository settings and Dependabot: the sections below.
 6. Turn on the function limits from `templates/function-limits.md` at the starting values, as warnings; make them errors once the first code settles.
 7. Test credentials: commit the variable names with empty values; the values live in the private repository under `<project>/credentials/`.
 8. A data or ML project: point `AGENTS.md` at `templates/data-science.md` by its GitHub URL and state the project's split, metric and baseline there.
@@ -24,7 +24,7 @@ Repositories the owner does not own, and the owner's inactive repositories that 
 1. Start from what is on GitHub, not from the local `main`: `git fetch origin`, then base the work on `origin/<default branch>` (a new branch or worktree from it). `git status` compares with the last fetch, so "up to date" can hide a `main` many commits behind; that happened in three migrations.
 2. Commit with the identity the project's history on origin already uses (`git log -5 --format='%an <%ae>' origin/<default branch>`), set with `git config user.name` and `user.email` in that clone, not the machine's global one.
 3. Add `AGENTS.md` (stating the kind, and whether the project uses feature files), the one-line `CLAUDE.md`, `docs/decisions.md` and `docs/escapes.md` from `templates/`. A team repository with several collaborators is showcase (pull requests) unless the owner says otherwise. Where the project already has rules of its own that the shared rules would replace, keep them and list each for the owner, with the shared rule that would replace it: dropping a project's rule is the owner's decision, not the agent's.
-4. Install the hooks (below) and add the `git config` line to the setup command (not with `--copy-only`): a fresh clone has the hooks off until that runs. Commit `.githooks/` and `.gitattributes`, then check that `git ls-files -s .githooks` shows `100755` for every hook: git on Linux skips a hook committed as `100644`.
+4. Install the hooks (below; with `--gate` if the project uses feature files) and add the `git config` line to the setup command (not with `--copy-only`): a fresh clone has the hooks off until that runs. Commit `.githooks/` and `.gitattributes`, then check that `git ls-files -s .githooks` shows `100755` for every hook: git on Linux skips a hook committed as `100644`.
 5. Smoke-check it in that repository: a bad message is rejected (`git commit --allow-empty -m "bad"`), a good one passes, and the project's existing hooks (pre-commit, Git LFS, husky) still run.
 6. Once the hook is committed and on `main`, add `templates/commit-check.yml` (a change that adds both is checked with its own copy of the hook, with a warning) and the repository settings (below). Set the repository variable `COMMIT_CHECK_SINCE` to the full SHA of the commit that added `.githooks/` (`gh variable set COMMIT_CHECK_SINCE --body <sha>`), so manual and scheduled runs skip the messages written before the rules. The first pull request, or a manual run, should show the commit check running and passing.
 7. Turn on Dependabot (below).
@@ -38,6 +38,8 @@ Repositories the owner does not own, and the owner's inactive repositories that 
 - A project that already uses husky keeps it: `install.sh --copy-only` and the README's husky recipe.
 - Node projects may use commitlint and husky with `templates/commitlint.config.mjs` instead of `commit-msg`.
 - The setup command runs `git config core.hooksPath .githooks`: a fresh clone has the hooks off until it does.
+- A project with feature files: `hooks/install.sh --gate` also copies the push-gate scripts (`check-features.sh`, the checks it runs, their awk helpers and `stryker-mutate-ranges.sh`) into the project's `.ai-workflow/` and stages them; commit it. Add a committed `feature-checks.conf` at the top of the repository (its keys are in `templates/AGENTS.md` and `.ai-workflow/check-features.sh --help`) and put `.ai-workflow/check-features.sh --base origin/main` in the gate. The project then needs no path to an ai-workflow clone, in CI or for collaborators (D101). Rerun `--gate` to update the copies when the scripts change.
+- Scheduled mutation testing in CI (D75) is deferred until the first project with feature files sets it up (D100): that project writes the workflow, with D39's triggers for a private repository (by hand and on a schedule), and records it. Until then mutation testing runs only in the hardening step.
 
 ## CI and repository settings
 

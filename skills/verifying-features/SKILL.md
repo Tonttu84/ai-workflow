@@ -32,11 +32,11 @@ A feature's work stays on its own branch from the test writer to the walkthrough
 
 ## The push gate, on every push
 
-8. `scripts/check-locked-tests.sh` (the locked tests are unchanged), `scripts/check-red-green.sh` (they fail on the code before the feature and pass after it), `scripts/check-test-count.sh` (the runner finished and no test was lost) and `scripts/check-trace-links.sh` (the trace links hold; or the OpenFastTrace trace). The project's `AGENTS.md` lists them in its gate.
+8. `.ai-workflow/check-features.sh --base <the branch pushed to>`, in the project's gate as its `AGENTS.md` lists it. `hooks/install.sh --gate` copies it and the checks it runs into the project's `.ai-workflow/`, and the committed `feature-checks.conf` gives the project's commands (`rules/setup.md`). For every `Locked tests:` line of every feature file it runs `check-locked-tests.sh` (the locked tests are unchanged) and `check-red-green.sh` (they fail on the code before the feature and pass after it); then the whole test run, `check-test-count.sh` (the runner finished and no test was lost) and `check-trace-links.sh` (every item has a test that ran and passed). A project on OpenFastTrace adds its trace.
 
 ## Hardening, once per feature
 
-9. A different agent runs `templates/hardening-brief.md`, with diff-scoped mutation testing on the changed lines (for StrykerJS, `scripts/stryker-mutate-ranges.sh` gives the ranges). Mutation testing also runs in scheduled CI, not on every push.
+9. A different agent runs `templates/hardening-brief.md`, with diff-scoped mutation testing on the changed lines (for StrykerJS, `.ai-workflow/stryker-mutate-ranges.sh` gives the ranges). Mutation testing never runs on every push. D75 also has it run in scheduled CI; that job is deferred until the first project with feature files sets it up (D100), so today it runs here only.
 10. No unexplained surviving mutant on the changed lines. Agents only propose skips; a proposed skip counts as unknown, which blocks like a fail, until the owner approves it. Findings become a follow-up change.
 
 ## Shipping

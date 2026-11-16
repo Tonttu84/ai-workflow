@@ -59,7 +59,7 @@ hooks/
   pre-push                    checks every commit being pushed, as CI does
   check-commits               the range check pre-push and CI share
   check-walkthrough           refuses a push while a finished feature lacks an owner walkthrough
-  install.sh                  installs the hooks into a project
+  install.sh                  installs the hooks into a project; --gate also copies the gate scripts
 skills/                       see skills/README.md
   coordinating/               the coordinator's procedure (local)
   researching/                when and how to research (local)
@@ -71,12 +71,15 @@ scripts/
   apply-skill-overlay.sh      applies one overlay (used by sync-skills.sh)
   install-skills.sh           copies the skills to ~/.claude/skills
   decisions-due.sh            lists the decision rows due for a recheck
+  check-features.sh           runs every feature check of the push gate from feature-checks.conf
   check-locked-tests.sh       the locked tests are unchanged
   check-red-green.sh          the locked tests fail before the feature and pass after it
   check-test-count.sh         the test runner finished and no test was lost
-  check-trace-links.sh        tests link to feature items at their current revision
+  check-trace-links.sh        every feature item has a test that ran and passed, at its current revision
   check-citations.sh          the path:line citations in a report resolve
   stryker-mutate-ranges.sh    turns a diff into StrykerJS mutate ranges
+  feature-tables.awk          reads the feature tables as GitHub does (also embedded in check-walkthrough)
+  junit-cases.awk             reads the testcases of JUnit reports
 tests/                        shell tests for the hooks, the scripts and the docs (./tests/run.sh)
 escalation-log.md             why some tasks needed a stronger model: a learning journal
 docs/decisions.md             the decisions behind this repo
@@ -149,7 +152,9 @@ Projects without Node:
 
 It installs two hooks: `commit-msg` checks a message as it is written, and `pre-push` checks every commit about to be pushed with the same range check the CI template runs, so a bad message is caught before the push, without spending Actions minutes. The default mode copies them to the project's `.githooks/` (commit it) and sets `core.hooksPath`. It also stages them as executable with `git update-index --add --chmod=+x` and checks that `git ls-files -s .githooks` shows `100755`: with `core.filemode=false`, as Git for Windows sets it, `chmod +x` never reaches the index, the hooks are committed as `100644`, and git on Linux and in web sessions skips them. And it adds `.githooks/* text eol=lf` to the project's `.gitattributes` (commit it) unless `git check-attr eol` shows that a rule such as `* text=auto eol=lf` already covers the hooks: a `core.autocrlf=true` clone otherwise checks them out with CRLF endings, which bash rejects. Each fresh clone still needs `git config core.hooksPath .githooks` once, so put that line in the project's setup command.
 
-In a project with feature files (`docs/features/`, from [`templates/feature.md`](templates/feature.md)), `pre-push` also runs `check-walkthrough`, installed next to it, on each commit pushed. While every item of a feature is `functional`, the feature's `Walkthrough:` line must say `done YYYY-MM-DD at <commit>` (the commit the owner watched) or `skipped YYYY-MM-DD at <commit>: <reason>` (the commit whose items the owner decided not to watch; the reason is required). Either one goes stale, and the push is refused, once an item's Rev is bumped or an item is added after the commit it names: walk it again or record a new skip. The check reads the feature files as committed in the commit pushed, not the working tree, and a project without `docs/features/` is not affected.
+In a project with feature files (`docs/features/`, from [`templates/feature.md`](templates/feature.md)), `pre-push` also runs `check-walkthrough`, installed next to it, on the tip of each ref pushed. While every item of a feature is `functional`, the feature's `Walkthrough:` line must say `done YYYY-MM-DD at <commit>` (the commit the owner watched) or `skipped YYYY-MM-DD at <commit>: <reason>` (the commit whose items the owner decided not to watch; the reason is required). Either one goes stale, and the push is refused, once an item's Rev is bumped or an item is added after the commit it names: walk it again or record a new skip. The check reads the feature files as committed in the commit pushed, not the working tree, and a project without `docs/features/` is not affected.
+
+Such a project also installs with `--gate`, which copies the push-gate scripts (`scripts/check-features.sh`, the checks it runs, `scripts/feature-tables.awk`, `scripts/junit-cases.awk` and `scripts/stryker-mutate-ranges.sh`) into the project's `.ai-workflow/`, stages them (the scripts as `100755`) and gives them the LF rule. Commit `.ai-workflow/`: the gate, CI and every clone then run `.ai-workflow/check-features.sh --base origin/main` with no path to an ai-workflow clone, which would differ between machines and leak a private path into a public repository. The wrapper reads the project's commands from a committed `feature-checks.conf` (`check-features.sh --help` lists its keys). Run `install.sh --gate` again to update the copies.
 
 Setting `core.hooksPath` makes git ignore every hook in `.git/hooks`, so the default mode refuses when that folder already holds hooks (pre-commit, husky, lefthook, Git LFS): use `--git-hooks`, move them into `.githooks/`, or pass `--force` to switch them off. It warns when it overrides a global `core.hooksPath`. Both modes refuse to replace a different `commit-msg` without `--force`. A `pre-push` that is not ours, such as Git LFS's, is never replaced, not even with `--force`: the installer keeps it as `pre-push.local`, and our `pre-push` runs it first with the same arguments and input, so LFS objects still go up. In the default mode, move an LFS project's hooks from `.git/hooks` into `.githooks/` before installing (`--force` would switch them off); `--git-hooks` chains in place.
 

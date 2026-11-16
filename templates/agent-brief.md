@@ -22,8 +22,8 @@
 
 ## Locked tests
 
-<!-- Optional, when a test writer ran; delete otherwise. Check them
-     afterwards with scripts/check-locked-tests.sh <SHA> <paths>. -->
+<!-- Optional, when a test writer ran; delete otherwise. The gate's
+     .ai-workflow/check-features.sh checks them on every push. -->
 
 - <paths> at <SHA>. Make them pass; never edit them. If one looks wrong, stop and report why.
 
