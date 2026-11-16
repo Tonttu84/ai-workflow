@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Tests for hooks/check-walkthrough: a feature whose items are all
 # functional needs a recorded owner walkthrough (done at a commit, or a
-# skip with a reason), and a walkthrough goes stale when an item's Rev
-# is bumped, or an item is added, after the commit watched.
+# skip at a commit with a reason), and a walkthrough or a skip goes stale
+# when an item's Rev is bumped, or an item is added, after the commit it
+# names.
 set -u
 # shellcheck source=tests/lib.sh
 . "$(dirname "$0")/lib.sh"
@@ -91,11 +92,17 @@ edit_walk() { # edit_walk <value>: sets the template's Walkthrough: line
   sed "s/^Walkthrough:.*/Walkthrough: $1/" "$proj/docs/features/export.md" > "$TMP/f" &&
     mv "$TMP/f" "$proj/docs/features/export.md"
 }
-edit_walk 'skipped: a library with no UI'
+commit_all "feat: the template's feature"
+template_sha=$(head_sha)
+edit_walk "skipped 2026-11-16 at $template_sha: a library with no UI"
 check "and passes with the skip written on its Walkthrough: line" status_is 0
+edit_walk 'skipped: a library with no UI'
+check "but not with a skip in the old form, without a date and commit" status_is 1
 
 # --- all functional, nothing recorded
 both 'Walkthrough:'
+commit_all "feat: the export"
+first=$(head_sha)
 check "all functional, empty field: fails" status_is 1
 check "it names the file" says 'docs/features/export.md'
 check "it says what to record" says 'done YYYY-MM-DD at <commit>'
@@ -105,7 +112,7 @@ both -
 check "all functional, no Walkthrough: line: fails" status_is 1
 check "it names the file" says 'export.md'
 check "it says the line is missing" says 'no Walkthrough: line'
-both 'Walkthrough: skipped: no UI'
+both "Walkthrough: skipped 2026-11-16 at $first: no UI"
 printf '<!--\n     Walkthrough: done 2026-11-16 at 1234567\n-->\n' >> "$proj/docs/features/export.md"
 check "an indented Walkthrough: in a comment is not the field" status_is 0
 both 'Walkthrough: <done YYYY-MM-DD at <commit> | skipped: <reason>>'
@@ -114,8 +121,11 @@ check "the template's placeholder left in: fails" status_is 1
 # shellcheck disable=SC2016
 feature export.md 'Walkthrough:' "$(row F1-1 1 '`functional`')" "$(row F1-2 1 Functional)"
 check "functional in backticks or capitalised still counts: fails" status_is 1
+feature other.md 'Walkthrough:' "$(row F2-1 1 functional)"
+commit_all "feat: another feature"
+other_sha=$(head_sha)
 feature export.md 'Walkthrough:' "$(row F1-1 1 functional)"
-feature other.md 'Walkthrough: skipped: a library with no UI' "$(row F2-1 1 functional)"
+feature other.md "Walkthrough: skipped 2026-11-16 at $other_sha: a library with no UI" "$(row F2-1 1 functional)"
 check "one bad file among good ones: fails" status_is 1
 check "it names the bad file" says 'export.md'
 refute "and not the good one" says 'other.md'
@@ -146,7 +156,12 @@ for bad in 'done 2026-13-01 at %s' 'done 2026-02-30 at %s' 'done 2026-02-29 at %
   'done 2026-2-3 at %s' 'done 26-11-16 at %s' 'done 2026/11/16 at %s' 'done at %s' \
   'done 2026-11-16' 'done 2026-11-16 %s' 'done 2026-11-16 at' 'done 2026-11-16 at HEAD' \
   'done 2026-11-16 at main' 'done 2026-11-16 at %.6s' 'done 2026-11-16 at %s and more' \
-  'done' 'yes' 'Done 2026-11-16 at %s' 'skipped' 'skip: no UI'; do
+  'done' 'yes' 'Done 2026-11-16 at %s' 'skipped' 'skip: no UI' \
+  'skipped: no UI' 'skipped 2026-11-16: no UI' 'skipped at %s: no UI' 'skipped 2026-11-16 at %s' \
+  'skipped 2026-11-16 at %s no UI' 'skipped 2026-11-16 at HEAD: no UI' 'skipped 2026-11-16 at %.6s: no UI' \
+  'skipped 2026-13-01 at %s: no UI' 'skipped 2026-02-30 at %s: no UI' 'skipped 2026/11/16 at %s: no UI' \
+  'Skipped 2026-11-16 at %s: no UI' 'skipped: 2026-11-16 at %s: no UI' 'skip 2026-11-16 at %s: no UI' \
+  'done 2026-11-16 at %s: no UI'; do
   # SC2059: the cases above are the format strings.
   # shellcheck disable=SC2059
   value=$(printf "$bad" "$watched")
@@ -155,7 +170,8 @@ for bad in 'done 2026-13-01 at %s' 'done 2026-02-30 at %s' 'done 2026-02-29 at %
 done
 both 'Walkthrough: done 16.11.2026'
 check "a malformed field says the expected form" status_is 1
-check "it shows both forms" says 'skipped: <reason>'
+check "it shows the done form" says 'done YYYY-MM-DD at <commit>'
+check "and the skip form" says 'skipped YYYY-MM-DD at <commit>: <reason>'
 both "Walkthrough: done 2028-02-29 at $watched"
 check "a leap day in a leap year passes" status_is 0
 both "Walkthrough: done 2000-02-29 at $watched"
@@ -171,16 +187,43 @@ check "the last day of the year passes" status_is 0
 check "two Walkthrough: lines: fails" status_is 1
 check "it says the field is there twice" says 'more than one'
 
-# --- skipped
-both 'Walkthrough: skipped: a library with no UI; the API tests cover it'
-check "skipped with a reason: passes" status_is 0
-both 'Walkthrough: skipped:'
+# --- skipped: a date, the commit the skip covers, and a reason
+both "Walkthrough: skipped 2026-11-16 at $watched: a library with no UI; the API tests cover it"
+check "skipped at a commit with a reason: passes" status_is 0
+check "and says nothing" quiet
+both "Walkthrough: skipped 2026-11-16 at ${watched:0:7}: no UI"
+check "skipped at a short SHA: passes" status_is 0
+both "Walkthrough:   skipped  2026-11-16  at  $watched :   no UI   "
+check "blanks around the parts are fine" status_is 0
+both "Walkthrough: skipped 2026-11-16 at $watched: no UI: the API tests cover it"
+check "a colon in the reason is fine" status_is 0
+both "Walkthrough: skipped 2026-11-16 at $watched:"
 check "skipped without a reason: fails" status_is 1
 check "it asks for a reason" says 'reason'
-both 'Walkthrough: skipped:    '
+check "it shows the skip form" says 'skipped YYYY-MM-DD at <commit>: <reason>'
+both "Walkthrough: skipped 2026-11-16 at $watched:    "
 check "skipped with only blanks: fails" status_is 1
-both 'Walkthrough: skipped: <reason>'
+both "Walkthrough: skipped 2026-11-16 at $watched: <reason>"
 check "skipped with the placeholder reason: fails" status_is 1
+both "Walkthrough: skipped 2026-11-16 at 0123456789abcdef0123456789abcdef01234567: no UI"
+check "skipped at a commit that does not exist: fails" status_is 1
+check "it says the commit is not found" says 'not found'
+both "Walkthrough: skipped 2026-11-16 at $blob: no UI"
+check "skipped at an object that is not a commit: fails" status_is 1
+both "Walkthrough: skipped 2026-02-29 at $watched: no UI"
+check "skipped on a date that does not exist: fails" status_is 1
+check "it says the date is not real" says 'not a real date'
+both "Walkthrough: skipped 2028-02-29 at $watched: no UI"
+check "skipped on a leap day in a leap year: passes" status_is 0
+
+# The old form, without a date and commit, fails and names the new one.
+both 'Walkthrough: skipped: a library with no UI; the API tests cover it'
+check "a skip in the old form: fails" status_is 1
+check "it names the file" says 'export.md'
+check "it says the form is old" says 'old form'
+check "it names the new form" says 'skipped YYYY-MM-DD at <commit>: <reason>'
+both 'Walkthrough: skipped:'
+check "the old form without a reason: fails" status_is 1
 
 # --- stale walkthroughs
 reset_features
@@ -192,7 +235,8 @@ feature export.md "Walkthrough: done 2026-11-16 at $watched" \
 check "a Rev bump after the commit watched: fails" status_is 1
 check "it names the item and both revisions" says 'F1-1 went from r1 to r2'
 check "it says the walkthrough is stale" says 'stale'
-check "it says to walk it again or record a skip" says 'skipped: <reason>'
+check "it says to walk it again" says 'done YYYY-MM-DD at <commit>'
+check "or to record a skip" says 'skipped YYYY-MM-DD at <commit>: <reason>'
 feature export.md "Walkthrough: done 2026-11-16 at $watched" \
   "$(row F1-1 1 functional)" "$(row F1-2 1 functional)" "$(row F1-3 1 functional)"
 check "an item added after the commit watched: fails" status_is 1
@@ -203,6 +247,25 @@ feature export.md "Walkthrough: done 2026-11-16 at $watched" \
   "$(row F1-1 1 functional)" "$(row F1-2 1 functional)"
 commit_all "docs: record the walkthrough"
 check "the same revisions as the commit watched: passes" status_is 0
+
+# A skip goes stale the same way: what was skipped is no longer what ships.
+feature export.md "Walkthrough: skipped 2026-11-16 at $watched: no UI" \
+  "$(row F1-1 2 functional)" "$(row F1-2 1 functional)"
+check "a skip with a Rev bump after the commit it names: fails" status_is 1
+check "it names the item and both revisions" says 'F1-1 went from r1 to r2'
+check "it says the skip is stale" says 'skip at'
+check "and stale" says 'stale'
+check "it says to walk it or skip it again" says 'skipped YYYY-MM-DD at <commit>: <reason>'
+feature export.md "Walkthrough: skipped 2026-11-16 at $watched: no UI" \
+  "$(row F1-1 1 functional)" "$(row F1-2 1 functional)" "$(row F1-3 1 functional)"
+check "a skip with an item added after the commit it names: fails" status_is 1
+check "it names the new item" says 'F1-3 was added'
+feature export.md "Walkthrough: skipped 2026-11-16 at $watched: no UI" "$(row F1-1 1 functional)"
+check "a skip with an item dropped after the commit it names: passes" status_is 0
+feature export.md "Walkthrough: skipped 2026-11-16 at $watched: no UI" \
+  "$(row F1-1 x functional)" "$(row F1-2 1 functional)"
+check "a skip with a bad Rev: fails" status_is 1
+check "it names the bad Rev" says '"x"'
 
 # Levels rise after the commit watched: not stale, the items are the same.
 reset_features
@@ -219,6 +282,9 @@ early=$(head_sha)
 both "Walkthrough: done 2026-11-16 at $early"
 check "a commit from before the feature file: fails" status_is 1
 check "it says the file was not there" says 'not exist'
+both "Walkthrough: skipped 2026-11-16 at $early: no UI"
+check "a skip at a commit from before the feature file: fails" status_is 1
+check "it says the file was not there" says 'not exist'
 
 # A walkthrough recorded again after a Rev bump passes.
 reset_features
@@ -229,10 +295,18 @@ feature export.md "Walkthrough: done 2026-11-17 at $rewatched" \
   "$(row F1-1 2 functional)" "$(row F1-2 1 functional)"
 check "walked again at the bumped revision: passes" status_is 0
 
-# A skip recorded after a Rev bump passes too: the owner decided.
-feature export.md 'Walkthrough: skipped: covered by the API tests' \
+# A skip recorded at a commit after a Rev bump passes too: the owner
+# decided on what ships. One recorded before the bump is stale.
+feature export.md 'Walkthrough:' "$(row F1-1 3 functional)" "$(row F1-2 1 functional)"
+commit_all "feat: the export, third revision"
+third=$(head_sha)
+feature export.md "Walkthrough: skipped 2026-11-18 at $third: covered by the API tests" \
   "$(row F1-1 3 functional)" "$(row F1-2 1 functional)"
-check "a skip after a Rev bump: passes" status_is 0
+check "a skip at a commit after a Rev bump: passes" status_is 0
+feature export.md "Walkthrough: skipped 2026-11-18 at $rewatched: covered by the API tests" \
+  "$(row F1-1 3 functional)" "$(row F1-2 1 functional)"
+check "a skip at a commit before a Rev bump: fails" status_is 1
+check "it names the item and both revisions" says 'F1-1 went from r2 to r3'
 
 # --- table problems
 reset_features
@@ -260,13 +334,18 @@ commit_all "feat: the export, written on Windows"
 crlf_watched=$(head_sha)
 both "Walkthrough: done 2026-11-16 at $crlf_watched" && crlf
 check "CRLF, done at an existing commit: passes" status_is 0
-both 'Walkthrough: skipped: no UI' && crlf
+both "Walkthrough: skipped 2026-11-16 at $crlf_watched: no UI" && crlf
 check "CRLF, skipped with a reason: passes" status_is 0
-both 'Walkthrough: skipped:' && crlf
+both "Walkthrough: skipped 2026-11-16 at $crlf_watched:" && crlf
 check "CRLF, skipped without a reason: fails" status_is 1
+both 'Walkthrough: skipped: no UI' && crlf
+check "CRLF, a skip in the old form: fails" status_is 1
 feature export.md "Walkthrough: done 2026-11-16 at $crlf_watched" \
   "$(row F1-1 2 functional)" "$(row F1-2 1 functional)" && crlf
 check "CRLF, a Rev bump after a CRLF commit: fails" status_is 1
+feature export.md "Walkthrough: skipped 2026-11-16 at $crlf_watched: no UI" \
+  "$(row F1-1 2 functional)" "$(row F1-2 1 functional)" && crlf
+check "CRLF, a skip with a Rev bump after a CRLF commit: fails" status_is 1
 
 # --- checking a commit instead of the working tree (what pre-push does)
 reset_features
@@ -296,5 +375,22 @@ mkdir -p "$proj/src/deep"
 sub() { (cd "$proj/src/deep" && bash "$WALK" "$@") > "$TMP/out" 2> "$TMP/err"; }
 sub
 check "run from a subdirectory: still fails on the stale file" test "$?" -eq 1
+
+# A committed skip is checked at its commit like a done walkthrough.
+reset_features
+both 'Walkthrough:'
+commit_all "feat: the export"
+unskipped=$(head_sha)
+both "Walkthrough: skipped 2026-11-16 at $unskipped: no UI"
+commit_all "docs: record the skip"
+check "a committed skip at the current revisions: passes" status_is 0 HEAD
+feature export.md "Walkthrough: skipped 2026-11-16 at $unskipped: no UI" \
+  "$(row F1-1 2 functional)" "$(row F1-2 1 functional)"
+commit_all "feat: change the export"
+check "a committed Rev bump after the skip's commit: fails" status_is 1 HEAD
+check "it says the skip is stale" says 'stale'
+both 'Walkthrough: skipped: no UI'
+commit_all "docs: an old-form skip"
+check "a committed skip in the old form: fails" status_is 1 HEAD
 
 finish
