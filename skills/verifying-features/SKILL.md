@@ -28,7 +28,7 @@ A feature's work stays on its own branch from the test writer to the walkthrough
 
 5. Trace: a fresh agent from `templates/trace-brief.md` traces each item white-box from the plan and its entry point. It may list the names of the changed files but never reads the diff. Run `scripts/check-citations.sh` on its report at the traced commit; a level line whose citation does not resolve drops to the level below.
 6. Black-box test: a fresh agent from `templates/blackbox-test-brief.md` uses the running app and never reads the source. An item passes only on its check script's verdict over recorded backend evidence. Third-party services are mocked by default.
-7. Review: a fresh agent from `templates/review-brief.md`, on Opus at xhigh effort for a whole feature or a one-way change. Give it the feature's items and entry points, not the Level column. Experiment (the owner's preference): plant a known bug in a copy of the change first; a review that misses it does not count, and you run it again with a fresh reviewer. Record hit or miss. When the author disputes a finding with evidence, you decide.
+7. Review: a fresh agent from `templates/review-brief.md`, on Opus at xhigh effort for a whole feature or a one-way change. Give it the feature's items and entry points, not the Level column. Experiment (the owner's preference): plant a known bug in a copy of the change first (the review brief's opening comment); a review that misses it does not count. Run it again at most once, with a fresh reviewer; after a second miss, tell the owner. Record each run in `<project>/metrics/review-canary.md` in the private repository (`templates/review-canary.md`). When the author disputes a finding with evidence, you decide.
 
 ## The push gate, on every push
 

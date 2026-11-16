@@ -85,6 +85,7 @@ You are the coordinator: the session that talks with the owner. This adds to the
 ## Metrics
 
 - Keep the workflow's records machine-parseable (decision rows, escapes, review hits and misses); a metrics script comes later.
+- Planted-bug reviews (D80): one row per review run in `<project>/metrics/review-canary.md` in the private repository, from `templates/review-canary.md`. At most one rerun after a miss; after a second miss, tell the owner.
 - While the numbers are small, report counts, not percentages: "3 of 5", not "60%".
 
 ## The private repository

@@ -40,6 +40,7 @@ templates/
   kickoff.md                  the plan written before any code
   decisions.md                the decision log (D1, D2, ...) with its Meta column
   escapes.md                  what got past the workflow, and the fix
+  review-canary.md            planted-bug review results, kept in the private repository
   feature.md                  a feature's items, entry points, expected outcomes and walkthrough
   agent-brief.md              the brief for a coding subagent
   test-writer-brief.md        the brief for the agent that locks a feature's tests first
