@@ -12,8 +12,13 @@ This file holds only what is specific to this project and wins where it says so.
 
 **Solo** | **Showcase**  <!-- keep one -->
 
-- Solo: commit to `main` and push once the local gate is green; fresh-agent review before pushing any non-trivial change.
-- Showcase: branch, pull request, fresh-agent review, squash-merge on the owner's word.
+- Solo: commit to `main` and push once the local gate is green; fresh-agent review before pushing any non-trivial change. Runs tier 1.
+- Showcase: branch, pull request, fresh-agent review, squash-merge on the owner's word. Runs tier 1 and tier 2.
+
+The tiers of verification:
+
+- Tier 1, alignment, in every project: it keeps the owner, the AI, the code and the documentation aligned, and guards against forgetting, hallucination and a false "done", not against tampering.
+- Tier 2, audit evidence, in showcase projects: OpenFastTrace, metrics and tamper-resistant records on top of tier 1.
 
 ## Stack
 
