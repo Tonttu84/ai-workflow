@@ -157,6 +157,77 @@ for text in 'templates/kickoff.md' 'before any code' 'Rust first' 'pyright' 'hoo
   check "the setup file mentions $text" grep -qF -- "$text" "$SETUP"
 done
 
+# --- fixes from the rules review of 2026-11-16
+# The coordinator's delegation rule fires when it is about to edit code
+# (D84), so it stays in the always-loaded rules; a skill that is not
+# installed is read from the clone; a feature in a solo project ships
+# from its branch (D98); the private repo holds research and metrics
+# (D86); the author may dispute a finding (D79).
+# shellcheck disable=SC2016
+for text in 'Delegate all coding except trivial edits' 'skills/<name>/SKILL.md' \
+  '.ai-workflow/' 'stays on its branch' 'research and metrics' \
+  'disputes a finding with evidence' 'the approvals below'; do
+  check "the rules say $text" grep -qF -- "$text" "$RULES"
+done
+# Paths in the rules are the clone's only where the rules and the
+# ai-workflow skills and templates name them: a project has its own scripts/.
+refute "the rules do not claim every scripts/ path for the clone" \
+  grep -qF 'Paths under `templates/`, `hooks/`, `scripts/`' "$RULES"
+
+# Tier 2 is a bonus everywhere, never something a project "runs" (D59, D99).
+tier2_is_a_bonus() { # every file naming tier 2 calls it a bonus
+  local f bad=0
+  for f in "$@"; do
+    grep -qi 'tier 2' "$f" || continue
+    grep -qi 'bonus' "$f" || { printf '  %s: tier 2 without "bonus"\n' "$f" >&2; bad=1; }
+    if grep -qiE 'runs? (tier 1 and tier 2|both)' "$f"; then
+      printf '  %s: says tier 2 runs\n' "$f" >&2
+      bad=1
+    fi
+  done
+  [ "$bad" -eq 0 ]
+}
+check "tier 2 is a bonus wherever it is named" tier2_is_a_bonus "$RULES" "$SETUP" \
+  "$ROOT/README.md" "$ROOT"/templates/*.md "$ROOT"/skills/*/SKILL.md
+printf 'Tier 2 is a bonus. Showcase projects run tier 1 and tier 2.\n' > "$TMP/tier2.md"
+refute "a file that says tier 2 runs is noticed" tier2_is_a_bonus "$TMP/tier2.md" 2> /dev/null
+# OpenFastTrace is learned now in a showcase project (D91): an agent
+# planning a showcase project reads that.
+for f in rules/setup.md templates/AGENTS.md skills/verifying-features/SKILL.md; do
+  check "$f says OpenFastTrace is learned in a showcase project (D91)" grep -qF 'D91' "$ROOT/$f"
+done
+
+# The gate scripts are copied into the project (install.sh --gate), and
+# the setup, the skill and the readme say so (D101).
+VF="$ROOT/skills/verifying-features/SKILL.md"
+for text in 'install.sh --gate' '.ai-workflow/' 'feature-checks.conf'; do
+  check "the setup file mentions $text" grep -qF -- "$text" "$SETUP"
+done
+check "the skill runs .ai-workflow/check-features.sh" grep -qF '.ai-workflow/check-features.sh' "$VF"
+for text in '--gate' 'check-features.sh' 'feature-tables.awk' 'junit-cases.awk'; do
+  check "the readme mentions $text" grep -qF -- "$text" "$ROOT/README.md"
+done
+# Scheduled mutation CI is deferred, not implied to exist (D75, D100).
+for f in "$VF" "$SETUP"; do
+  check "${f#"$ROOT"/} says scheduled mutation CI is deferred (D100)" grep -qF 'D100' "$f"
+done
+# A feature's work reaches main only after its walkthrough (D98).
+check "the skill keeps a feature on its branch until the walkthrough" grep -qF 'D98' "$VF"
+
+# Planted-bug results have a file and a table (D80, D96, D102).
+CANARY="$ROOT/templates/review-canary.md"
+check "the review-canary template exists" test -f "$CANARY"
+check "its table has the agreed columns" \
+  grep -qxF '| Date | Change | Planted bug | Caught | Reviewer model and effort |' "$CANARY"
+for f in templates/review-brief.md skills/coordinating/SKILL.md "${VF#"$ROOT"/}"; do
+  check "$f names <project>/metrics/review-canary.md" grep -qF '<project>/metrics/review-canary.md' "$ROOT/$f"
+done
+check "the review brief caps the reruns after a miss" grep -qF 'at most one rerun' "$ROOT/templates/review-brief.md"
+
+# Subagents do see user-level skills: the readme no longer says otherwise.
+refute "the skills readme no longer calls subagent skills unverified" \
+  grep -qF 'was not verified' "$ROOT/skills/README.md"
+
 # --- the agent brief keeps parallel agents' scratch files apart
 check "the agent brief names scratch files by project" grep -qF '`<project>-<task>-' "$ROOT/templates/agent-brief.md"
 
