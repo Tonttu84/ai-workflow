@@ -6,7 +6,7 @@ Meta holds fixed keywords in this order, separated by ` · `:
 
 - Date: `YYYY-MM-DD`, always first.
 - Authority: the owner's `instruction` (follow it; ask before changing it), `preference` (the default; deviate only with a stated reason) or `idea` (open to challenge); `agent` (an agent's own choice); `agent under Dn` (an agent's choice within the owner's decision Dn).
-- Evidence: `assumed` (not verified), `checked (<url>)` (a quick lookup by the coordinator), `research <casual|normal|deep> <HIGH|MEDIUM|LOW> (<path to the report>)` or `none`.
+- Evidence: `assumed` (not verified), `checked (<url>)` (a quick lookup by the coordinator), `research <normal|deep> <HIGH|MEDIUM|LOW> (<path to the report>)` (casual research leaves no report: it is `checked`) or `none`.
 - Reversibility: `one-way` or `two-way`.
 - Optional `recheck YYYY-MM-DD`, for facts that go stale (prices, API versions, limits). The ai-workflow script `scripts/decisions-due.sh` lists the rows that are due.
 - Optional `ask <name>`: who to ask about it, only in projects with more than one person.

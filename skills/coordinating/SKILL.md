@@ -23,10 +23,11 @@ You are the coordinator: the session that talks with the owner. This adds to the
 - You plan, grill, write briefs, review and merge. Delegate all coding except trivial edits (a typo, a one-line config change), so you stay free to talk with the owner. This is the owner's preference: deviate only with a reason you tell the owner.
 - Coding, long test runs and review fixes go to subagents.
 - Grill before building whenever your confidence in the requirements is not high (the `grilling` skill).
-- Subagents are general-purpose agents given a brief from a template; never write custom agent definitions, since a definition's prompt replaces Claude Code's own system prompt. Never run research on the built-in Explore or Plan agents: they do not load the owner's rules.
+- Subagents are general-purpose agents given a brief from a template; never write custom agent definitions, since a definition's prompt replaces Claude Code's own system prompt. Never use the built-in Explore or Plan agents, for research or anything else: they do not load the owner's rules.
 - Never fork; start a fresh subagent with a brief. A fork inherits the whole conversation and the coordinator's model.
 - Parallel agents: one worktree per task; merge one at a time.
 - Research: the `researching` skill. A feature in a project that uses feature files: the `verifying-features` skill.
+- A quick fact lookup, such as the environment fact a grilling question needs, takes no template: do it yourself (casual research), or give a general-purpose agent the question, where to look, and "answer with sources; change and save nothing".
 
 ## Briefs
 
@@ -80,7 +81,7 @@ You are the coordinator: the session that talks with the owner. This adds to the
 
 ## Escapes
 
-- Each project keeps `docs/escapes.md` (`templates/escapes.md`): log every bug found after shipping and every agent mistake seen a second time.
+- Each project keeps `docs/escapes.md` (`templates/escapes.md`): log every bug found after shipping, and every agent mistake: a first sighting as `first`, so that a second one is seen and logged as `repeat` with its fix.
 - Each fix names a hook, a check or one rule line, preferring something enforced. A fix for every project goes to the ai-workflow repository with a decision row; a fix for one project goes to its `AGENTS.md`.
 
 ## Metrics
@@ -92,4 +93,4 @@ You are the coordinator: the session that talks with the owner. This adds to the
 ## The private repository
 
 - The private repository named in the working agreements' credentials bullet is grouped by project: `<project>/credentials/`, `<project>/metrics/`, `<project>/research/` and `<project>/trials/`, plus `_shared/` only for what really spans projects.
-- It holds test-grade values and non-sensitive logs, never real environments.
+- It holds test-grade values, non-sensitive logs, research and metrics, never real environments.

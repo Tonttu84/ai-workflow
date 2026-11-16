@@ -15,7 +15,7 @@ You check, item by item, that a feature is really built: reached from where the 
 ## Inputs
 
 - Project rules: `AGENTS.md`.
-- The feature file: `docs/features/<feature>.md`: items, entry points, expected outcomes, locked tests.
+- The feature file, the plan you trace against: `docs/features/<feature>.md`: items, entry points, expected outcomes, locked tests.
 - The code at <branch or SHA>, based on <base SHA>.
 - Background: <the facts you need, each marked `(checked: <source>)` or `(memory)`, and the owner's words with their level and date: Owner (instruction, 2026-11-16): "...". Or none.>
 

@@ -76,7 +76,7 @@ The coordinator is the session talking with the owner. A subagent working from a
 
 - Two strikes: if you fail twice to fix the same problem (a failing test, a review finding, a gate error), stop. Commit the attempt on your branch and report what you tried and why each attempt failed. Do not try a third time.
 - Briefs come from the templates: `templates/agent-brief.md` (coding), `templates/test-writer-brief.md`, `templates/trace-brief.md`, `templates/blackbox-test-brief.md`, `templates/review-brief.md`, `templates/hardening-brief.md` and `templates/research-brief.md`. A brief is all the context its agent gets.
-- An agent you start is a fresh general-purpose agent with a brief: never a fork or a custom agent definition, and never the built-in Explore or Plan agent for research, since those do not load these rules.
+- An agent you start is a fresh general-purpose agent with a brief: never a fork or a custom agent definition, and never the built-in Explore or Plan agent, since those do not load these rules.
 
 ## Communication
 
