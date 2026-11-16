@@ -75,8 +75,14 @@ while IFS=$(printf '\t') read -r at path start end; do
   [ "$start" = "$end" ] || where="$where-$end"
   file="$root/$path"
   why=
+  # Numbers without leading zeros; more than 9 digits is beyond any file
+  # (and beyond what [ can compare).
+  first=${start#"${start%%[!0]*}"}
+  last=${end#"${end%%[!0]*}"}
+  first=${first:-0} last=${last:-0}
   case /$path/ in
     */../*) why="outside the repository" ;;
+    */.git/*) why="inside .git, which is not the repository's content" ;;
     *)
       if [ -d "$file" ]; then
         why="a directory, not a file"
@@ -84,9 +90,11 @@ while IFS=$(printf '\t') read -r at path start end; do
         why="no such file"
       else
         length=$(awk 'END { print NR }' "$file")
-        if [ "$start" -lt 1 ] || [ "$end" -lt "$start" ]; then
+        if [ "${#first}" -gt 9 ] || [ "${#last}" -gt 9 ]; then
+          why="beyond the end of the file ($length lines)"
+        elif [ "$first" -lt 1 ] || [ "$last" -lt "$first" ]; then
           why="not a line range"
-        elif [ "$end" -gt "$length" ]; then
+        elif [ "$last" -gt "$length" ]; then
           why="beyond the end of the file ($length lines)"
         fi
       fi

@@ -83,6 +83,16 @@ check "a directory fails" status_is 1 "$report"
 write '../outside.ts:1'
 check "a path outside the repository fails" status_is 1 "$report"
 check "it says outside" says 'outside'
+write 'exists: src/app.ts:99999999999999999999'
+check "a line number too big for an integer fails" status_is 1 "$report"
+check "it names the citation" says 'src/app.ts:99999999999999999999'
+write 'src/app.ts:1-99999999999999999999'
+check "a range end too big for an integer fails" status_is 1 "$report"
+write 'src/app.ts:00000000000000000000000000001'
+check "a line number with many leading zeros is still read as its value" status_is 0 "$report"
+write 'see .git/config:1'
+check "a file inside .git fails" status_is 1 "$report"
+check "it says it is inside .git" says '.git'
 write 'src/app.ts:1' 'src/missing.ts:2' 'src/app.ts:99'
 check "every bad citation is listed" status_is 1 "$report"
 check "the missing file is named" says 'src/missing.ts:2'
