@@ -17,17 +17,21 @@
 - Item: one thing a user can see or do.
 - Entry point: how a user reaches it: a screen and control, a command, a route or a public function, whichever the project's `AGENTS.md` names.
 - Expected outcome: an end state that can be checked, not a list of clicks. For example: "a CSV with last month's rows is downloaded", "an order row exists with status `paid`", "the confirmation page shows the order number and an email is sent to the buyer". A pass is decided by checking this outcome against recorded evidence (database or backend state, files, requests), never by an agent's own claim that it worked.
-- Level, each one building on the one before:
+- Level, each one building on the one before; write the word alone (`functional`, not `4. functional`), and leave `—` until the item is traced. `hooks/check-walkthrough` fails any other value:
   1. `exists`: the code is there.
   2. `substantive`: it is not a stub or a placeholder.
   3. `wired`: it is imported, registered and called from the entry point, and real data flows through it.
   4. `functional`: its locked test passes and goes through the real path.
-- Test: the test's file and name. The name carries the item's tag at its current revision, which `scripts/check-trace-links.sh` checks:
+- Test: the test's file and name. The name carries the item's tag at its current revision. `scripts/check-trace-links.sh` reads the names from the JUnit reports of the test run: only a test that ran and passed links, never a tag in a comment or in a skipped test:
   - `F3-2-r1` where a name can hold `-` (Vitest and Playwright titles): `test('F3-2-r1 downloads last month as CSV', ...)`.
   - `f3_2_r1` where it cannot (Rust and Python function names): `fn f3_2_r1_downloads_last_month()`, `def test_f3_2_r1_downloads_last_month():`. The mapping: lower case, `-` becomes `_`.
-  - A test that covers two items carries both tags. Write tags only in this form: in a test file, the check reads `F3-2` without a revision, or any other spelling, as an error.
+  - A test that covers two items carries both tags. Write tags only in this form: in a test name, or a test file the check scans, it reads `F3-2` without a revision, or any other spelling, as an error.
 
 Locked tests: <paths> at <SHA of the `test:` commit>
+<!-- The locked test files or directories, separated by spaces and given
+     from the top of the repository, then the SHA of the test: commit;
+     tests locked in another commit get a line of their own.
+     scripts/check-features.sh checks every such line. -->
 
 Walkthrough:
 <!-- Empty until the owner has watched the feature work, or decided not

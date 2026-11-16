@@ -40,7 +40,14 @@ See `docs/kickoff.md` for why this stack was chosen.
 | Lint, format, type-check | `<...>` |
 | The local gate before every push (tests, lint, types, build; with feature files, the feature checks below) | `<...>` |
 
-With feature files, the gate also runs, from the ai-workflow clone's `scripts/`: `check-locked-tests.sh` (locked tests unchanged), `check-red-green.sh` (they fail on the code before the feature and pass on the new code), `check-test-count.sh` (the runner finished and no test was lost) and `check-trace-links.sh` (or the OpenFastTrace trace).
+With feature files, the gate also runs `.ai-workflow/check-features.sh --base <the branch the push goes to, such as origin/main>` (copied into the project by the ai-workflow `hooks/install.sh --gate`; commit `.ai-workflow/`). For every `Locked tests:` line of every feature file it runs `check-locked-tests.sh` (locked tests unchanged) and `check-red-green.sh` (they fail on the code before the feature and pass on the new code); then the whole test run, `check-test-count.sh` (the runner finished and no test was lost) and `check-trace-links.sh` (every item has a passing test; or the OpenFastTrace trace). Its settings are in the committed `feature-checks.conf` (see `check-features.sh --help`):
+
+```text
+test_command = <the test command for one test file, with {path}>
+setup = <the install command for a fresh checkout, or none>
+run = <the whole test run, which writes the JUnit reports>
+count_file = <the count file, such as .test-count>
+```
 
 ## Domain rules
 
