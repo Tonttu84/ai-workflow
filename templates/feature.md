@@ -1,17 +1,19 @@
-# Feature: <name>
+# Feature F<n>: <name>
 
 <!-- Copy to docs/features/<feature>.md, one file per feature. The
-     coordinator fills Item, Entry point and Expected outcome before any
-     code, and checks that every item has an entry point and a task. The
-     test writer fills Test and Locked tests. Only the trace agent sets
-     Level. -->
+     coordinator fills ID, Rev, Item, Entry point and Expected outcome
+     before any code, and checks that every item has an entry point and a
+     task. The test writer fills Test and Locked tests. Only the trace
+     agent sets Level. -->
 
 <One or two sentences: what the feature does for the user.>
 
-| Item | Entry point | Expected outcome | Level | Test |
-| --- | --- | --- | --- | --- |
-| <one user-visible thing> | <how a user reaches it> | <the end state to check> | — | <test file and name> |
+| ID | Rev | Item | Entry point | Expected outcome | Level | Test |
+| --- | --- | --- | --- | --- | --- | --- |
+| F<n>-1 | 1 | <one user-visible thing> | <how a user reaches it> | <the end state to check> | — | <test file and name, carrying F<n>-1-r1> |
 
+- ID: `F<feature>-<item>`, such as `F3-2`: the feature's number (features are numbered in the order they are created, from 1) and the item's number in this table (from 1). An ID is never reused: a dropped item's number stays retired, so an old test cannot link to a new item by accident.
+- Rev: the item's revision, from 1. Bump it when the item's Expected outcome changes. A bump makes every test linked at the old revision stale: recheck each one against the new outcome, rename it to the new revision (relink it) and lock it again.
 - Item: one thing a user can see or do.
 - Entry point: how a user reaches it: a screen and control, a command, a route or a public function, whichever the project's `AGENTS.md` names.
 - Expected outcome: an end state that can be checked, not a list of clicks. For example: "a CSV with last month's rows is downloaded", "an order row exists with status `paid`", "the confirmation page shows the order number and an email is sent to the buyer". A pass is decided by checking this outcome against recorded evidence (database or backend state, files, requests), never by an agent's own claim that it worked.
@@ -20,6 +22,10 @@
   2. `substantive`: it is not a stub or a placeholder.
   3. `wired`: it is imported, registered and called from the entry point, and real data flows through it.
   4. `functional`: its locked test passes and goes through the real path.
+- Test: the test's file and name. The name carries the item's tag at its current revision, which `scripts/check-trace-links.sh` checks:
+  - `F3-2-r1` where a name can hold `-` (Vitest and Playwright titles): `test('F3-2-r1 downloads last month as CSV', ...)`.
+  - `f3_2_r1` where it cannot (Rust and Python function names): `fn f3_2_r1_downloads_last_month()`, `def test_f3_2_r1_downloads_last_month():`. The mapping: lower case, `-` becomes `_`.
+  - A test that covers two items carries both tags. Write tags only in this form: in a test file, the check reads `F3-2` without a revision, or any other spelling, as an error.
 
 Locked tests: <paths> at <SHA of the `test:` commit>
 
