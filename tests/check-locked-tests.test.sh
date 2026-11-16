@@ -100,6 +100,45 @@ commit_all "revert: put the test back"
 check "a change put back passes" status_is 0 "$base" e2e/one.test.sh
 reset_repo
 
+# HEAD is what gets pushed: a change committed there fails even when the
+# index and the working tree were put back without a commit.
+printf 'weakened\n' >> "$repo/e2e/one.test.sh"
+commit_all "fix: weaken a test"
+git -C "$repo" checkout -q "$base" -- e2e/one.test.sh
+check "a committed change put back only in the index and working tree fails" \
+  status_is 1 "$base" e2e/one.test.sh
+check "it names the file" says e2e/one.test.sh
+check "it says HEAD differs" says HEAD
+reset_repo
+
+# Flags that make git stop looking at a file hide a change from it.
+printf 'weakened\n' >> "$repo/e2e/one.test.sh"
+git -C "$repo" update-index --skip-worktree e2e/one.test.sh
+check "a skip-worktree locked file fails" status_is 1 "$base" e2e
+check "it names the file and the flag" says 'skip-worktree: e2e/one.test.sh'
+git -C "$repo" update-index --no-skip-worktree e2e/one.test.sh
+reset_repo
+git -C "$repo" update-index --assume-unchanged e2e/one.test.sh
+check "an assume-unchanged locked file fails, changed or not" status_is 1 "$base" e2e/one.test.sh
+check "it names the file and the flag" says 'assume-unchanged: e2e/one.test.sh'
+git -C "$repo" update-index --no-assume-unchanged e2e/one.test.sh
+reset_repo
+
+# Only the project's committed .gitignore files may hide a new file: the
+# clone's own .git/info/exclude and a global excludes file do not reach
+# other clones or CI, so a file they hide still counts.
+printf 'e2e/conftest.sh\n' >> "$repo/.git/info/exclude"
+printf 'skip everything\n' > "$repo/e2e/conftest.sh"
+check "a new file hidden by .git/info/exclude fails" status_is 1 "$base" e2e
+check "it says the file was added" says 'added: e2e/conftest.sh'
+printf 'e2e/conftest.sh\n' > "$TMP/global-excludes"
+git -C "$repo" config core.excludesFile "$TMP/global-excludes"
+: > "$repo/.git/info/exclude"
+check "a new file hidden by a global excludes file fails" status_is 1 "$base" e2e
+git -C "$repo" config --unset core.excludesFile
+rm -f "$repo/e2e/conftest.sh"
+reset_repo
+
 # --- deleted
 git -C "$repo" rm -q e2e/one.test.sh
 commit_all "test: drop a test"
