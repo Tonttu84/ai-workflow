@@ -29,6 +29,16 @@
 
 Locked tests: <paths> at <SHA of the `test:` commit>
 
-Walkthrough: <done YYYY-MM-DD | skipped: reason>
-<!-- Filled when the owner has watched the feature work. How this is
-     enforced is still being decided. -->
+Walkthrough:
+<!-- Empty until the owner has watched the feature work. Then, on the line
+     above, exactly one of:
+       Walkthrough: done YYYY-MM-DD at <commit>   the date, and the SHA of the commit watched
+       Walkthrough: skipped: <reason>             no walkthrough; the reason is required
+     The pre-push hook (hooks/check-walkthrough, installed with
+     hooks/install.sh) checks each commit pushed. While every item is
+     `functional`, it refuses the push when that line is missing, empty,
+     in neither form, or names a commit the repository does not have, and
+     when the walkthrough is stale: an item's Rev was bumped, or an item
+     added, after the commit watched, so what was watched is no longer
+     what ships. Then walk it again and record the new commit, or record
+     a skip. -->
