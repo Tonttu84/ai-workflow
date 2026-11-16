@@ -110,6 +110,8 @@ printf '<!--\n     Walkthrough: done 2026-11-16 at 1234567\n-->\n' >> "$proj/doc
 check "an indented Walkthrough: in a comment is not the field" status_is 0
 both 'Walkthrough: <done YYYY-MM-DD at <commit> | skipped: <reason>>'
 check "the template's placeholder left in: fails" status_is 1
+# SC2016: the backticks are Markdown code, not a command.
+# shellcheck disable=SC2016
 feature export.md 'Walkthrough:' "$(row F1-1 1 '`functional`')" "$(row F1-2 1 Functional)"
 check "functional in backticks or capitalised still counts: fails" status_is 1
 feature export.md 'Walkthrough:' "$(row F1-1 1 functional)"
