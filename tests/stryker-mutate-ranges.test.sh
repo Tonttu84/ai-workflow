@@ -127,4 +127,18 @@ lines "$repo/src/with,comma.ts" 2
 check "a path with a comma: error, since Stryker splits on commas" status_is 2 "$base"
 check "it names the path" says 'with,comma.ts'
 
+rm -f "$repo/src/with,comma.ts"
+
+# --- a git diff that fails is an error: the untracked files alone would
+# otherwise be printed as the whole change (fewer ranges, fewer mutants)
+mkdir -p "$TMP/fakebin"
+# shellcheck disable=SC2016
+printf '#!/bin/sh\nfor a in "$@"; do [ "$a" = diff ] && exit 128; done\nexec %s "$@"\n' "$(command -v git)" > "$TMP/fakebin/git"
+chmod +x "$TMP/fakebin/git"
+broken_diff() { (cd "$repo" && PATH="$TMP/fakebin:$PATH" bash "$RANGES" "$base") > "$TMP/out" 2> "$TMP/err"; }
+broken_diff
+check "a failing git diff: error" test "$?" -eq 2
+check "it says git diff failed" says 'git diff failed'
+check "nothing is printed for Stryker" test ! -s "$TMP/out"
+
 finish

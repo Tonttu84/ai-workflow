@@ -55,6 +55,8 @@ source_file() {
 }
 
 entries=$(
+  # Bash clears -e in a command substitution, so each pipeline exits on
+  # its own failure (pipefail is set): only the last one would be seen.
   # Changed files: "<path><TAB><start>-<end>" per added or changed hunk.
   git diff -U0 --no-renames --no-color --no-ext-diff --relative \
     --src-prefix=a/ --dst-prefix=b/ --diff-filter=AM "$base" -- "$@" |
@@ -66,14 +68,14 @@ entries=$(
         count = (2 in new) ? new[2] : 1
         if (count > 0) printf "%s\t%d-%d\n", path, start, start + count - 1
       }
-    '
+    ' || exit 1
   # Untracked files, whole.
   git ls-files -z --others --exclude-standard -- "$@" |
     while IFS= read -r -d '' file; do
       n=$(awk 'END { print NR }' "$file")
       [ "$n" -eq 0 ] || printf '%s\t1-%d\n' "$file" "$n"
-    done
-) || die "git diff failed"
+    done || exit 1
+) || die "git diff failed, or git ls-files did"
 
 out=
 while IFS=$(printf '\t') read -r path range; do
