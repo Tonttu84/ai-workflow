@@ -1,18 +1,22 @@
 #!/usr/bin/env bash
 # Tests for the rules file and the docs that point into this repo: every
-# templates/, hooks/ or scripts/ file they name exists, the rules stay
-# under a word cap, and the function limits template has the agreed values.
+# templates/, hooks/, scripts/, rules/ or skills/ file they name exists,
+# the always-loaded rules stay under a word cap and point to the setup
+# file and the local skills, and the function limits template has the
+# agreed values.
 set -u
 # shellcheck source=tests/lib.sh
 . "$(dirname "$0")/lib.sh"
 make_tmp
 
 RULES="$ROOT/rules/working-agreements.md"
+SETUP="$ROOT/rules/setup.md"
 
-# named_paths <file...>: every templates/, hooks/ or scripts/<file> named in
-# them, one per line (a bare "templates/" names the folder, not a file)
+# named_paths <file...>: every templates/, hooks/, scripts/, rules/ or
+# skills/<file> named in them, one per line (a bare "templates/" names the
+# folder, not a file)
 named_paths() {
-  grep -ohE '(^|[^A-Za-z0-9_./-])(templates|hooks|scripts)/[A-Za-z0-9._-]*[A-Za-z0-9]' "$@" |
+  grep -ohE '(^|[^A-Za-z0-9_./-])(templates|hooks|scripts|rules|skills)/[A-Za-z0-9._-]*[A-Za-z0-9]' "$@" |
     sed -E 's/^[^a-z]//' | sort -u
 }
 # all_exist <root> <file...>: every path named in the files exists under root
@@ -29,6 +33,8 @@ check "the rules name some templates" test "$(named_paths "$RULES" | grep -c '^t
 check "every template, hook and script the rules name exists" all_exist "$ROOT" "$RULES"
 check "every template, hook and script the readme names exists" all_exist "$ROOT" "$ROOT/README.md"
 check "every template, hook and script the templates name exists" all_exist "$ROOT" "$ROOT"/templates/*.md
+check "the setup file exists" test -f "$SETUP"
+check "every template, hook and script the setup file names exists" all_exist "$ROOT" "$SETUP"
 # SC2016: the backticks are Markdown, written as text.
 # shellcheck disable=SC2016
 printf 'See `templates/no-such-brief.md`.\n' > "$TMP/broken.md"
@@ -36,10 +42,39 @@ refute "a missing template is noticed" all_exist "$ROOT" "$TMP/broken.md" 2> /de
 # shellcheck disable=SC2016
 printf 'Run `scripts/no-such-check.sh`.\n' > "$TMP/broken-script.md"
 refute "a missing script is noticed" all_exist "$ROOT" "$TMP/broken-script.md" 2> /dev/null
+# shellcheck disable=SC2016
+printf 'Read `rules/no-such-file.md`.\n' > "$TMP/broken-rules.md"
+refute "a missing rules file is noticed" all_exist "$ROOT" "$TMP/broken-rules.md" 2> /dev/null
+
+# --- the always-loaded rules send the coordinator to the skills and an
+# agent setting up a project to rules/setup.md (D88)
+skills_list=$(local_skills)
+for name in coordinating researching verifying-features; do
+  check "$name is a local skill" grep -qxF "$name" <<< "$skills_list"
+done
+for name in $skills_list; do
+  check "every file the $name skill names exists" all_exist "$ROOT" "$ROOT/skills/$name/SKILL.md"
+  # shellcheck disable=SC2016
+  check "the rules trigger the $name skill" grep -qF "\`$name\` skill" "$RULES"
+done
+# shellcheck disable=SC2016
+check "the rules point to the setup file" grep -qF '`rules/setup.md`' "$RULES"
+# Every brief a subagent may be handed is named in the rules it loads.
+for brief in "$ROOT"/templates/*-brief.md; do
+  check "the rules name templates/${brief##*/}" grep -qF "templates/${brief##*/}" "$RULES"
+done
+# What binds a subagent stays in the always-loaded rules: nothing it needs
+# may live only in a skill.
+# shellcheck disable=SC2016
+for text in '--no-verify' 'Never weaken, skip or delete a test' 'deterministic check' \
+  '`instruction`' '`preference`' '`idea`' 'twice' '<project>/credentials/' \
+  'locked' 'Refs:' 'never push without asking'; do
+  check "the rules keep $text" grep -qF -- "$text" "$RULES"
+done
 
 # --- the rules load into every session, so their size is capped: raising
-# the cap is a decision, not a side effect of an edit
-cap=1600
+# the cap is a decision, not a side effect of an edit (D89)
+cap=2000
 under_cap() { [ "$(wc -w < "$1")" -le "$cap" ]; }
 check "the rules file stays under $cap words" under_cap "$RULES"
 { cat "$RULES"; yes word | head -n "$cap"; } > "$TMP/long.md"
@@ -87,8 +122,8 @@ check "clang-tidy: nesting 4 (the body is level 1)" test "$(tidy_value readabili
 check "clang-tidy: cognitive 15" test "$(tidy_value readability-function-cognitive-complexity.Threshold)" = 15
 check "the review brief checks over-splitting" grep -q 'single-use helper' "$ROOT/templates/review-brief.md"
 
-# --- the data template is reached from the kickoff and the readme
-for f in templates/kickoff.md README.md; do
+# --- the data template is reached from the kickoff, the readme and setup
+for f in templates/kickoff.md README.md rules/setup.md; do
   check "$f points to the data and ML template" grep -qF 'templates/data-science.md' "$ROOT/$f"
 done
 # Its pointer line names the public URL: collaborators may have no clone.
@@ -99,12 +134,27 @@ for text in GroupKFold StratifiedGroupKFold 'bootstrap by group' Bland ICC MDC '
   check "the data template covers $text" grep -qF -- "$text" "$DATA"
 done
 
-# --- the readme's migration steps carry the lessons of the migrations
-migration_steps() { sed -n '/^## Moving an existing project/,/^## Updating/p' "$ROOT/README.md"; }
-in_migration_steps() { migration_steps | grep -qF -- "$1"; }
+# --- the migration steps carry the lessons of the migrations; they moved
+# from the readme to rules/setup.md, the agents' procedure (D88)
+# section <file> <heading>: that "## " section, up to the next one
+section() { awk -v h="## $2" '$0 == h { on = 1; print; next } on && /^## / { exit } on' "$1"; }
+in_migration_steps() { section "$SETUP" 'Migrating an existing project' | grep -qF -- "$1"; }
 for text in 'git fetch origin' 'origin/<default branch>' 'identity' 'git ls-files -s .githooks' \
   '100755' 'COMMIT_CHECK_SINCE' "owner's decision" 'showcase'; do
   check "the migration steps mention $text" in_migration_steps "$text"
+done
+check "the migration steps stop at the next section" \
+  test "$(section "$SETUP" 'Migrating an existing project' | grep -c '^## ')" -eq 1
+# shellcheck disable=SC2016
+check "the readme points to the setup file" grep -qF 'rules/setup.md' "$ROOT/README.md"
+
+# --- rules/setup.md holds the kickoff and the repository settings
+# shellcheck disable=SC2016
+for text in 'templates/kickoff.md' 'before any code' 'Rust first' 'pyright' 'hooks/install.sh' \
+  'templates/commit-check.yml' 'ruleset' 'squash_merge_commit_title=PR_TITLE' \
+  'templates/dependabot.yml' 'security updates' 'refs/pull/' 'templates/escapes.md' \
+  'templates/function-limits.md' '<project>/credentials/'; do
+  check "the setup file mentions $text" grep -qF -- "$text" "$SETUP"
 done
 
 # --- the agent brief keeps parallel agents' scratch files apart

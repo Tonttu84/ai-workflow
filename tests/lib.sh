@@ -40,6 +40,21 @@ clear_git_env() {
   done
 }
 
+# local_skills [<skills dir>]: the skills that are this repo's own, not
+# synced from upstream (the dir's UPSTREAM file lists the synced ones),
+# one name per line. The dir defaults to $ROOT/skills.
+local_skills() {
+  local skills=${1:-$ROOT/skills} dir name synced
+  synced=" $(sed -n 's/^skills: //p' "$skills/UPSTREAM") "
+  for dir in "$skills"/*/; do
+    dir=${dir%/}
+    name=$(basename "$dir")
+    [ -f "$dir/SKILL.md" ] || continue
+    case $synced in *" $name "*) continue ;; esac
+    printf '%s\n' "$name"
+  done
+}
+
 # A scratch directory removed when the test script exits.
 make_tmp() {
   TMP=$(mktemp -d)
