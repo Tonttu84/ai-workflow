@@ -1,6 +1,6 @@
 # Working agreements
 
-These rules apply to every project the owner runs with an AI coding agent; a project's `AGENTS.md` adds its specifics and wins where it says so. "The owner" is the human you work for. Paths under `templates/`, `hooks/`, `scripts/`, `rules/` and `skills/` are in the ai-workflow clone that holds this file, not in the current project.
+These rules apply to every project the owner runs with an AI coding agent; a project's `AGENTS.md` adds its specifics and wins where it says so. "The owner" is the human you work for. Paths that this file and the ai-workflow skills and templates name under `templates/`, `hooks/`, `scripts/`, `rules/` and `skills/` are in the ai-workflow clone that holds this file, not in the current project; a project keeps its copies of the gate scripts in `.ai-workflow/`.
 
 In repositories the owner does not own (course work, other people's projects) and the owner's inactive repositories that were never migrated: follow their conventions, never push without asking, and skip the kickoff, hook and escalation-log rules. The owner's other repositories without an `AGENTS.md` get the kickoff (new) or a migration; ask if unclear. Starting or migrating a project: read `rules/setup.md`.
 
@@ -8,17 +8,19 @@ In repositories the owner does not own (course work, other people's projects) an
 
 The coordinator is the session talking with the owner. A subagent working from a brief skips this section; the rest of the file applies to every agent.
 
+- Delegate all coding except trivial edits (a typo, a one-line config change), so you stay free for the owner: the owner's preference (D84).
 - Before planning work, starting or briefing a subagent, choosing a model or effort, accepting a report, recording a decision or logging an escaped bug: follow the `coordinating` skill.
 - Before a decision that is costly or one-way, rests on facts that may have changed since your training, or enters a new domain, and before reusing a research report: follow the `researching` skill.
 - For a feature in a project whose `AGENTS.md` uses feature files, from planning to shipping: follow the `verifying-features` skill.
 - Grill the owner before building whenever your confidence in the requirements is not high (the `grilling` skill).
+- If a skill is not installed, read `skills/<name>/SKILL.md` in the clone.
 
 ## The owner's word
 
 - The owner's statements carry a binding level: `instruction` (follow it; ask before changing it), `preference` (the default; deviate only with a reason in your report) or `idea` (open to challenge). An agent's own choice is `agent`; a later decision may replace it.
 - Facts are yours to find (code, docs, tools); decisions are the owner's.
 - A design fork is the owner's call: the shape of the product, the stack, the data model, public behaviour, anything that costs money. Ask instead of guessing. Testing tools are the agent's call, unless there is a real trade-off for the owner to weigh.
-- Shipping is not the owner's call: once the work is agreed and the local gate is green, follow the project's git rules without asking. The one exception is the merge of a showcase PR, which waits for the owner's word.
+- Shipping is not the owner's call: once the work is agreed and the local gate is green, follow the project's git rules without asking. Exceptions: the merge of a showcase PR, which waits for the owner's word, and the approvals below.
 - Some steps wait for the owner's approval: a feature walkthrough or its skip, a skip for a surviving mutant, a drop in the test count. Propose them; never record an approval the owner has not given.
 
 ## Code
@@ -27,7 +29,7 @@ The coordinator is the session talking with the owner. A subagent working from a
 - Outside data (HTTP bodies, files, APIs, env) is parsed into typed, validated values where it enters (Zod, pydantic, serde); invalid data is rejected or handled explicitly, as a recorded choice. Tests cover the hardening brief's awkward cases (time zones; missing, null, duplicate, out-of-range fields).
 - A function does one thing at one level of detail; split only when the piece earns a name that hides real detail, never into single-use pass-through helpers. The linter enforces size limits (`templates/function-limits.md`).
 - Shared test credentials live in the private repo `Tonttu84/secrets`, cloned once per machine beside the checkouts (`../secrets` or `$SECRETS_DIR`). A project commits its variable names with empty values; `<secrets>/<project>/credentials/<file>` overlays them and wins. Without it, the project runs with those features off and says so.
-- That repo holds test-grade values and non-sensitive logs only, never real environments: nothing whose safety depends on living in few places (backup or signing keys) or that a household depends on, unless encrypted with a passphrase stored nowhere.
+- That repo holds test-grade values, non-sensitive logs, research and metrics only, never real environments: nothing whose safety depends on living in few places (backup or signing keys) or that a household depends on, unless encrypted with a passphrase stored nowhere.
 
 ## Tests
 
@@ -45,7 +47,7 @@ The coordinator is the session talking with the owner. A subagent working from a
 - The project kind, stated in `AGENTS.md`, sets the flow:
   - Solo: commit to `main` and push once the local gate is green.
   - Showcase or team: branch, pull request, fresh-agent review, squash-merge on the owner's word.
-- Fresh-agent review on every PR, and on solo projects on every non-trivial change before the push (trivial: a typo, formatting, a comment). The reviewer reads the diff cold, without the author's conversation (`templates/review-brief.md`). It posts its verdict (`gh pr review --comment` when there is a PR); the author fixes; a fix that goes beyond a finding is reviewed again.
+- Fresh-agent review on every PR, and on solo projects on every non-trivial change before the push (trivial: a typo, formatting, a comment). The reviewer reads the diff cold, without the author's conversation (`templates/review-brief.md`). It posts its verdict (`gh pr review --comment` when there is a PR); the author fixes, or disputes a finding with evidence for the coordinator to settle; a fix that goes beyond a finding is reviewed again.
 - Commit messages follow Conventional Commits plus good-message rules:
 
   ```text
@@ -60,7 +62,7 @@ The coordinator is the session talking with the owner. A subagent working from a
   - Types: `feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `build`, `ci`, `chore`, `revert`. The scope is optional and lower case; `!` before the colon marks a breaking change.
   - One logical change per commit. Task ids go in a `Refs:` footer, never in the subject.
 - A PR title follows the same format, since a squash merge makes it the subject on `main`; the CI check covers it.
-- Before every push, run the local gate: tests, lint, types, build, the `pre-push` commit check, and the feature checks where `AGENTS.md` lists them. Never use `--no-verify`; fix the message instead.
+- Before every push, run the local gate: tests, lint, types, build, the `pre-push` commit check, and the feature checks where `AGENTS.md` lists them (`.ai-workflow/check-features.sh`). Never use `--no-verify`; fix the message instead.
 - Parallel agents: one worktree per task; merge one at a time. Before the first commit, check which branch you are on and fetch `main`.
 
 ## Decisions
