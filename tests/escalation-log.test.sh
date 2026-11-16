@@ -88,4 +88,17 @@ appends_outcomes() {
 }
 check "the format appends outcomes instead of editing entries" appends_outcomes
 
+# Escalation goes by effort before model (D81, D97): an entry can record
+# each step of the ladder, and the header no longer speaks of one step.
+records_ladder() {
+  local step
+  for step in 'opus, high' 'opus, xhigh' 'fable, high' 'D81'; do
+    format_block | grep -qF -- "$step" || return 1
+  done
+}
+check "the format records every step of the escalation ladder" records_ladder
+header() { sed -n '1,/^## Entry format/p' "$ROOT/$log"; }
+header_current() { header | grep -qF 'xhigh' && ! header | grep -qF 'Opus or Fable at high effort'; }
+check "the header describes the ladder, not one step at high effort" header_current
+
 finish

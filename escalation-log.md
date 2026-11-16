@@ -2,7 +2,7 @@
 
 A learning journal: which tasks are hard for an AI coding agent, and why.
 
-Subagents normally run on Opus 5.5 at normal effort. When the coordinating agent judges a task hard enough to run on a stronger setting (Opus or Fable at high effort), it explains why in the chat and adds an entry here. After the task, an outcome line is added, so over time the log shows which kinds of difficulty really needed the escalation and which did not.
+Subagents normally run on Opus 5.5 at normal effort. When the coordinating agent judges a task hard enough to go up the escalation ladder, effort before model (D81: Opus at high effort, then Opus at xhigh, then Fable at high), it explains why in the chat and adds an entry here. Opus at high effort for a bug fix in code the agent did not write is routine and gets no entry; for any other hard work it is an escalation (D97). After the task, an outcome line is added, so over time the log shows which kinds of difficulty really needed the escalation and which did not. Entries written before the ladder record `opus, high` or `fable, high`.
 
 ## Entry format
 
@@ -11,7 +11,9 @@ Newest entry at the bottom. Keep project details at the level a stranger may rea
 ```markdown
 ### YYYY-MM-DD: <project>, <task kind>
 
-- Model and effort: <opus | fable>, high
+- Model and effort: <opus, high | opus, xhigh | fable, high> (step <2 | 3 | 4>
+  of the D81 ladder; or `fable, high` directly for ambiguous, loosely
+  specified or long-running work)
 - Task: <one sentence on what was asked>
 - Why it is hard for an AI: <the concrete difficulty, in a few sentences:
   long chains of dependent steps, an ambiguous spec, concurrency, numeric
