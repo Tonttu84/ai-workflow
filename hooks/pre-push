@@ -3,17 +3,17 @@
 # with check-commits and the commit-msg hook next to it, as the CI commit
 # check (templates/commit-check.yml) does, so a failure shows up here,
 # for free, instead of in CI. In a project with feature files, it also
-# runs check-walkthrough on each commit pushed: a feature whose items are
-# all functional needs an owner walkthrough recorded, and not stale.
+# runs check-walkthrough on the tip of each ref pushed (once per commit,
+# when two refs share a tip): a feature whose items are all functional
+# needs an owner walkthrough recorded, and not stale.
 #
 # git passes <remote> <url>, and one line per ref on stdin:
 # <local ref> <local sha> <remote ref> <remote sha>. Deletions are
 # skipped. For a new branch, the commits no remote-tracking branch has
 # yet are checked; with no remote-tracking branches at all, only the tip,
 # with a warning. The walkthrough check reads docs/features/ as committed
-# in the commit pushed, not the working tree, and is skipped when that
-# commit has no docs/features/. A pre-push.local next to this hook runs
-# first.
+# in that tip, not the working tree, and is skipped when the tip has no
+# docs/features/. A pre-push.local next to this hook runs first.
 #
 # Source: https://github.com/Tonttu84/ai-workflow (MIT). Install with
 # hooks/install.sh from that repo. Needs bash 3.2 or later and git.
