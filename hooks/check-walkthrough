@@ -1,0 +1,259 @@
+#!/usr/bin/env bash
+# check-walkthrough: a finished feature needs an owner walkthrough. When
+# every item of a feature file (docs/features/*.md, from the ai-workflow
+# templates/feature.md) is at Level `functional`, its Walkthrough: line
+# must hold one of:
+#
+#   Walkthrough: done YYYY-MM-DD at <commit>   the owner watched it work,
+#                                              at that commit (its SHA)
+#   Walkthrough: skipped: <reason>             no walkthrough, and why
+#
+# A done walkthrough is stale, and fails, when an item has a higher Rev
+# than it had at that commit, or did not exist then: what was watched is
+# no longer what ships. Walk it again, or record a skip. A file whose
+# items are not all functional passes whatever its Walkthrough: line
+# says; a file without an item table passes with a note.
+#
+# Usage: check-walkthrough [<commit>]
+#
+# Checks docs/features/ at the top of the repository it runs in: as
+# committed in <commit> (the pre-push hook passes each commit it
+# pushes), or else as in the working tree. Without docs/features/ there
+# is nothing to check.
+#
+# Exit status: 0 every finished feature has a walkthrough, 1 a check
+# failed (each is named on stderr with its file), 2 bad usage or input
+# that cannot be read.
+#
+# Source: https://github.com/Tonttu84/ai-workflow (MIT). Install with
+# hooks/install.sh from that repo. Needs bash 3.2 or later and git.
+set -eu
+
+die() { echo "check-walkthrough: $*" >&2; exit 2; }
+usage() { echo "usage: check-walkthrough [<commit>]" >&2; exit 2; }
+case ${1:-} in
+  -h | --help) awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; exit 0 ;;
+  -*) usage ;;
+esac
+[ "$#" -le 1 ] || usage
+
+top=$(git rev-parse --show-toplevel 2> /dev/null) || die "not inside a git working tree"
+cd "$top"
+rev=
+if [ "$#" -eq 1 ]; then
+  rev=$(git rev-parse -q --verify "$1^{commit}" 2> /dev/null) || die "$1 is not a commit"
+fi
+
+FORMS="'Walkthrough: done YYYY-MM-DD at <commit>' (the commit watched) or 'Walkthrough: skipped: <reason>'"
+
+# The feature files, as paths from the top of the repository.
+files=()
+if [ -n "$rev" ]; then
+  # Listed twice: the loop below cannot see git fail, and a silent empty
+  # list would pass.
+  git ls-tree "$rev" -- docs/features/ > /dev/null || die "cannot list docs/features/ in $1"
+  while IFS= read -r -d '' entry; do
+    case ${entry%%$'\t'*} in *' blob '*) ;; *) continue ;; esac
+    path=${entry#*$'\t'}
+    case $path in *.md) files+=("$path") ;; esac
+  done < <(git ls-tree -z "$rev" -- docs/features/)
+elif [ -d docs/features ]; then
+  for path in docs/features/*.md; do
+    if [ -f "$path" ]; then files+=("$path"); fi
+  done
+fi
+[ "${#files[@]}" -gt 0 ] || exit 0
+
+# read_file <path>: the file as committed in $rev, or in the working tree
+read_file() {
+  if [ -n "$rev" ]; then git show "$rev:$1"; else cat -- "$1"; fi
+}
+
+# The parser reads a feature file and prints:
+#   I<TAB>id<TAB>rev<TAB>level<TAB>line   per item row (level lower case,
+#                                         without backticks or asterisks)
+#   S<TAB>items<TAB>not functional<TAB>Walkthrough: lines<TAB>line of an
+#     item table without a Level column (0 if none)
+#   V<TAB>value of the first Walkthrough: line, trimmed
+# Item tables are those whose first two columns are ID and Rev, as for
+# scripts/check-trace-links.sh; "\|" inside a cell is not a column break.
+# SC2016: this is awk code, expanded by awk, not by the shell.
+# shellcheck disable=SC2016
+parse='
+  function trim(s) { sub(/^[ \t]+/, "", s); sub(/[ \t]+$/, "", s); return s }
+  function cells(row,    n, i, part) {
+    split("", cell)
+    gsub(/\\\|/, "\001", row)
+    sub(/^[ \t]*\|/, "", row)
+    sub(/\|[ \t]*$/, "", row)
+    n = split(row, part, "|")
+    for (i = 1; i <= n; i++) cell[i] = trim(part[i])
+    return n
+  }
+  function separator(n,    i) {
+    for (i = 1; i <= n; i++) if (cell[i] !~ /^:?-+:?$/) return 0
+    return 1
+  }
+  { sub(/\r$/, "") }
+  /^Walkthrough:/ {
+    if (++walks == 1) { walk = $0; sub(/^Walkthrough:/, "", walk); walk = trim(walk) }
+  }
+  !/^[ \t]*\|/ { intable = 0; next }
+  !intable {
+    intable = 1
+    n = cells($0)
+    items = cell[1] == "ID" && cell[2] == "Rev"
+    level = 0
+    if (items) {
+      for (i = 3; i <= n; i++) if (cell[i] == "Level") level = i
+      if (!level && !nolevel) nolevel = NR
+    }
+    next
+  }
+  !items { next }
+  {
+    n = cells($0)
+    if (separator(n)) next
+    lv = (level && level <= n) ? cell[level] : ""
+    gsub(/[`*]/, "", lv)
+    lv = tolower(trim(lv))
+    printf "I\t%s\t%s\t%s\t%d\n", cell[1], cell[2], lv, NR
+    nitems++
+    if (lv != "functional") open++
+  }
+  END {
+    printf "S\t%d\t%d\t%d\t%d\n", nitems, open, walks, nolevel
+    printf "V\t%s\n", walk
+  }
+'
+
+# record <kind> <parsed>: the parser's records of that kind, without it
+record() { printf '%s\n' "$2" | awk -v k="$1" 'index($0, k "\t") == 1 { print substr($0, length(k) + 2) }'; }
+
+status=0
+# fail <file> <message>
+fail() {
+  printf 'check-walkthrough: %s: %s\n' "$1" "$2" >&2
+  if [ "$status" -eq 0 ]; then status=1; fi
+}
+
+# valid_date <year> <month> <day>: a real calendar date
+valid_date() {
+  local max
+  case $2 in
+    1 | 3 | 5 | 7 | 8 | 10 | 12) max=31 ;;
+    4 | 6 | 9 | 11) max=30 ;;
+    2)
+      if [ $(($1 % 4)) -eq 0 ] && { [ $(($1 % 100)) -ne 0 ] || [ $(($1 % 400)) -eq 0 ]; }; then
+        max=29
+      else
+        max=28
+      fi ;;
+    *) return 1 ;;
+  esac
+  [ "$3" -ge 1 ] && [ "$3" -le "$max" ]
+}
+
+# stale_items <items then> <items now>: what changed since the commit
+# watched: an item at a higher Rev, or one that was not there
+stale_items() {
+  { printf '%s\n' "$1" | awk '{ print "O\t" $0 }'; printf '%s\n' "$2" | awk '{ print "N\t" $0 }'; } |
+    awk -F '\t' '
+      $1 == "O" { if ($3 ~ /^[1-9][0-9]*$/ && (!($2 in old) || $3 + 0 > old[$2] + 0)) old[$2] = $3; next }
+      $2 == "" { next }
+      !($2 in old) { printf "%s%s was added", sep, $2; sep = "; "; next }
+      $3 + 0 > old[$2] + 0 { printf "%s%s went from r%s to r%s", sep, $2, old[$2], $3; sep = "; " }
+    '
+}
+
+# check_done <file> <items now> <value>: a done walkthrough names a real
+# date and commit, and no item changed since that commit
+check_done() {
+  local file=$1 items=$2 value=$3 re y m d sha full bad old stale
+  re='^done[[:blank:]]+([0-9]{4})-([0-9]{2})-([0-9]{2})[[:blank:]]+at[[:blank:]]+([0-9a-f]{7,64})$'
+  if ! [[ $value =~ $re ]]; then
+    fail "$file" "the walkthrough '$value' is in neither form: write $FORMS"
+    return 0
+  fi
+  y=$((10#${BASH_REMATCH[1]}))
+  m=$((10#${BASH_REMATCH[2]}))
+  d=$((10#${BASH_REMATCH[3]}))
+  sha=${BASH_REMATCH[4]}
+  if ! valid_date "$y" "$m" "$d"; then
+    fail "$file" "the walkthrough date in '$value' is not a real date"
+    return 0
+  fi
+  if ! full=$(git rev-parse -q --verify "$sha^{commit}" 2> /dev/null); then
+    fail "$file" "the walkthrough names commit $sha, which is not found in this repository (or is not a commit, or the short SHA is ambiguous)"
+    return 0
+  fi
+  bad=$(printf '%s\n' "$items" | awk -F '\t' '$1 !~ /^F[1-9][0-9]*-[1-9][0-9]*$/ || $2 !~ /^[1-9][0-9]*$/ {
+    printf "%sline %s: ID \"%s\", Rev \"%s\"", sep, $4, $1, $2; sep = "; " }')
+  if [ -n "$bad" ]; then
+    fail "$file" "an item has a bad ID or Rev ($bad), so it cannot be compared with commit $sha"
+    return 0
+  fi
+  if ! git cat-file -e "$full:$file" 2> /dev/null; then
+    fail "$file" "the walkthrough is stale: the file did not exist at $sha, the commit watched. Walk it again and record the new commit, or write 'Walkthrough: skipped: <reason>'"
+    return 0
+  fi
+  if ! old=$(git show "$full:$file"); then
+    echo "check-walkthrough: $file: cannot read it at $sha" >&2
+    status=2
+    return 0
+  fi
+  stale=$(stale_items "$(record I "$(printf '%s\n' "$old" | awk "$parse")")" "$items")
+  if [ -n "$stale" ]; then
+    fail "$file" "the walkthrough at $sha is stale; since then $stale. Walk it again and record the new commit, or write 'Walkthrough: skipped: <reason>'"
+  fi
+}
+
+# check_file <path>
+check_file() {
+  local file=$1 text parsed nitems open walks nolevel value reason re
+  if ! text=$(read_file "$file"); then
+    echo "check-walkthrough: $file: cannot read it" >&2
+    status=2
+    return 0
+  fi
+  parsed=$(printf '%s\n' "$text" | awk "$parse")
+  IFS=$'\t' read -r nitems open walks nolevel <<< "$(record S "$parsed")"
+  if [ "$nolevel" -ne 0 ]; then
+    fail "$file" "line $nolevel: an item table without a Level column, so whether the feature is finished cannot be told"
+    return 0
+  fi
+  if [ "$nitems" -eq 0 ]; then
+    echo "check-walkthrough: note: $file has no item table; nothing to check" >&2
+    return 0
+  fi
+  if [ "$open" -ne 0 ]; then return 0; fi # not finished yet
+  if [ "$walks" -eq 0 ]; then
+    fail "$file" "every item is functional and there is no Walkthrough: line: watch the feature work, then write $FORMS"
+    return 0
+  fi
+  if [ "$walks" -gt 1 ]; then
+    fail "$file" "there is more than one Walkthrough: line ($walks); keep one"
+    return 0
+  fi
+  value=$(record V "$parsed")
+  if [ -z "$value" ]; then
+    fail "$file" "every item is functional and the walkthrough is not recorded: watch the feature work, then write $FORMS"
+    return 0
+  fi
+  re='^skipped:(.*)$'
+  if [[ $value =~ $re ]]; then
+    reason=${BASH_REMATCH[1]}
+    reason=${reason#"${reason%%[![:blank:]]*}"}
+    re='^<[^>]*>$'
+    if [ -z "$reason" ] || [[ $reason =~ $re ]]; then
+      fail "$file" "a skipped walkthrough needs a written reason: 'Walkthrough: skipped: <reason>'"
+    fi
+    return 0
+  fi
+  check_done "$file" "$(record I "$parsed")" "$value"
+}
+
+for file in "${files[@]}"; do
+  check_file "$file"
+done
+exit "$status"
