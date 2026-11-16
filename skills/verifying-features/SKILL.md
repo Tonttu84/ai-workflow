@@ -7,6 +7,8 @@ description: The coordinator's pipeline for a user-visible feature in a project 
 
 For the coordinator. Each step's agent gets its template, which carries the rules it needs; the paths here are in the ai-workflow clone. Whether a project uses feature files, and its entry points, outcome evidence, traceability and UI runs, are in its `AGENTS.md`.
 
+A feature's work stays on its own branch from the test writer to the walkthrough, in a solo project too (the owner's instruction, D98). The branch may be pushed for backup at any time; it reaches `main` only after the trace, the black-box test, the review and the walkthrough, and then you merge and push. Bug fixes and small changes keep the normal solo flow.
+
 ## The principle
 
 - Only a deterministic check can pass an item: a test, or a script checking a recorded end state against the Expected outcome. Judgement, an agent's or a model's, can only lower a verdict to fail or unknown.
@@ -16,11 +18,11 @@ For the coordinator. Each step's agent gets its template, which carries the rule
 
 1. Feature file: copy `templates/feature.md` to `docs/features/<feature>.md` and fill ID, Rev, Item, Entry point and Expected outcome. IDs are short, like `F3-2`, and never reused. Bump an item's Rev when its Expected outcome changes: the tests linked at the old revision become stale.
 2. Coverage check: before coding starts, check that every item has an entry point and a task.
-3. Test writer (an experiment; the owner's preference): a fresh agent writes failing entry-point tests from `templates/test-writer-brief.md` and locks them. Give it the feature file and `AGENTS.md`, nothing about how the feature will be built.
+3. Test writer (an experiment; the owner's preference): a fresh agent writes failing entry-point tests from `templates/test-writer-brief.md` and locks them, on the feature's branch. Give it the feature file and `AGENTS.md`, nothing about how the feature will be built.
 
 ## Building
 
-4. The implementer's brief (`templates/agent-brief.md`) names the locked tests: it makes them pass and never edits them.
+4. The implementer's brief (`templates/agent-brief.md`) names the locked tests: it makes them pass and never edits them. It works on the feature's branch from the test writer's commit and pushes only that branch.
 
 ## After the implementation, in parallel
 
@@ -40,7 +42,8 @@ For the coordinator. Each step's agent gets its template, which carries the rule
 ## Shipping
 
 11. Walkthrough: the owner watches the feature work before it ships. Record it in the feature file's `Walkthrough:` line only on the owner's word: `done YYYY-MM-DD at <commit>`, or `skipped YYYY-MM-DD at <commit>: <reason>`, where a skip needs a written reason. Skipping is generally a bad idea, even in a hurry. A Rev bump or a new item after the commit named makes the walkthrough or skip stale. `hooks/check-walkthrough`, run by the pre-push hook, refuses the push until it is in order.
-12. A showcase project that squash-merges fetches pull-request refs, so the commit a walkthrough names stays findable (`rules/setup.md`).
+12. Merge: once the walkthrough is recorded on the feature's branch, merge it to `main` and push (a showcase project: on the owner's word, through its pull request). The walkthrough check acts only once every item is `functional`, so the branch, not the hook, is what keeps a feature with a lowered Level off `main`.
+13. A showcase project that squash-merges fetches pull-request refs, so the commit a walkthrough names stays findable (`rules/setup.md`).
 
 ## Choices per project
 

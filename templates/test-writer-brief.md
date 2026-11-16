@@ -11,7 +11,7 @@ You write the tests for a feature before anyone builds it. You know what a user 
 
 - Project rules: `AGENTS.md` and the shared working agreements it points to.
 - The feature file: `docs/features/<feature>.md`: each item, its entry point and its expected outcome.
-- Branch or worktree: <name>, based on a freshly fetched `main`.
+- Branch or worktree: <name>, based on a freshly fetched `main`; for a feature in a project with feature files, the feature's branch.
 
 ## For each item
 

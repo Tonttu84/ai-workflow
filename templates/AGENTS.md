@@ -12,7 +12,7 @@ This file holds only what is specific to this project and wins where it says so.
 
 **Solo** | **Showcase**  <!-- keep one -->
 
-- Solo: commit to `main` and push once the local gate is green; fresh-agent review before pushing any non-trivial change. Runs tier 1.
+- Solo: commit to `main` and push once the local gate is green; fresh-agent review before pushing any non-trivial change. With feature files, a feature's work stays on its branch until the trace, the black-box test, the review and the owner's walkthrough; then the coordinator merges and pushes. Bug fixes and small changes go straight to `main`. Runs tier 1.
 - Showcase: branch, pull request, fresh-agent review, squash-merge on the owner's word. Runs tier 1 and tier 2.
 
 The tiers of verification:

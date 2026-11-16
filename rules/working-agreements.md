@@ -45,7 +45,7 @@ The coordinator is the session talking with the owner. A subagent working from a
 ## Git
 
 - The project kind, stated in `AGENTS.md`, sets the flow:
-  - Solo: commit to `main` and push once the local gate is green.
+  - Solo: commit to `main` and push once the local gate is green. In a project with feature files, a feature stays on its branch (push it for backup at any time) until the coordinator merges it after the trace, the black-box test, the review and the owner's walkthrough.
   - Showcase or team: branch, pull request, fresh-agent review, squash-merge on the owner's word.
 - Fresh-agent review on every PR, and on solo projects on every non-trivial change before the push (trivial: a typo, formatting, a comment). The reviewer reads the diff cold, without the author's conversation (`templates/review-brief.md`). It posts its verdict (`gh pr review --comment` when there is a PR); the author fixes, or disputes a finding with evidence for the coordinator to settle; a fix that goes beyond a finding is reviewed again.
 - Commit messages follow Conventional Commits plus good-message rules:
