@@ -1,6 +1,7 @@
 # Research: agents exercising a web app's UI as a periodic acceptance check
 
 Date: 2026-11-16 · Depth: deep (3 of 3)
+Volatility: fast
 Question: How do teams use AI agents to operate a web app's real UI as a periodic acceptance check, and how do they stop the agent from reporting a pass when the feature does not work?
 Feeds: a periodic agent-driven UI run and its pass/fail oracle (to be decided)
 
@@ -72,3 +73,7 @@ Commercial tools
 3. Which cadence: before each release, or weekly?
 4. May third-party services be hit in their test modes, or always be mocked (option E)?
 5. Should goal-only runs be a separate report rather than part of pass/fail? Recommended: yes.
+
+## Spot-checked by the coordinator
+
+- The best LLM judges reach about 70% precision in AgentRewardBench (finding 1): held. Checked against https://arxiv.org/abs/2504.08942v2.

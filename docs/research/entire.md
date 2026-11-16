@@ -1,6 +1,7 @@
 # Research: Entire as evidence for verifying AI-agent work
 
 Date: 2026-11-16 · Depth: normal (round 2 of 2)
+Volatility: fast
 Question: What does Entire record and guarantee, under what privacy model, and can its records serve as deterministic evidence for verification steps in a solo developer's AI-agent workflow?
 Feeds: adopting Entire, and for which steps (to be decided)
 
@@ -60,3 +61,7 @@ The security page carries a "Documentation Index" note addressed to AI agents ("
 1. Should checkpoints from public showcase repos go to a private checkpoint remote, or stay local?
 2. Is an audit trail that can only lower a verdict worth adding a hook chain and an extra dependency that changes every few days?
 3. Should the black-box and no-diff rules be enforced with Claude Code deny rules instead, keeping Entire only as a record?
+
+## Spot-checked by the coordinator
+
+Not spot-checked.

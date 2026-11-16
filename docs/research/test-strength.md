@@ -1,6 +1,7 @@
 # Research: measuring whether AI-written tests actually test
 
 Date: 2026-11-16 · Depth: deep (2 of 3)
+Volatility: slow
 Question: How can a workflow measure whether tests written by AI coding agents actually check behaviour, rather than passing whatever the code does, and which tools fit Rust, TypeScript and Python projects?
 Feeds: the hardening step's measures and gate checks (to be decided)
 
@@ -69,3 +70,7 @@ Coverage cannot answer the question: it shows what code a test reaches, not what
 3. May the hardening agent add skip annotations itself, if each states a reason the reviewer checks? Recommended: yes.
 4. For Python on this Windows machine, is running mutmut in WSL acceptable? Recommended: yes, rather than an unverified tool.
 5. Is the token cost of LLM-written targeted mutants (option F) worth trying on one feature? Recommended: yes, as a trial.
+
+## Spot-checked by the coordinator
+
+- cargo-mutants `--in-diff` mutates only the changed regions (finding 9): held. Checked against https://mutants.rs/in-diff.html.

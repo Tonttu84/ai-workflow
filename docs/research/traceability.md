@@ -1,6 +1,7 @@
 # Research: traceability for AI-built software
 
 Date: 2026-11-16 · Depth: deep (1 of 3)
+Volatility: slow
 Question: Which way of linking requirements to tests best helps verify software written by AI coding agents for a solo developer: a light convention, medium traceability tooling, or heavy executable specifications?
 Feeds: feature-item IDs and test links (to be decided)
 
@@ -67,3 +68,7 @@ AI failure modes:
 1. Should item IDs be short and positional (`F3-2`) or semantic and versioned (`req~export.csv~1`, the OFT style)? Recommended: `F3-2`, with a revision bump when the Expected outcome changes.
 2. For the career goal, is it worth taking on Java 17 and learning OFT in one showcase project now, or later?
 3. Should tests mark full versus partial verification of an item, as S-CORE does?
+
+## Spot-checked by the coordinator
+
+- OpenFastTrace's tag importer lists Python, Rust and TypeScript (finding 2): held. Checked against the OpenFastTrace repository's `doc/user_guide/reference/input_format_support.md`.
