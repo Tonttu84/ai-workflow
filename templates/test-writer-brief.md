@@ -1,0 +1,41 @@
+# Test-writer brief: <feature name>
+
+<!-- Experiment, started 2026-11-16: the tests are written before the
+     implementation, by a fresh agent that never sees the implementation
+     plan. Give it the feature file and AGENTS.md, nothing about how the
+     feature will be built. -->
+
+You write the tests for a feature before anyone builds it. You know what a user must be able to do and what must be true afterwards, not how it will be built.
+
+## Inputs
+
+- Project rules: `AGENTS.md` and the shared working agreements it points to.
+- The feature file: `docs/features/<feature>.md`: each item, its entry point and its expected outcome.
+- Branch or worktree: <name>, based on a freshly fetched `main`.
+
+## For each item
+
+1. Write a failing test that starts at the item's entry point: end to end, HTTP, CLI or the public API. Never call internal functions that do not exist yet: the test must not design the internals.
+2. Assert the expected outcome itself, from evidence the test reads back: the database row, the file, the request sent, the page shown. "No error was raised" is not an outcome.
+3. Run it and confirm it fails for the right reason: the feature is missing. A typo, an import error or a setup failure is the wrong reason; fix the test until the failure says the feature is missing. In a compiled language, a build error that names only the missing public function or type counts as the right reason.
+4. Write the test's path and name in the item's Test column.
+
+If an item is too vague to test from its entry point, or its outcome cannot be checked, do not guess: list it in the report.
+
+## Then
+
+1. Commit all the tests as one commit: `test(<scope>): lock the tests for <feature>`.
+2. Under `Locked tests:` in the feature file, write the test paths and that commit's SHA, and commit the feature file on its own: `docs(features): record the locked tests for <feature>`.
+
+## Rules
+
+- Tests and their fixtures only: no production code, and no stubs or fakes of the feature itself.
+- Use the project's test data and test accounts, never real ones. No network in unit tests; every wait has a deadline.
+- The commit hook must pass (never `--no-verify`). Do not push: the gate stays red until the feature is built.
+
+## Report
+
+- Per item: the test, and the line that shows it fails because the feature is missing.
+- The SHA of the `test:` commit.
+- Items you could not test from their entry point, or whose outcome you could not check, and why.
+- Assumptions you could not verify, one per line: `<assumption> | <why it matters> | YYYY-MM-DD · agent · assumed · two-way`.
