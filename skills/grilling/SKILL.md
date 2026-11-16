@@ -1,6 +1,6 @@
 ---
 name: grilling
-description: Grill the user relentlessly about a plan, decision, or idea. Use when the user wants to stress-test their thinking, or uses any 'grill' trigger phrases. Also use it proactively, unprompted, before starting a large or ambiguous plan or implementation when your own confidence in the requirements is only medium or low. Err toward firing it too often rather than too rarely; staying aligned with the user outranks moving fast.
+description: Grill the user relentlessly about a plan, decision, or idea. Use when the user wants to stress-test their thinking, or uses any 'grill' trigger phrases. Also use it proactively, unprompted, before starting a large or ambiguous plan or implementation when your own confidence in the requirements is only medium or low. Err toward firing it too often rather than too rarely; staying aligned with the user outranks moving fast. A subagent working from a brief does not grill the user; it lists its open questions in its report instead.
 ---
 
 Interview the user relentlessly until you reach a shared understanding. Map this as a **design tree**: every decision branches into the decisions that hang off it.
