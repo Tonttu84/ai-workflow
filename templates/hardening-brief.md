@@ -10,6 +10,7 @@ The feature below has landed with its tests. Your job is to attack those tests, 
 - What it does: <one paragraph, from the feature's brief>.
 - Where it lives: <files or modules>.
 - Its tests: <test files>.
+- Its feature file: `docs/features/<feature>.md`: items, entry points, expected outcomes and locked tests.
 - Landed in: <commit range or PR>.
 
 ## What to do
@@ -45,6 +46,7 @@ HTTP bodies, files, API responses and environment variables are parsed once, whe
 ## Rules
 
 - Tests only: do not change production code.
+- Leave the locked tests as they are; add new tests beside them.
 - No network in unit tests; every wait has a deadline.
 - Commits: `test(<scope>): ...`, one gap per commit where practical. The commit hook must pass.
 
