@@ -33,7 +33,9 @@ See `docs/kickoff.md` for why this stack was chosen.
 | Unit tests | `<...>` |
 | End-to-end tests | `<...>` |
 | Lint, format, type-check | `<...>` |
-| The local gate before every push (tests, lint, types, build) | `<...>` |
+| The local gate before every push (tests, lint, types, build; with feature files, the feature checks below) | `<...>` |
+
+With feature files, the gate also runs, from the ai-workflow clone's `scripts/`: `check-locked-tests.sh` (locked tests unchanged), `check-red-green.sh` (they fail on the code before the feature and pass on the new code), `check-test-count.sh` (the runner finished and no test was lost) and `check-trace-links.sh` (or the OpenFastTrace trace).
 
 ## Domain rules
 
@@ -46,6 +48,9 @@ See `docs/kickoff.md` for why this stack was chosen.
 - Feature files: `docs/features/<feature>.md`, one per feature, from the ai-workflow `templates/feature.md`.
 - An entry point here means: <a screen and control | a command | a route | a public function>.
 - Expected outcomes are checked in: <the database, output files, a request log, a mail catcher>.
+- Traceability: **light** (`scripts/check-trace-links.sh`) | **OpenFastTrace** (`templates/openfasttrace.md`)  <!-- keep one; both in the ai-workflow clone -->
+- Agent UI runs: **before each release** (no users yet) | **scheduled** (has users) | **none** (finished or abandoned)  <!-- keep one -->
+- Third-party services in tests: mocked, unless named here: <a provider's test mode built for automated runs, or none>.
 
 ## Layout
 
