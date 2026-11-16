@@ -40,6 +40,7 @@ hooks/
   commit-msg                  portable bash hook enforcing the commit rules
   pre-push                    checks every commit being pushed, as CI does
   check-commits               the range check pre-push and CI share
+  check-walkthrough           refuses a push while a finished feature lacks an owner walkthrough
   install.sh                  installs both hooks into a project
 skills/                       the grill skills, tracked from upstream (see skills/README.md)
 scripts/
@@ -113,6 +114,8 @@ Projects without Node:
 
 It installs two hooks: `commit-msg` checks a message as it is written, and `pre-push` checks every commit about to be pushed with the same range check the CI template runs, so a bad message is caught before the push, without spending Actions minutes. The default mode copies them to the project's `.githooks/` (commit it) and sets `core.hooksPath`. It also stages them as executable with `git update-index --add --chmod=+x` and checks that `git ls-files -s .githooks` shows `100755`: with `core.filemode=false`, as Git for Windows sets it, `chmod +x` never reaches the index, the hooks are committed as `100644`, and git on Linux and in web sessions skips them. And it adds `.githooks/* text eol=lf` to the project's `.gitattributes` (commit it) unless `git check-attr eol` shows that a rule such as `* text=auto eol=lf` already covers the hooks: a `core.autocrlf=true` clone otherwise checks them out with CRLF endings, which bash rejects. Each fresh clone still needs `git config core.hooksPath .githooks` once, so put that line in the project's setup command.
 
+In a project with feature files (`docs/features/`, from [`templates/feature.md`](templates/feature.md)), `pre-push` also runs `check-walkthrough`, installed next to it, on each commit pushed. While every item of a feature is `functional`, the feature's `Walkthrough:` line must say `done YYYY-MM-DD at <commit>` (the commit the owner watched) or `skipped: <reason>`. A `done` goes stale, and the push is refused, once an item's Rev is bumped or an item is added after that commit: walk it again or record a skip. The check reads the feature files as committed in the commit pushed, not the working tree, and a project without `docs/features/` is not affected.
+
 Setting `core.hooksPath` makes git ignore every hook in `.git/hooks`, so the default mode refuses when that folder already holds hooks (pre-commit, husky, lefthook, Git LFS): use `--git-hooks`, move them into `.githooks/`, or pass `--force` to switch them off. It warns when it overrides a global `core.hooksPath`. Both modes refuse to replace a different `commit-msg` without `--force`. A `pre-push` that is not ours, such as Git LFS's, is never replaced, not even with `--force`: the installer keeps it as `pre-push.local`, and our `pre-push` runs it first with the same arguments and input, so LFS objects still go up. In the default mode, move an LFS project's hooks from `.git/hooks` into `.githooks/` before installing (`--force` would switch them off); `--git-hooks` chains in place.
 
 Node projects may use [commitlint](https://commitlint.js.org) and husky instead, with [`templates/commitlint.config.mjs`](templates/commitlint.config.mjs). It extends `@commitlint/config-conventional` so that it accepts and rejects the same messages as the hook; its header lists the few differences.
@@ -121,7 +124,7 @@ Node projects may use [commitlint](https://commitlint.js.org) and husky instead,
 
 Husky sets `core.hooksPath` to `.husky/_`, so the default mode refuses. Keep husky as the hook runner:
 
-1. `install.sh --copy-only /path/to/project` copies the three files to `.githooks/` unchanged, stages them as executable and adds the LF rule, as the default mode does, but leaves `core.hooksPath` alone. CI needs `.githooks/commit-msg` and `.githooks/check-commits`.
+1. `install.sh --copy-only /path/to/project` copies the four files to `.githooks/` unchanged, stages them as executable and adds the LF rule, as the default mode does, but leaves `core.hooksPath` alone. CI needs `.githooks/commit-msg` and `.githooks/check-commits`.
 2. Call our `pre-push` from husky's, passing git's arguments; its input (the refs being pushed) passes through on its own. `.husky/pre-push`:
 
    ```sh
@@ -180,7 +183,7 @@ A scheduled or manual run checks the last 15 days along the branch. In a project
 
 ## Tests
 
-`make test` (or `./tests/run.sh`) runs the shell tests: a table of good and bad commit messages for the hook plus real `git commit` runs through it, both install modes end to end, the skill sync, overlay and install scripts against a local fake upstream, the templates that must match the hook, and the rules file's word cap and the templates it points to. `make lint` runs [ShellCheck](https://www.shellcheck.net), which must be installed. CI runs both on pushes to `main` and on pull requests.
+`make test` (or `./tests/run.sh`) runs the shell tests: a table of good and bad commit messages for the hook plus real `git commit` runs through it, both install modes end to end, the walkthrough check on throwaway repositories and through real pushes, the skill sync, overlay and install scripts against a local fake upstream, the templates that must match the hook, and the rules file's word cap and the templates it points to. `make lint` runs [ShellCheck](https://www.shellcheck.net), which must be installed. CI runs both on pushes to `main` and on pull requests.
 
 ## Licence
 
