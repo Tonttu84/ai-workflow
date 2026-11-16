@@ -172,6 +172,40 @@ check "the other files in the directory still run" prints 'e2e/one.test.sh: base
 refute "the deleted file is not copied" says 'cannot stat'
 reset_repo
 
+# --- the head side runs in the working tree, so the working tree must be
+# HEAD, the commit that gets pushed: code that is not committed would make
+# "passes on the head" true for code nobody pushes
+# shellcheck disable=SC2016
+printf 'here=$(dirname "$0")\n[ "$(bash "$here/../src/extra.sh")" = extra ]\n' > "$repo/e2e/extra.test.sh"
+git -C "$repo" add e2e/extra.test.sh
+git -C "$repo" commit -q -m "test: lock the extra test"
+printf 'echo extra\n' > "$repo/src/extra.sh" # never added
+check "code the head needs that was never added fails" status_is 1 "$before" "$CMD" e2e/extra.test.sh
+check "it says the working tree is not HEAD" says 'not HEAD'
+check "it counts the untracked file" says '1 untracked'
+printf 'src/extra.sh\n' >> "$repo/.git/info/exclude"
+check "the same file hidden by .git/info/exclude still fails" status_is 1 "$before" "$CMD" e2e/extra.test.sh
+check "it is still counted" says '1 untracked'
+: > "$repo/.git/info/exclude"
+git -C "$repo" add src/extra.sh
+check "the same file staged but not committed fails" status_is 1 "$before" "$CMD" e2e/extra.test.sh
+check "it counts the changed file" says '1 changed'
+git -C "$repo" commit -q -m "feat: extra"
+check "committed, it passes" status_is 0 "$before" "$CMD" e2e/extra.test.sh
+printf 'echo other\n' > "$repo/src/extra.sh"
+git -C "$repo" update-index --skip-worktree src/extra.sh
+check "a change hidden by skip-worktree fails" status_is 1 "$before" "$CMD" e2e/extra.test.sh
+check "it counts the flagged file" says '1 flagged'
+git -C "$repo" update-index --no-skip-worktree src/extra.sh
+git -C "$repo" checkout -q -- src/extra.sh
+printf 'build/\n' > "$repo/.gitignore"
+git -C "$repo" add .gitignore
+git -C "$repo" commit -q -m "chore: ignore the build"
+mkdir -p "$repo/build"
+printf 'built\n' > "$repo/build/out.txt"
+check "files the committed .gitignore ignores do not count" status_is 0 "$before" "$CMD" e2e/extra.test.sh
+reset_repo
+
 # --- a test that fails on the head
 greet_test "$repo/e2e/wrong.test.sh" goodbye
 check "a test that fails on the head fails" status_is 1 "$before" "$CMD" e2e/wrong.test.sh

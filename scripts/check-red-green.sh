@@ -28,8 +28,11 @@
 # runs on its own, a file given by name whatever its name, and in a
 # directory each file --match picks: one test that passes on the base is
 # not hidden by others that fail. On the base it must fail, and in the
-# working tree (the head, uncommitted changes included) it must pass. The
-# temporary worktree is always removed.
+# working tree (the head) it must pass. The working tree must be HEAD,
+# the commit that gets pushed: a file changed, untracked (unless a
+# committed .gitignore file ignores it) or flagged skip-worktree or
+# assume-unchanged fails the check, since the head side would run code
+# that is not pushed. The temporary worktree is always removed.
 #
 # Limits: the tests inside one file still run together, so a vacuous
 # test next to a failing one in the same file is not found. The script
@@ -39,9 +42,10 @@
 #
 # Exit status: 0 every test file failed on the base and passed on the
 # head, 1 a file passed on the base, or failed on the head, or a run timed
-# out (each is named on stderr), 2 bad arguments or a setup failure (no
-# worktree, a failed --setup, a command that is not found, a locked path
-# with no file git tracks, a directory with no test file).
+# out, or the working tree is not HEAD (each is named on stderr), 2 bad
+# arguments or a setup failure (no worktree, a failed --setup, a command
+# that is not found, a locked path with no file git tracks, a directory
+# with no test file).
 set -eu
 
 usage() {
@@ -89,6 +93,21 @@ trap 'command git worktree remove --force "$wt" > /dev/null 2>&1; rm -rf "$tmp";
 trap 'exit 130' INT
 trap 'exit 143' TERM
 trap 'exit 129' HUP
+
+# The head side runs in the working tree, so it must be HEAD, the commit
+# that gets pushed. Counted: files in the working tree changed from HEAD,
+# untracked files (only the committed .gitignore files may hide one:
+# .git/info/exclude and a global excludes file reach no other clone),
+# and files flagged skip-worktree or assume-unchanged, which hides a
+# change from git.
+top=$(git rev-parse --show-toplevel)
+git -C "$top" diff -z --name-only HEAD > "$tmp/changed" || die "git diff failed"
+git -C "$top" ls-files -z --others --exclude-per-directory=.gitignore > "$tmp/untracked" ||
+  die "git ls-files failed"
+git -C "$top" ls-files -v > "$tmp/flags" || die "git ls-files -v failed"
+changed=$(tr -cd '\0' < "$tmp/changed" | wc -c | tr -d ' ')
+untracked=$(tr -cd '\0' < "$tmp/untracked" | wc -c | tr -d ' ')
+flagged=$(awk '/^[a-zS] / { n++ } END { print n + 0 }' "$tmp/flags")
 
 timeout -k 10 "$limit" git worktree add --quiet --detach "$wt" "$base" > "$tmp/add.log" 2>&1 ||
   die "could not check out $base in a temporary worktree: $(tail -n 3 "$tmp/add.log")"
@@ -163,6 +182,10 @@ fi
 
 short=$(git rev-parse --short "$base")
 problems=0
+if [ "$changed" -ne 0 ] || [ "$untracked" -ne 0 ] || [ "$flagged" -ne 0 ]; then
+  echo "check-red-green.sh: the working tree is not HEAD ($changed changed, $untracked untracked, $flagged flagged skip-worktree or assume-unchanged): the head side would run code that is not pushed; commit it or stash it (git status --short --untracked-files=all lists most of it)" >&2
+  problems=$((problems + 1))
+fi
 # check <side> <dir> <path>: runs one test file on one side and judges it
 check() {
   local side=$1 dir=$2 path=$3 status=0 log="$tmp/run.log"
