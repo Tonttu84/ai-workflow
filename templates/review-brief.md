@@ -2,13 +2,18 @@
 
 <!-- For a cold reviewer: a fresh agent with none of the author's
      conversation. Give it the task as it was given to the author, never
-     the author's account of what was done. -->
+     the author's account of what was done. For a feature, add the items
+     from its feature file but not the Level column: levels are the
+     trace's account of the work. Run whole-feature reviews and reviews
+     of one-way changes at effort: "xhigh". -->
 
 You are reviewing a change you did not write. Read it cold and decide whether it is ready.
 
 ## The task the author was given
 
 <Paste the goal and scope from the author's brief, or link the issue.>
+
+Feature items: <paste the Item, Entry point and Expected outcome columns from `docs/features/<feature>.md`, or delete this line>.
 
 ## What to read
 
@@ -39,6 +44,7 @@ Verdict: ready | changes needed
 
 Findings
 1. [blocker] path/to/file.ts:42 - what is wrong, why it matters, a suggested fix
+   evidence: <the scenario that fails: input or steps, expected, actual>
 2. [major] ...
 3. [minor] ...
 4. [nit] ...
@@ -47,3 +53,5 @@ Checked: <what you ran or read>. Not checked: <what you could not>.
 ```
 
 Severity: **blocker** (wrong behaviour, data loss, security hole, broken build), **major** (a real bug in a less common path, a missing test for new logic), **minor** (clarity, small robustness gaps), **nit** (style; never blocks). "Ready" means no blockers or majors.
+
+Every finding carries its evidence: file:line and, above a nit, a scenario that fails. The author may dispute a finding with counter-evidence; the coordinator settles it.
