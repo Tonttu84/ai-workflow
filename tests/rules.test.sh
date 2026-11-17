@@ -454,5 +454,13 @@ for f in "$SETUP" "$VF" "$AGENTS_T" "$ROOT/README.md"; do
 done
 refute "the setup file no longer leaves a private repository's job unclear" grep -qF 'keeps the by-hand run' "$SETUP"
 refute "D129 no longer settles the private case" in_row D129 'private showcase repository'
+# A solo change is reviewed before its push to main, not before each
+# backup push of a feature branch (finding 7).
+# shellcheck disable=SC2016
+for f in "$RULES" "$AGENTS_T" "$COORD"; do
+  check "${f#"$ROOT"/} reviews a solo change before the push to main" \
+    grep -qF 'non-trivial change before the push to `main`' "$f"
+done
+refute "the AGENTS template no longer reviews before pushing" grep -qF 'before pushing any non-trivial change' "$AGENTS_T"
 
 finish
