@@ -34,9 +34,10 @@ Locked tests: <paths> at <SHA of the `test:` commit>
      scripts/check-features.sh checks every such line, and fails a
      feature file with items that has none: every feature needs one.
      Write it exactly as above, at the start of a line, with no Markdown
-     around it: a line that only looks like it (**Locked tests:**,
-     - Locked tests:, another case) fails, and so does any value but
-     <paths> at <SHA>. Only the placeholder line above is skipped. -->
+     around it: a line that only looks like it fails, such as one in
+     bold (**Locked tests:**), a list item or one in another case, and
+     so does any value but <paths> at <SHA>. Only the placeholder line
+     above is skipped. -->
 
 Walkthrough:
 <!-- Empty until the owner has watched the feature work, or decided not

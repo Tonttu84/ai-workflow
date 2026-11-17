@@ -284,6 +284,19 @@ for look in '**Locked tests:** e2e2 at %s' '- Locked tests: e2e2 at %s' 'Locked 
   reset_repo
 done
 
+# --- a feature file made from the template, comments kept, passes once
+# it is filled in: none of the template's own lines reads as a lock line
+sed -e 's/^| F<n>-1 | 1 | .*/| F1-1 | 1 | greet | greet.sh | prints hello | — | e2e\/one.test.sh, F1-1-r1 |/' \
+  -e "s/^Locked tests: <paths> at .*/Locked tests: e2e at $locked/" \
+  "$ROOT/templates/feature.md" > "$repo/docs/features/greet.md"
+check "the filled template differs from the template" \
+  test -n "$(diff "$ROOT/templates/feature.md" "$repo/docs/features/greet.md")"
+check "the filled template keeps its comments" grep -q '^<!--' "$repo/docs/features/greet.md"
+commit_all "docs: a feature file made from the template"
+check "a feature file made from the template and filled in passes" status_is 0 --base "$head"
+refute "no line of the template's comments looks like a lock line" says 'looks like a Locked tests: line'
+reset_repo
+
 # --- each item's Test cell names a committed file under a locked path,
 # and that file carries the item's tag
 greet_test "$repo/e2e/two.test.sh" F1-2-r1 hello
@@ -389,6 +402,7 @@ for listed in src/greet.sh .test-count ../outside.xml reports/../../outside.xml 
   check "not even outside the repository ('$listed')" test -f "$TMP/outside.xml"
   reset_repo
 done
+
 printf '1 src/greet.sh\n' > "$repo/.test-count"
 commit_all "test: list a tracked file as a report"
 features --base "$head"
