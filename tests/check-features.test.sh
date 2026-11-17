@@ -402,6 +402,35 @@ for listed in src/greet.sh .test-count ../outside.xml reports/../../outside.xml 
   check "not even outside the repository ('$listed')" test -f "$TMP/outside.xml"
   reset_repo
 done
+# Only the real path of a report's directory shows some ways out: on
+# Windows a backslash separates directories, so "reports\..\..\x" has no
+# "/../" in it; elsewhere a symbolic link can lead out.
+# outside_refused <listed report>: refused with 2, and the file outside
+# the repository is kept
+outside_refused() {
+  printf 'kept\n' > "$TMP/outside.xml"
+  mkdir -p "$repo/reports"
+  printf '1 %s\n' "$1" > "$repo/.test-count"
+  commit_all "test: list $1 as a report"
+  features --base "$head"
+  local status=$?
+  [ -f "$TMP/outside.xml" ] && [ "$status" -eq 2 ] && says 'outside the repository'
+}
+if [ "$(dirname 'a\b')" = a ]; then
+  check "a report path out of the repository through backslashes is refused, and nothing is deleted" \
+    outside_refused 'reports\..\..\outside.xml'
+  reset_repo
+fi
+# Git Bash's ln -s copies unless real links are on, so probe outside the
+# repository first.
+if ln -s "$TMP/outside.xml" "$TMP/probe-link" 2> /dev/null && [ -L "$TMP/probe-link" ]; then
+  ln -s "$TMP" "$repo/out"
+  check "a report path out of the repository through a symbolic link is refused, and nothing is deleted" \
+    outside_refused out/outside.xml
+  rm -f "$repo/out"
+  reset_repo
+fi
+rm -rf "$TMP/probe-link"
 
 printf '1 src/greet.sh\n' > "$repo/.test-count"
 commit_all "test: list a tracked file as a report"
