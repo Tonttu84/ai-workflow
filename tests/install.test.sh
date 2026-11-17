@@ -376,4 +376,37 @@ check "--help prints the comment block and no code" help_ok "$INSTALL"
 # Unknown option
 refute "rejects an unknown option" run_install --bogus "$TMP/a"
 
+# The verifying-features skill's by-hand walkthrough commands run the
+# hook in every install mode, in a linked worktree too, where .git is a
+# file and .git/hooks/ is not a folder (the final docs review, finding 2).
+VF="$ROOT/skills/verifying-features/SKILL.md"
+by_hand_cmds() { grep -oE '`bash [^`]*check-walkthrough[^`]*`' "$VF" | tr -d '`' | sort -u; }
+# a_cmd_runs_hook <dir>: one of the skill's commands runs the hook there.
+# It exits 1 on the unfilled feature file; 126 or 127 means no hook.
+a_cmd_runs_hook() {
+  local cmd
+  while IFS= read -r cmd; do
+    (cd "$1" && eval "$cmd") > /dev/null 2>&1
+    [ "$?" -eq 1 ] && return 0
+  done < <(by_hand_cmds)
+  return 1
+}
+check "the skill gives by-hand walkthrough commands" test -n "$(by_hand_cmds)"
+for mode in default git-hooks husky; do
+  r="$TMP/walk-$mode"
+  new_repo "$r"
+  mkdir -p "$r/docs/features"
+  cp "$ROOT/templates/feature.md" "$r/docs/features/a.md"
+  case $mode in
+    default) run_install "$r" ;;
+    git-hooks) run_install --git-hooks "$r" ;;
+    husky) git -C "$r" config core.hooksPath .husky/_ && run_install --copy-only "$r" ;;
+  esac
+  git -C "$r" add -A
+  commits_ok "$r" "docs: add an unfilled feature file"
+  git -C "$r" worktree add -q -b wt "$r-wt" 2> /dev/null
+  check "a by-hand command runs the walkthrough hook in the main checkout ($mode install)" a_cmd_runs_hook "$r"
+  check "a by-hand command runs the walkthrough hook in a linked worktree ($mode install)" a_cmd_runs_hook "$r-wt"
+done
+
 finish

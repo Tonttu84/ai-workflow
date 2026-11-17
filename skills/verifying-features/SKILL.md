@@ -46,7 +46,7 @@ A feature's work stays on its own branch from the feature file to the walkthroug
     - Solo: merge the branch to `main`, run the gate and push.
     - Showcase: merge through the pull request, on the owner's word. A merge on GitHub runs no local hook, so the project's required CI check runs the feature checks and the walkthrough check on the pull request (D129, `rules/setup.md`).
       - At the top of the repository, run `git fetch origin` and `gh pr checkout <number>`. Run the gate there, with `.ai-workflow/check-features.sh --base origin/main`.
-      - Until that job exists, and always in a private repository, which cannot require it, also run the walkthrough check. Run `bash .githooks/check-walkthrough HEAD` (`.git/hooks/check-walkthrough` where the hooks were installed with `--git-hooks`).
+      - Until that job exists, and always in a private repository, which cannot require it, also run the walkthrough check. Where the hooks are in `.githooks/` (the default install, or `--copy-only` under husky), run `bash .githooks/check-walkthrough HEAD`. Where they were installed with `--git-hooks`, run `bash "$(git rev-parse --git-path hooks)/check-walkthrough" HEAD`, which finds them in a linked worktree too, where `.git` is a file.
       - Merge only if all pass, and only the commit you checked: `gh pr merge <number> --squash --match-head-commit "$(git rev-parse HEAD)"`.
 13. A showcase project that squash-merges fetches pull-request refs, so the commit a walkthrough names stays findable (`rules/setup.md`).
 

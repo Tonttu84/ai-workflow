@@ -426,5 +426,16 @@ printf -- '- A sentence that goes on%s.\n  - A short one.\n' "$(printf ' and on%
 refute "a long sentence is noticed" short_sentences "$TMP/long-sentence.md" 'A sentence'
 printf -- '- A short one.\n  - A sentence that goes on%s.\n- Another item.\n' "$(printf ' and on%.0s' $(seq 1 15))" > "$TMP/long-sub-item.md"
 refute "a long sentence in a sub-item is noticed" short_sentences "$TMP/long-sub-item.md" 'A short one'
+# The by-hand walkthrough command works in every install mode (finding
+# 2): .git/hooks/ is not a folder in a linked worktree, where .git is a
+# file, and a CI job runs the committed .githooks/ copy. install.test.sh
+# runs the skill's commands.
+# shellcheck disable=SC2016
+check "the skill gives the --git-hooks walkthrough command that works in a worktree" \
+  grep -qF 'bash "$(git rev-parse --git-path hooks)/check-walkthrough" HEAD' "$VF"
+for f in "$VF" "$SETUP"; do
+  refute "${f#"$ROOT"/} no longer runs .git/hooks/check-walkthrough" grep -qF '.git/hooks/check-walkthrough' "$f"
+done
+check "the setup file says the CI job needs the hooks committed" grep -qF 'needs the hooks committed' "$SETUP"
 
 finish

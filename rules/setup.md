@@ -65,6 +65,7 @@ Repositories the owner does not own, and the owner's inactive repositories that 
   - A merge on GitHub runs no local hook. Without the job, nothing enforces the feature checks and the walkthrough check before a showcase project's merge.
   - The job runs on pull requests, on the pull request's head. It runs `.ai-workflow/check-features.sh --base origin/main` and the walkthrough check, `bash .githooks/check-walkthrough HEAD`.
   - It needs full history and the pull-request refs (above). It is a required check in the ruleset on `main`.
+  - It needs the hooks committed in `.githooks/`: the default mode of `hooks/install.sh`, or `--copy-only` under husky. A `--git-hooks` install commits none.
   - The project writes the job for its own stack (toolchain, test runner, JUnit reports) and records it as a row in its `docs/decisions.md`.
   - Public repositories get required checks and Actions minutes free on GitHub Free. A private showcase repository cannot require the check, so it keeps the by-hand run and says so in its `AGENTS.md`.
   - Until the job exists, the coordinator runs both checks by hand before each merge (the `verifying-features` skill, step 12).
