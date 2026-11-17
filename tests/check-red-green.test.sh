@@ -328,4 +328,12 @@ check "it is cleaned up" clean
 check "a command that cannot be run (126) is an error" status_is 2 "$before" 'exit 126; {path}' e2e/one.test.sh
 check "it names that exit status" says '126'
 
+# --- the guard against untracked .gitignore files is one function, kept
+# word for word in check-red-green.sh and check-locked-tests.sh (each
+# script installs on its own), with its comment
+ignores_function() { awk '/^# untracked_ignores / { on = 1 } on { print } on && /^}$/ { exit }' "$1"; }
+check "check-red-green.sh has untracked_ignores" test -n "$(ignores_function "$RG")"
+check "check-locked-tests.sh holds the same untracked_ignores, word for word" \
+  test "$(ignores_function "$RG")" = "$(ignores_function "$ROOT/scripts/check-locked-tests.sh")"
+
 finish
