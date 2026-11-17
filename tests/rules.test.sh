@@ -467,5 +467,11 @@ refute "the AGENTS template no longer reviews before pushing" grep -qF 'before p
 # 8, D128).
 check "coordinating re-runs the brief's Verify while the locked tests are red" \
   grep -qF "re-run the brief's Verify instead of the gate" "$COORD"
+# The CI-template idea names D129, whose showcase job is its first
+# candidate (finding 9).
+idea_8_says() { awk '/^## 8\. / { on = 1; next } on && /^## / { exit } on' "$IDEAS" | grep -qF -- "$1"; }
+check "idea 8 names D129" idea_8_says 'D129'
+check "idea 8 names the showcase CI job as its first candidate" idea_8_says 'first candidate'
+refute "idea_8_says reads only idea 8" idea_8_says 'Formal verification'
 
 finish
