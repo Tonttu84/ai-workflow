@@ -17,7 +17,9 @@
 #                 links nothing
 #   --scan        a test file or directory, searched recursively (skipping
 #                 .git, node_modules and the features directory) for tags
-#                 that are stale, unknown or misspelled; it never links
+#                 that are stale, unknown or misspelled; it never links.
+#                 OpenFastTrace IDs (type~name~revision, such as
+#                 feat~f3-2~1 in [itest->feat~f3-2~1]) are not tags
 #
 # A test links to item F3-2 at revision 1 with the tag F3-2-r1, or
 # f3_2_r1 where a name cannot hold "-" (Rust and Python function names).
@@ -123,14 +125,15 @@ named=$(
 
 # Tags in the scanned test files, sorted, once each; they never
 # link. The features directory is skipped: an item's own Test cell is not
-# a test.
+# a test. OpenFastTrace IDs (type~name~revision, as in [itest->feat~f3-2~1])
+# are dropped first: their names hold item IDs in lower case.
 # shellcheck disable=SC2016
 scanned=$(
   for path in ${scans[@]+"${scans[@]}"}; do
     case $path in -*) path=./$path ;; esac
     find "$path" -type d \( -name .git -o -name node_modules \) -prune -o \
       -type d -exec test {} -ef "$features" \; -prune -o \
-      -type f -exec awk "$tags"'{ tags($0, FILENAME ":" FNR, "scan") }' {} + || exit 1
+      -type f -exec awk "$tags"'{ line = $0; gsub(/[A-Za-z]+~[A-Za-z][A-Za-z0-9_.-]*~[0-9]+/, " ", line); tags(line, FILENAME ":" FNR, "scan") }' {} + || exit 1
   done | LC_ALL=C sort -u
 ) || die "could not read the test paths"
 

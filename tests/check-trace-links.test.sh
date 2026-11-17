@@ -225,6 +225,19 @@ for bad in 'F1-1 ' 'F1-1_r1' 'f1-1-r1' 'F1-1-1' 'F01-1-r1' 'F1-1-r01' 'f1_1'; do
 done
 reset_project
 
+# --- OpenFastTrace IDs (type~name~revision, templates/openfasttrace.md)
+# in a scanned file are not item tags, so a project can run both checks
+{
+  printf '// [itest->feat~f1-1~1]\n'
+  printf "test('F1-1-r1 saves it again', () => {});\n"
+  printf '// [impl~f1-2-impl~1->feat~f1-2~2]\n'
+} > "$proj/e2e/oft.spec.ts"
+check "OpenFastTrace tags in a scanned file pass" default_run 0
+printf '// [itest->feat~f1-1~1] F1-1 without a revision\n' > "$proj/e2e/oft.spec.ts"
+check "an item tag next to an OpenFastTrace tag is still read" default_run 1
+check "it is named" says 'e2e/oft.spec.ts:1: F1-1 is not an item tag'
+reset_project
+
 # --- word boundaries: a tag inside a longer word is not a tag
 report e2e.xml 'pass:xF1-1-r1 and F1-1-r10'
 check "neither a prefixed tag nor r10 links r1" default_run 1

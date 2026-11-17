@@ -40,6 +40,7 @@ test('downloads last month as CSV', async ({ page }) => { /* ... */ });
 ```
 
 - Python: `# [itest->feat~f3-2~1]`; Rust: `// [itest->feat~f3-2~1]`.
+- The light check's scan (`scan` in `feature-checks.conf`, `check-trace-links.sh --scan`) skips OFT IDs (`type~name~revision`), so the tag's lower-case `f3-2` is not read as a misspelt item tag; the test's name still carries `F3-2-r1`.
 - OFT's tag importer reads `.ts`, `.js`, `.cjs`, `.mjs`, `.py` and `.rs` files, but not `.tsx`: keep tagged tests in `.ts` files. https://github.com/itsallcode/openfasttrace/blob/4.11.0/doc/user_guide/reference/input_format_support.md
 
 ## The gate
