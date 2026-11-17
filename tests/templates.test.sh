@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Tests for the templates that must stay in step with the hook.
+# Tests for the templates that must stay in step with the hook, and for
+# the shape of the tables in every Markdown template.
 set -u
 # shellcheck source=tests/lib.sh
 . "$(dirname "$0")/lib.sh"
@@ -451,5 +452,64 @@ bad_titles() { DEPENDABOT="$TMP/bad-prefix.yml" titles_pass; }
 refute "a prefix that is not a commit type is noticed" bad_titles
 
 refute "CI never ran a project's pre-push hook" test -e "$TMP/project/pre-push-ran"
+
+# --- Markdown tables: every row has its header's number of cells, so a
+# row filled in from a template (a decision's Meta, a feature's Level)
+# lands in the right column
+tables_ok() { # tables_ok <file...>: names each bad row on stderr
+  awk '
+    function cells(row, parts) {
+      gsub(/\\\|/, "", row); sub(/\r$/, "", row)
+      sub(/^[ \t]*\|/, "", row); sub(/\|[ \t]*$/, "", row)
+      return split(row, parts, "|")
+    }
+    FNR == 1 { intable = 0 }
+    !/^[ \t]*\|/ { intable = 0; next }
+    !intable { intable = 1; want = cells($0); next }
+    cells($0) != want { printf "  %s:%d: %d cells, the header has %d\n", FILENAME, FNR, cells($0), want; bad = 1 }
+    END { exit bad }
+  ' "$@" >&2
+}
+check "every table row in the templates has its header's cells" tables_ok "$ROOT"/templates/*.md
+sed 's/ | — | 2026-11-16 · agent / | 2026-11-16 · agent /' "$ROOT/templates/decisions.md" > "$TMP/short-row.md"
+check "the short-row mutant differs" test -n "$(diff "$ROOT/templates/decisions.md" "$TMP/short-row.md")"
+short_row_ok() { tables_ok "$TMP/short-row.md" 2> /dev/null; }
+refute "a row missing a cell is noticed" short_row_ok
+
+# --- every brief carries the owner's words with their level and marks its
+# facts checked or from memory; every brief but research has its agent
+# report decisions and assumptions in the log's four cells (D61, D62)
+# assumption_line_ok <brief>: the assumption line has the log's cells
+assumption_line_ok() {
+  local line
+  line=$(grep -o '`<assumption> |[^`]*`' "$1") || return 1
+  [ "$(printf '%s' "$line" | tr -cd '|' | wc -c)" -eq 3 ]
+}
+for brief in "$ROOT"/templates/*-brief.md; do
+  name=${brief##*/}
+  check "$name quotes the owner with a level" grep -qF 'Owner (' "$brief"
+  check "$name marks facts from memory" grep -qF '(memory)' "$brief"
+  [ "$name" = research-brief.md ] && continue
+  check "$name has the decision line" grep -qF '`<decision> | <reason> | <chosen against> |' "$brief"
+  check "$name has the assumption line in four cells" assumption_line_ok "$brief"
+done
+# SC2016: the backticks are Markdown, written as text.
+# shellcheck disable=SC2016
+printf -- '- `<assumption> | <why it matters> | YYYY-MM-DD · agent · assumed · two-way`\n' > "$TMP/three-cells.md"
+refute "a three-cell assumption line is noticed" assumption_line_ok "$TMP/three-cells.md"
+
+# Casual research leaves no report, so it is never research evidence (D69).
+refute "the research evidence keyword has no casual depth" \
+  grep -qF 'research <casual' "$ROOT/templates/decisions.md"
+# A first sighting of an agent mistake is logged, so a second is seen (D83).
+# shellcheck disable=SC2016
+check "the escapes log has a first-sighting kind" grep -qF '`first`' "$ROOT/templates/escapes.md"
+# The test writer names each test with its item's tag (D94).
+for text in 'F3-2-r1' 'f3_2_r1' '[itest->'; do
+  check "the test-writer brief shows $text" grep -qF -- "$text" "$ROOT/templates/test-writer-brief.md"
+done
+check "the implementer starts from the test writer's commit" grep -qF "test writer's" "$ROOT/templates/agent-brief.md"
+# A deep run splits the question, one report per agent.
+check "the research brief numbers a deep run's reports" grep -qF 'deep (<n> of <m>)' "$ROOT/templates/research-brief.md"
 
 finish

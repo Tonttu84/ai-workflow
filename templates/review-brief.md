@@ -2,13 +2,36 @@
 
 <!-- For a cold reviewer: a fresh agent with none of the author's
      conversation. Give it the task as it was given to the author, never
-     the author's account of what was done. -->
+     the author's account of what was done. For a feature, add the items
+     from its feature file but not the Level column: levels are the
+     trace's account of the work. Run whole-feature reviews and reviews
+     of one-way changes at effort: "xhigh". -->
+
+<!-- Experiment, started 2026-11-16: a planted bug (D80). Before the
+     review, the coordinator copies the change to a branch, plants one
+     known bug in it (a flipped comparison, a dropped check, a wrong
+     default), and gives the reviewer that branch without saying so: fill
+     "What to read" with the copy branch as a solo change, and "Verdict"
+     with a file to write, for a pull request too, so that no finding
+     about the planted bug reaches the real PR. A review that misses the
+     bug does not count: at most one rerun, with a fresh reviewer; after
+     a second miss, tell the owner. Record each run as a row of
+     <project>/metrics/review-canary.md in the private repository (the
+     table: templates/review-canary.md). The other findings apply to the
+     real change: post them there yourself (gh pr review <n> --comment
+     --body-file <file> on a pull request), without the planted bug's.
+     Delete the copy branch afterwards; the real change merges from its
+     own. -->
 
 You are reviewing a change you did not write. Read it cold and decide whether it is ready.
 
 ## The task the author was given
 
 <Paste the goal and scope from the author's brief, or link the issue.>
+
+Feature items: <paste the Item, Entry point and Expected outcome columns from `docs/features/<feature>.md`, or delete this line>.
+
+Background: <the facts you need, each marked `(checked: <source>)` or `(memory)`, and the owner's words with their level and date: Owner (instruction, 2026-11-16): "...". Or none.>
 
 ## What to read
 
@@ -32,13 +55,14 @@ Run the gate yourself if you can (`<command>`); report what you ran. Do not edit
 
 ## Verdict
 
-Post it where the author will see it. For a pull request: `gh pr review <n> --comment --body-file <file>`.
+Write it to <file> and post nothing: the coordinator posts it where the author will see it (on a pull request, with `gh pr review --comment`).
 
 ```text
 Verdict: ready | changes needed
 
 Findings
 1. [blocker] path/to/file.ts:42 - what is wrong, why it matters, a suggested fix
+   evidence: <the scenario that fails: input or steps, expected, actual>
 2. [major] ...
 3. [minor] ...
 4. [nit] ...
@@ -47,3 +71,10 @@ Checked: <what you ran or read>. Not checked: <what you could not>.
 ```
 
 Severity: **blocker** (wrong behaviour, data loss, security hole, broken build), **major** (a real bug in a less common path, a missing test for new logic), **minor** (clarity, small robustness gaps), **nit** (style; never blocks). "Ready" means no blockers or majors.
+
+Every finding carries its evidence: file:line and, above a nit, a scenario that fails. The author may dispute a finding with counter-evidence; the coordinator settles it.
+
+In your reply to the coordinator, not in the verdict, add:
+
+- Decisions you made between real alternatives, one per line in the format of `docs/decisions.md`: `<decision> | <reason> | <chosen against> | YYYY-MM-DD · agent · <evidence> · <one-way or two-way>` (`agent under Dn` when it falls within decision Dn), or none.
+- Assumptions you could not verify, one per line: `<assumption> | <why it matters>; <why it could not be checked> | — | YYYY-MM-DD · agent · assumed · two-way`, or none.

@@ -1,25 +1,46 @@
 # Hardening brief: <feature name>
 
-<!-- For the test hardening run after a feature lands. Give it to an
-     agent that did not write the feature. -->
+<!-- For the test hardening run once a feature is built. Give it to an
+     agent that did not write the feature. In a project with feature
+     files it runs on the feature's branch before the merge to main, and
+     a proposed skip holds the merge until the owner approves it (ai-workflow D76);
+     elsewhere it runs once the feature lands. -->
 
-The feature below has landed with its tests. Your job is to attack those tests, not to change the feature: find inputs and mistakes the tests would let through.
+The feature below is built, with its tests. Your job is to attack those tests, not to change the feature: find inputs and mistakes the tests would let through.
 
 ## The feature
 
 - What it does: <one paragraph, from the feature's brief>.
 - Where it lives: <files or modules>.
 - Its tests: <test files>.
-- Landed in: <commit range or PR>.
+- Its feature file: `docs/features/<feature>.md`: items, entry points, expected outcomes and locked tests.
+- Built in: <commit range, branch or PR>; the commit before it (`<base>` below): <SHA>.
+- The black-box tester's backend check scripts: <paths, or none>.
+- Background: <the facts you need, each marked `(checked: <source>)` or `(memory)`, and the owner's words with their level and date: Owner (instruction, 2026-11-16): "...". Or none.>
 
 ## What to do
 
 1. Read the code and its tests. List the behaviours the tests pin down and the ones they leave open.
-2. **Would a wrong line still pass?** For the core logic, change one line at a time (flip a comparison, drop a branch, return early, change a constant) and run the tests. Every change the tests survive is a gap. Put the code back after each try. Use a mutation-testing tool if the project has one.
-3. **Edge cases**: empty, one, many; zero, negative, maximum; duplicates; unicode and long strings; time zones and daylight saving; rounding; concurrent calls; errors from every IO edge.
-4. **Property tests** where an invariant holds for all inputs (round trips, ordering, conservation of totals, idempotence), with the project's property-testing library.
-5. **Outside edges**: if the feature calls a service or takes in outside data, check it against the sections below.
-6. Write the missing tests. If one fails because the feature has a real bug, do not fix the feature and do not commit the failing test to `main`: put the test in the report so the follow-up `fix:` change commits it together with the fix.
+2. **Would a wrong line still pass?** Run the mutation tool on the lines the feature changed (below). Every surviving mutant is a gap: write the test that kills it, or propose a skip. For logic the tool cannot mutate, change one line at a time by hand (flip a comparison, drop a branch, return early, change a constant), run the tests, and put the code back.
+3. **Every check fails on a broken variant**: each check this step relies on (the new tests, and the black-box tester's backend check scripts) must be seen to fail once. Break the code, or the state a backend check reads (a missing row, a wrong status, an absent file), one way it should catch; run the check; record the failing line; put it back. A check never seen failing counts as unknown.
+4. **Edge cases**: empty, one, many; zero, negative, maximum; duplicates; unicode and long strings; time zones and daylight saving; rounding; concurrent calls; errors from every IO edge.
+5. **Property tests** where an invariant holds for all inputs (round trips, ordering, conservation of totals, idempotence), with the project's property-testing library.
+6. **Outside edges**: if the feature calls a service or takes in outside data, check it against the sections below.
+7. Write the missing tests. If one fails because the feature has a real bug, do not fix the feature and do not commit the failing test: put the test in the report so the follow-up `fix:` change commits it together with the fix (on the feature's branch, before the merge, where there is one).
+
+## Mutation run on the changed lines
+
+`<base>` is the commit before the feature. Scratch files go outside the worktree, named `<project>-<feature>-...`.
+
+- Rust (cargo-mutants): `git diff <base> > ../<project>-<feature>.diff && cargo mutants --in-diff ../<project>-<feature>.diff`. Exit 0: every mutant caught; 2: missed mutants; 3: timeouts; 4: the tests already fail. https://mutants.rs/in-diff.html, https://mutants.rs/exit-codes.html
+- TypeScript (StrykerJS): `npx stryker run --incremental --reporters clear-text,html --mutate "$(.ai-workflow/stryker-mutate-ranges.sh <base>)"`; the script, copied into the project by the ai-workflow `hooks/install.sh --gate` (or in the clone's `scripts/` where the project has no `.ai-workflow/`), turns the diff into line ranges, since StrykerJS has no diff mode. Stryker's exit status ignores survivors unless `thresholds.break` is set: read them from the clear-text report.
+- Python (mutmut 3; on Windows only inside WSL, since it needs `fork`): mutmut has no diff mode, so run it on each function the feature changed, `mutmut run "<module>.<function>*"`. `mutmut results` lists every mutant not killed, `mutmut show <name>` shows one; every one of them counts. https://mutmut.readthedocs.io/en/latest/
+
+The policy: **no unexplained surviving mutant on the changed lines.** A timeout or an untested mutant counts as a survivor. For each one, either add a test that kills it, or propose a skip with the mutant, its line and why no test should kill it (an equivalent mutant, say). You may only propose: a proposed skip counts as unknown, blocks the step like a fail and holds the merge until the owner approves it. Do not add skip annotations yourself. Once the owner approves, the annotation goes in with the reason, the approval and its date:
+
+- Rust: `#[mutants::skip] // equivalent: <reason>; approved by the owner YYYY-MM-DD` (the `mutants` crate as a regular dependency).
+- StrykerJS: `// Stryker disable next-line <Mutator>: equivalent: <reason>; approved by the owner YYYY-MM-DD`
+- mutmut: `# equivalent: <reason>; approved by the owner YYYY-MM-DD` on the line above, and `# pragma: no mutate` on the line itself.
 
 ## Calls to outside services
 
@@ -45,12 +66,16 @@ HTTP bodies, files, API responses and environment variables are parsed once, whe
 ## Rules
 
 - Tests only: do not change production code.
+- Leave the locked tests as they are; add new tests beside them.
 - No network in unit tests; every wait has a deadline.
 - Commits: `test(<scope>): ...`, one gap per commit where practical. The commit hook must pass.
 
 ## Report
 
 - The gaps found, each with the test that now covers it.
-- Mutations the tests still survive, if any, and why they are acceptable or not.
+- The mutation run: the command, the mutants tested, killed and surviving. Each survivor with its line and either the test that now kills it or a proposed skip and its reason.
+- Each check and the broken variant it was seen to fail on: what you broke, and the failing line.
 - Real bugs found, each with its failing test in full: these become a follow-up `fix:` change.
 - The commands you ran and their pass/fail counts.
+- Decisions you made between real alternatives, one per line in the format of `docs/decisions.md`: `<decision> | <reason> | <chosen against> | YYYY-MM-DD · agent · <evidence> · <one-way or two-way>` (`agent under Dn` when it falls within decision Dn), or none.
+- Assumptions you could not verify, one per line: `<assumption> | <why it matters>; <why it could not be checked> | — | YYYY-MM-DD · agent · assumed · two-way`, or none.

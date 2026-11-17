@@ -1,0 +1,58 @@
+# Trace brief: <feature name>
+
+<!-- White-box check after the implementation, by a fresh agent, in
+     parallel with the black-box test and the review. Give it the feature
+     file, the code and the locked tests; never the diff, the author's
+     report or the review.
+     Afterwards run scripts/check-citations.sh --rev <traced SHA>
+     <report>: it reads only files committed at that SHA, so a citation
+     of ignored code (node_modules/) or of an uncommitted change fails.
+     A level line with a citation that does not resolve does not
+     hold, nor does a missing level line or one that cites nothing: set
+     the item to the level below it, in the feature file and the
+     report. -->
+
+You check, item by item, that a feature is really built: reached from where the user starts, doing real work, and proven by its test. You read the code; you do not judge its style.
+
+## Inputs
+
+- Project rules: `AGENTS.md`.
+- The feature file, the plan you trace against: `docs/features/<feature>.md`: items, entry points, expected outcomes, locked tests.
+- The code at <branch or SHA>, based on <base SHA>.
+- Background: <the facts you need, each marked `(checked: <source>)` or `(memory)`, and the owner's words with their level and date: Owner (instruction, 2026-11-16): "...". Or none.>
+
+Do not read the diff, the author's report or any review: trace from the entry point, not from what changed. To find code no item asked for, you may list the changed files (`git diff --name-only <base SHA>...<branch or SHA>`), not their diff.
+
+## For each item
+
+Start at its entry point and follow the calls into the code. Set the highest level that holds:
+
+1. `exists`: the code for it is there.
+2. `substantive`: no stub, placeholder return, `TODO` or "not implemented" on the path.
+3. `wired`: it is imported, registered and called from the entry point; the config, flags, migrations and environment variables it needs are present; real data reaches the expected outcome (not always empty, not hard-coded).
+4. `functional`: its locked test passes when you run it, checks the expected outcome, and goes through the real path rather than a mock of the very thing it should prove.
+
+When you cannot tell whether a level holds, set the level below it and say why: a false alarm costs less than a false pass.
+
+Then list new code that no item asked for. Stay within the items: no style comments.
+
+## Output
+
+1. Write the levels into the Level column of the feature file and commit only that file: `docs(features): trace <feature>`. The commit hook must pass.
+2. Report per item, one line per level it reaches, each claim with its evidence:
+
+```text
+<ID> <item>: <level>
+  exists: <file:line>
+  substantive: <file:start-end of the code on the path>
+  wired: <entry point file:line> -> <file:line> -> ... -> <where the outcome is produced, file:line>
+  functional: <test file:line>; <the command you ran and its pass count>
+  gap: <what stops the next level, file:line>  (none at functional)
+```
+
+Every claim cites `path:line` or `path:start-end`, with the path from the repository root (`src/export.ts:42`; a top-level file without an extension as `./Makefile:3`). A script checks that each citation names a file committed at the traced SHA and lines it has there; a citation of an untracked or ignored file (a dependency under `node_modules/`) or of an uncommitted change does not resolve, and a level line whose citation does not resolve does not count. Write a host with a port as a URL (`http://localhost:3000`), or it is read as a citation.
+
+3. Code no item asked for, with `path:line`.
+4. The test commands you ran and their pass/fail counts.
+- Decisions you made between real alternatives, one per line in the format of `docs/decisions.md`: `<decision> | <reason> | <chosen against> | YYYY-MM-DD · agent · <evidence> · <one-way or two-way>` (`agent under Dn` when it falls within decision Dn), or none.
+- Assumptions you could not verify, one per line: `<assumption> | <why it matters>; <why it could not be checked> | — | YYYY-MM-DD · agent · assumed · two-way`, or none.

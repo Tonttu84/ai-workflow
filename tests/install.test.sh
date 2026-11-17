@@ -37,6 +37,8 @@ check "hook is executable" test -x "$TMP/a/.githooks/commit-msg"
 check "pre-push copied to .githooks" cmp -s "$ROOT/hooks/pre-push" "$TMP/a/.githooks/pre-push"
 check "pre-push is executable" test -x "$TMP/a/.githooks/pre-push"
 check "check-commits copied to .githooks" cmp -s "$ROOT/hooks/check-commits" "$TMP/a/.githooks/check-commits"
+check "check-walkthrough copied to .githooks" cmp -s "$ROOT/hooks/check-walkthrough" "$TMP/a/.githooks/check-walkthrough"
+check "check-walkthrough is executable" test -x "$TMP/a/.githooks/check-walkthrough"
 check "core.hooksPath is .githooks" test "$(git -C "$TMP/a" config core.hooksPath)" = .githooks
 refute "bad message rejected after install" commits_ok "$TMP/a" "added stuff."
 check "good message accepted after install" commits_ok "$TMP/a" "chore: start the project"
@@ -45,7 +47,7 @@ check "second install is a no-op" run_install "$TMP/a"
 # The hooks reach the index as executable even when chmod cannot (Git for
 # Windows sets core.filemode=false); git on Linux skips a 100644 hook.
 # modes_are <mode> <repo> [tree]: every .githooks file has that mode in
-# the index, or in the tree given, and there are at least three
+# the index, or in the tree given, and there are at least four
 modes_are() {
   local listing
   if [ -n "${3-}" ]; then
@@ -53,7 +55,7 @@ modes_are() {
   else
     listing=$(git -C "$2" ls-files -s -- .githooks)
   fi
-  [ "$(printf '%s\n' "$listing" | grep -c .)" -ge 3 ] &&
+  [ "$(printf '%s\n' "$listing" | grep -c .)" -ge 4 ] &&
     [ "$(printf '%s\n' "$listing" | awk '{ print $1 }' | sort -u)" = "$1" ]
 }
 new_repo "$TMP/fm"
@@ -209,6 +211,8 @@ check "--git-hooks install succeeds" run_install --git-hooks "$TMP/c"
 check "hook copied to .git/hooks" cmp -s "$ROOT/hooks/commit-msg" "$TMP/c/.git/hooks/commit-msg"
 check "pre-push copied to .git/hooks" cmp -s "$ROOT/hooks/pre-push" "$TMP/c/.git/hooks/pre-push"
 check "check-commits copied to .git/hooks" cmp -s "$ROOT/hooks/check-commits" "$TMP/c/.git/hooks/check-commits"
+check "check-walkthrough copied to .git/hooks" cmp -s "$ROOT/hooks/check-walkthrough" "$TMP/c/.git/hooks/check-walkthrough"
+check "check-walkthrough is executable there" test -x "$TMP/c/.git/hooks/check-walkthrough"
 refute "--git-hooks leaves core.hooksPath unset" git -C "$TMP/c" config core.hooksPath
 refute "bad message rejected via .git/hooks" commits_ok "$TMP/c" "WIP"
 check "good message accepted via .git/hooks" commits_ok "$TMP/c" "chore: start the project"
@@ -283,7 +287,7 @@ git -C "$TMP/husky" config core.filemode false
 git -C "$TMP/husky" config core.hooksPath .husky/_
 check "--copy-only succeeds under another hooks path" run_install --copy-only "$TMP/husky"
 check "--copy-only leaves core.hooksPath alone" hooks_path_is "$TMP/husky" .husky/_
-for name in commit-msg pre-push check-commits; do
+for name in commit-msg pre-push check-commits check-walkthrough; do
   check "--copy-only copies $name" cmp -s "$ROOT/hooks/$name" "$TMP/husky/.githooks/$name"
 done
 check "--copy-only stages them as 100755" modes_are 100755 "$TMP/husky"
@@ -313,6 +317,55 @@ git -C "$TMP/husky" commit -q --no-verify --allow-empty -m "WIP"
 refute "husky recipe: a bad commit stops the push" git -C "$TMP/husky" push -q origin main 2> "$TMP/husky-push.out"
 check "and the check said why" grep -q 'breaks the commit rules' "$TMP/husky-push.out"
 
+# --gate: the push-gate scripts are copied into the project's .ai-workflow/,
+# so its gate command, its CI and a collaborator's clone need no path to
+# an ai-workflow clone.
+GATE_FILES="check-features.sh check-locked-tests.sh check-red-green.sh check-test-count.sh check-trace-links.sh stryker-mutate-ranges.sh feature-tables.awk junit-cases.awk"
+check "without --gate nothing goes to .ai-workflow/" test ! -e "$TMP/a/.ai-workflow"
+new_repo "$TMP/gate"
+git -C "$TMP/gate" config core.filemode false
+git -C "$TMP/gate" config core.autocrlf true
+check "--gate install succeeds" run_install --gate "$TMP/gate"
+check "it says the feature checks run before a push to main or a merge, on origin/main" \
+  said_text "before a push to main or the merge of a pull request: .ai-workflow/check-features.sh --base origin/main"
+check "the hooks are installed as usual" cmp -s "$ROOT/hooks/pre-push" "$TMP/gate/.githooks/pre-push"
+for name in $GATE_FILES; do
+  check "--gate copies $name" cmp -s "$ROOT/scripts/$name" "$TMP/gate/.ai-workflow/$name"
+done
+gate_mode() { git -C "$TMP/gate" ls-files -s -- ".ai-workflow/$1" | cut -d ' ' -f 1; }
+check "the scripts are staged as 100755" test "$(gate_mode check-features.sh)" = 100755
+check "every script is" test "$(git -C "$TMP/gate" ls-files -s -- '.ai-workflow/*.sh' | awk '{ print $1 }' | sort -u)" = 100755
+check "the awk files are staged" test "$(gate_mode junit-cases.awk)" = 100644
+check "it adds an LF rule for .ai-workflow/" grep -qxF '.ai-workflow/* text eol=lf' "$TMP/gate/.gitattributes"
+check "git takes the scripts as LF" \
+  test "$(git -C "$TMP/gate" check-attr eol -- .ai-workflow/check-features.sh | sed 's/^.*: //')" = lf
+check "a second --gate install succeeds" run_install --gate "$TMP/gate"
+check "and does not repeat the rule" test "$(grep -cxF '.ai-workflow/* text eol=lf' "$TMP/gate/.gitattributes")" = 1
+# The copies run on their own: each finds its helpers next to it.
+printf '<testsuites><testsuite><testcase name="F1-1-r1 works"/></testsuite></testsuites>\n' > "$TMP/gate/r.xml"
+printf '1 r.xml\n' > "$TMP/gate/count"
+check "the copied check-test-count runs, with the copied JUnit reader" \
+  q bash "$TMP/gate/.ai-workflow/check-test-count.sh" "$TMP/gate/count"
+mkdir -p "$TMP/gate/docs/features"
+printf '| ID | Rev | Item | Level | Test |\n| --- | --- | --- | --- | --- |\n| F1-1 | 1 | a | — | b |\n' \
+  > "$TMP/gate/docs/features/a.md"
+check "the copied check-trace-links runs, with the copied parsers" \
+  q bash "$TMP/gate/.ai-workflow/check-trace-links.sh" "$TMP/gate/docs/features" "$TMP/gate/r.xml"
+git -C "$TMP/gate" add -A
+commits_ok "$TMP/gate" "chore: add the hooks and the gate"
+git -c core.autocrlf=true clone -q "$TMP/gate" "$TMP/gate-clone" 2> /dev/null
+refute "a core.autocrlf=true clone checks the scripts out without CR" has_cr "$TMP/gate-clone/.ai-workflow/check-features.sh"
+gate_in_clone() { (cd "$TMP/gate-clone" && bash .ai-workflow/check-features.sh --base HEAD) > "$TMP/install.out" 2>&1; }
+gate_in_clone
+check "the clone's check-features runs and wants its config" test "$?" -eq 2
+check "it names the config file" said 'feature-checks.conf'
+new_repo "$TMP/gate2"
+check "--git-hooks --gate succeeds" run_install --git-hooks --gate "$TMP/gate2"
+check "it copies the scripts" cmp -s "$ROOT/scripts/check-features.sh" "$TMP/gate2/.ai-workflow/check-features.sh"
+new_repo "$TMP/gate3"
+check "--copy-only --gate succeeds" run_install --gate --copy-only "$TMP/gate3"
+check "it copies the scripts too" cmp -s "$ROOT/scripts/check-red-green.sh" "$TMP/gate3/.ai-workflow/check-red-green.sh"
+
 # Not a git repository
 mkdir -p "$TMP/plain"
 refute "refuses a directory that is not a git repo" run_install "$TMP/plain"
@@ -322,5 +375,38 @@ check "--help prints the comment block and no code" help_ok "$INSTALL"
 
 # Unknown option
 refute "rejects an unknown option" run_install --bogus "$TMP/a"
+
+# The verifying-features skill's by-hand walkthrough commands run the
+# hook in every install mode, in a linked worktree too, where .git is a
+# file and .git/hooks/ is not a folder (the final docs review, finding 2).
+VF="$ROOT/skills/verifying-features/SKILL.md"
+by_hand_cmds() { grep -oE '`bash [^`]*check-walkthrough[^`]*`' "$VF" | tr -d '`' | sort -u; }
+# a_cmd_runs_hook <dir>: one of the skill's commands runs the hook there.
+# It exits 1 on the unfilled feature file; 126 or 127 means no hook.
+a_cmd_runs_hook() {
+  local cmd
+  while IFS= read -r cmd; do
+    (cd "$1" && eval "$cmd") > /dev/null 2>&1
+    [ "$?" -eq 1 ] && return 0
+  done < <(by_hand_cmds)
+  return 1
+}
+check "the skill gives by-hand walkthrough commands" test -n "$(by_hand_cmds)"
+for mode in default git-hooks husky; do
+  r="$TMP/walk-$mode"
+  new_repo "$r"
+  mkdir -p "$r/docs/features"
+  cp "$ROOT/templates/feature.md" "$r/docs/features/a.md"
+  case $mode in
+    default) run_install "$r" ;;
+    git-hooks) run_install --git-hooks "$r" ;;
+    husky) git -C "$r" config core.hooksPath .husky/_ && run_install --copy-only "$r" ;;
+  esac
+  git -C "$r" add -A
+  commits_ok "$r" "docs: add an unfilled feature file"
+  git -C "$r" worktree add -q -b wt "$r-wt" 2> /dev/null
+  check "a by-hand command runs the walkthrough hook in the main checkout ($mode install)" a_cmd_runs_hook "$r"
+  check "a by-hand command runs the walkthrough hook in a linked worktree ($mode install)" a_cmd_runs_hook "$r-wt"
+done
 
 finish

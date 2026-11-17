@@ -88,6 +88,49 @@ overlay_is_applied() {
     cmp -s "$ROOT/skills/grilling/agents/openai.yaml" "$TMP/vendored/agents/openai.yaml"
 }
 check "vendored grilling skill already carries the overlay" overlay_is_applied
+# apply-skill-overlay.sh skips append.md when its heading is already there,
+# so the check above cannot see a changed append.md: the vendored copy must
+# end with the current one.
+ends_with_append() { # ends_with_append <SKILL.md> <append.md>
+  local n
+  n=$(tr -d '\r' < "$2" | wc -l)
+  [ "$n" -gt 0 ] && cmp -s <(tail -n "$n" "$1") <(tr -d '\r' < "$2")
+}
+GRILL_APPEND="$ROOT/skills/overlays/grilling/append.md"
+check "vendored grilling skill ends with the current append.md" \
+  ends_with_append "$ROOT/skills/grilling/SKILL.md" "$GRILL_APPEND"
+{ cat "$GRILL_APPEND"; printf 'A new line.\n'; } > "$TMP/append-changed.md"
+refute "a changed append.md is noticed" ends_with_append "$ROOT/skills/grilling/SKILL.md" "$TMP/append-changed.md"
+# The grilling override carries D61 (the binding level is confirmed inside
+# each recommended answer) and D68 (facts marked checked or from memory).
+# shellcheck disable=SC2016
+for text in 'one question per message' '`instruction`' '`preference`' '`idea`' \
+  'checked' 'from memory' 'background research' '`assumed`'; do
+  check "the grilling override covers $text" grep -qF -- "$text" "$GRILL_APPEND"
+done
+
+# --- local skills: this repo's own, not synced from upstream
+locals=$(local_skills)
+check "there are local skills" test -n "$locals"
+# frontmatter_ok <SKILL.md> <name>: the name matches the folder, and the
+# description is one plain YAML line Claude Code can load
+frontmatter_ok() {
+  local fm desc
+  fm=$(awk 'NR == 1 && $0 != "---" { exit 1 } NR > 1 && /^---$/ { exit } NR > 1' "$1") || return 1
+  [ "$(printf '%s\n' "$fm" | grep -cxF "name: $2")" -eq 1 ] || return 1
+  desc=$(printf '%s\n' "$fm" | sed -n 's/^description: //p')
+  [ -n "$desc" ] && [ "${#desc}" -le 1024 ] || return 1
+  case $desc in [\"\'\>\|]* | *': '* | *' #'*) return 1 ;; esac
+  [ "$(printf '%s\n' "$fm" | grep -c '^description: ')" -eq 1 ]
+}
+for name in $locals; do
+  check "local skill $name has a valid frontmatter" frontmatter_ok "$ROOT/skills/$name/SKILL.md" "$name"
+  check "local skill $name has no overlay" test ! -e "$ROOT/skills/overlays/$name"
+done
+printf -- '---\nname: bad\ndescription: Use it when: always\n---\n' > "$TMP/bad-skill.md"
+refute "a description with ': ' is noticed" frontmatter_ok "$TMP/bad-skill.md" bad
+printf -- '---\nname: other\ndescription: Fine.\n---\n' > "$TMP/misnamed-skill.md"
+refute "a name that differs from the folder is noticed" frontmatter_ok "$TMP/misnamed-skill.md" bad
 
 # --- sync-skills.sh --from <local checkout>
 up="$TMP/upstream"
@@ -110,6 +153,17 @@ check "grill-me synced unchanged" cmp -s "$up/skills/productivity/grill-me/SKILL
 check "stale files removed" test ! -e "$out/grilling/stale.md"
 check "upstream licence copied" cmp -s "$up/LICENSE" "$out/LICENSE"
 check "upstream commit recorded" grep -qxF "commit: $sha" "$out/UPSTREAM"
+
+# A sync into this repo's skills/ leaves the local skills alone: it neither
+# replaces nor deletes them.
+cp -R "$ROOT/skills" "$TMP/repo-skills"
+check "sync into a copy of skills/ succeeds" quiet bash "$SYNC" --from "$up" --dest "$TMP/repo-skills"
+for name in $locals; do
+  check "sync leaves local skill $name as it was" diff -r "$ROOT/skills/$name" "$TMP/repo-skills/$name"
+done
+check "sync keeps the overlays" diff -r "$ROOT/skills/overlays" "$TMP/repo-skills/overlays"
+check "sync keeps the local skills out of UPSTREAM" \
+  test "$(local_skills "$TMP/repo-skills" | sort)" = "$(printf '%s\n' "$locals" | sort)"
 
 check "sync --help prints the comment block and no code" help_ok "$SYNC"
 
@@ -146,6 +200,9 @@ check "grilling installed" cmp -s "$ROOT/skills/grilling/SKILL.md" "$target/gril
 check "grill-me installed" cmp -s "$ROOT/skills/grill-me/SKILL.md" "$target/grill-me/SKILL.md"
 check "old copy replaced, not merged" test ! -e "$target/grilling/old.md"
 check "overlays not installed as a skill" test ! -e "$target/overlays"
+for name in $locals; do
+  check "local skill $name installed" diff -r "$ROOT/skills/$name" "$target/$name"
+done
 
 # --- install-skills.sh with no target: $CLAUDE_CONFIG_DIR/skills, else ~/.claude/skills
 check "install defaults to \$CLAUDE_CONFIG_DIR/skills" \

@@ -1,6 +1,6 @@
 ---
 name: grilling
-description: Grill the user relentlessly about a plan, decision, or idea. Use when the user wants to stress-test their thinking, or uses any 'grill' trigger phrases. Also use it proactively, unprompted, before starting a large or ambiguous plan or implementation when your own confidence in the requirements is only medium or low. Err toward firing it too often rather than too rarely; staying aligned with the user outranks moving fast.
+description: Grill the user relentlessly about a plan, decision, or idea. Use when the user wants to stress-test their thinking, or uses any 'grill' trigger phrases. Also use it proactively, unprompted, before starting a large or ambiguous plan or implementation when your own confidence in the requirements is only medium or low. Err toward firing it too often rather than too rarely; staying aligned with the user outranks moving fast. A subagent working from a brief does not grill the user; it lists its open questions in its report instead.
 ---
 
 Interview the user relentlessly until you reach a shared understanding. Map this as a **design tree**: every decision branches into the decisions that hang off it.
@@ -31,4 +31,10 @@ The session is done when the frontier is empty: every branch of the design tree 
 
 ## Local override (ai-workflow)
 
-Ask one question per message, not a whole round. Pick the frontier question that unblocks the most other decisions, give your recommended answer, and wait for the reply before the next one. Everything else above still applies.
+Ask one question per message, not a whole round. Pick the frontier question that unblocks the most other decisions, give your recommended answer, and wait for the reply before the next one.
+
+Each recommended answer also proposes how binding the decision is: `instruction` (follow it; ask before changing it), `preference` (the default; deviate only with a stated reason) or `idea` (open to challenge). A "yes" accepts the level with the answer. Never ask about levels in a separate round.
+
+Mark each fact in a recommended answer checked (with its source) or from memory. A fact that matters and that a few searches can settle is checked before you ask. A bigger one becomes background research (the `researching` skill), and the question that depends on it waits while you ask the others. A decision that rests on memory is recorded as `assumed`.
+
+Everything else above still applies.
