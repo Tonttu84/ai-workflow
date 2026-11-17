@@ -233,6 +233,13 @@ printf '*\n' > "$repo/e2e/deep/.gitignore"
 printf 'skip\n' > "$repo/e2e/deep/conftest.sh"
 check "one deeper in a locked directory fails too" status_is 1 "$before" "$CMD" e2e
 rm -r "$repo/e2e/deep"
+# The walk goes up past the locked path's own directory to the top.
+printf '*\n' > "$repo/.gitignore"
+printf 'skip\n' > "$repo/e2e/conftest.sh"
+check "git status shows nothing (a .gitignore at the top)" test -z "$(git -C "$repo" status --porcelain)"
+check "an untracked .gitignore at the top fails" status_is 1 "$before" "$CMD" e2e/hidden.test.sh
+check "it counts the .gitignore at the top" says '1 untracked .gitignore'
+rm "$repo/.gitignore" "$repo/e2e/conftest.sh"
 # git on a case-insensitive file system (Windows, macOS) reads
 # .GITIGNORE as the folder's .gitignore, so the name is compared without
 # regard to case. On a case-sensitive one the helper is not hidden and
