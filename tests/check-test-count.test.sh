@@ -126,19 +126,20 @@ reset_repo
 
 # A runner writes a CDATA system-out in each testcase that prints: the
 # parser's time must grow linearly with the sections, not with their
-# square (5000 of them took 47 s with gawk 5.0 before).
+# square (5000 of them took 47 s with gawk 5.0, 52 s with mawk and 3.7 s
+# with gawk 5.2 before; the new parser reads 10000 in about a second).
 awk 'BEGIN {
   print "<testsuites><testsuite name=\"s\">"
-  for (i = 1; i <= 5000; i++)
+  for (i = 1; i <= 10000; i++)
     printf "<testcase name=\"t%d\"><system-out><![CDATA[%400s]]></system-out><!-- c --></testcase>\n", i, "x"
   print "</testsuite></testsuites>"
 }' > "$TMP/big.xml"
 started=$SECONDS
 LC_ALL=C timeout 120 awk -f "$ROOT/scripts/junit-cases.awk" "$TMP/big.xml" > "$TMP/big.out"
 took=$((SECONDS - started))
-check "5000 testcases with CDATA sections are all read" \
-  test "$(awk -F '\t' '$1 == "C" && $2 == "pass"' "$TMP/big.out" | wc -l)" -eq 5000
-check "in under 15 seconds (took ${took}s)" test "$took" -lt 15
+check "10000 testcases with CDATA sections are all read" \
+  test "$(awk -F '\t' '$1 == "C" && $2 == "pass"' "$TMP/big.out" | wc -l)" -eq 10000
+check "in under 10 seconds (took ${took}s)" test "$took" -lt 10
 
 # --- a run that did not finish, or no report at all
 rm "$repo/reports/e2e.xml"
