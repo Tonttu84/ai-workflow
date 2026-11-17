@@ -393,4 +393,14 @@ check "the skill says a merge on GitHub runs no local hook" grep -qF 'runs no lo
 check "docs/decisions.md records D129, after D128" \
   grep -qE '^\| D129 \|.*required check' "$ROOT/docs/decisions.md"
 
+# --- fixes from the final docs review of 2026-11-17
+# Three fixes of the second docs review had no pin (finding 6): a solo
+# feature waits for the hardening, the agent brief's lock comment no
+# longer runs the checks on every push, and the skill runs the walkthrough
+# check by hand until the showcase CI job exists.
+check "the rules hold a feature until the hardening and the owner's walkthrough" \
+  grep -qF "the hardening and the owner's walkthrough" "$RULES"
+refute "the agent brief no longer checks the locked tests on every push" grep -qF 'on every push' "$BRIEF"
+check "the skill runs the walkthrough check by hand until the CI job exists" grep -qF 'Until that job exists' "$VF"
+
 finish
