@@ -30,11 +30,12 @@
 # not hidden by others that fail. On the base it must fail, and in the
 # working tree (the head) it must pass. The working tree must be HEAD,
 # the commit that gets pushed: a file changed, untracked (unless a
-# committed .gitignore file ignores it) or flagged skip-worktree or
+# .gitignore file ignores it) or flagged skip-worktree or
 # assume-unchanged fails the check, since the head side would run code
 # that is not pushed; so does an untracked .gitignore in or above a
 # locked path, ignored or not, since one that ignores itself hides what
-# is next to it. The temporary worktree is always removed.
+# is next to it. Outside the locked paths such a .gitignore still hides
+# what is next to it. The temporary worktree is always removed.
 #
 # Limits: the tests inside one file still run together, so a vacuous
 # test next to a failing one in the same file is not found. The script
@@ -127,10 +128,12 @@ trap 'exit 129' HUP
 
 # The head side runs in the working tree, so it must be HEAD, the commit
 # that gets pushed. Counted: files in the working tree changed from HEAD,
-# untracked files (only the committed .gitignore files may hide one:
-# .git/info/exclude and a global excludes file reach no other clone),
-# and files flagged skip-worktree or assume-unchanged, which hides a
-# change from git.
+# untracked files (any .gitignore file in the working tree may hide one,
+# an untracked one outside the locked paths included: untracked_ignores
+# fails one only in or above a locked path; .git/info/exclude and a
+# global excludes file hide none, since they reach no other clone), and
+# files flagged skip-worktree or assume-unchanged, which hides a change
+# from git.
 top=$(git rev-parse --show-toplevel)
 git -C "$top" diff -z --name-only HEAD > "$tmp/changed" || die "git diff failed"
 git -C "$top" ls-files -z --others --exclude-per-directory=.gitignore > "$tmp/untracked" ||
