@@ -326,6 +326,8 @@ new_repo "$TMP/gate"
 git -C "$TMP/gate" config core.filemode false
 git -C "$TMP/gate" config core.autocrlf true
 check "--gate install succeeds" run_install --gate "$TMP/gate"
+check "it says the feature checks run before a push to main, on origin/main" \
+  said_text "before every push to main: .ai-workflow/check-features.sh --base origin/main"
 check "the hooks are installed as usual" cmp -s "$ROOT/hooks/pre-push" "$TMP/gate/.githooks/pre-push"
 for name in $GATE_FILES; do
   check "--gate copies $name" cmp -s "$ROOT/scripts/$name" "$TMP/gate/.ai-workflow/$name"

@@ -33,9 +33,10 @@
 #                helpers and stryker-mutate-ranges.sh), stage them, the
 #                scripts as executable, and add `.ai-workflow/* text
 #                eol=lf` unless a rule already gives them LF. Commit
-#                .ai-workflow/: the project gate, its CI and every
-#                clone then run .ai-workflow/check-features.sh with no
-#                path to an ai-workflow clone. Rerun it to update them;
+#                .ai-workflow/: the project gate and every clone then
+#                run .ai-workflow/check-features.sh with no path to an
+#                ai-workflow clone (and so can a CI job, once a project
+#                writes one). Rerun it to update them;
 #                it replaces the copies. Works with every mode.
 #
 # Node projects may use commitlint and husky instead of this hook, with
@@ -216,7 +217,7 @@ install_gate() {
     exit 1
   fi
   echo "Copied the gate scripts to $dest and staged them (the scripts as 100755). Commit .ai-workflow/."
-  echo "The gate runs .ai-workflow/check-features.sh --base <the branch pushed to>, with feature-checks.conf."
+  echo "The gate runs, before every push to main: .ai-workflow/check-features.sh --base origin/main, with feature-checks.conf."
 }
 
 if [ "$mode" = hookspath ]; then
