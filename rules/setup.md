@@ -67,7 +67,8 @@ Repositories the owner does not own, and the owner's inactive repositories that 
   - It needs full history and the pull-request refs (above). It is a required check in the ruleset on `main`.
   - It needs the hooks committed in `.githooks/`: the default mode of `hooks/install.sh`, or `--copy-only` under husky. A `--git-hooks` install commits none.
   - The project writes the job for its own stack (toolchain, test runner, JUnit reports) and records it as a row in its `docs/decisions.md`.
-  - Public repositories get required checks and Actions minutes free on GitHub Free. A private showcase repository cannot require the check, so it keeps the by-hand run and says so in its `AGENTS.md`.
+  - Public repositories get required checks and Actions minutes free on GitHub Free.
+  - A private showcase repository writes no job: its Actions minutes are scarce (D39), and GitHub Free cannot require the check there. The coordinator runs both checks by hand before each merge, and the project's `AGENTS.md` says so.
   - Until the job exists, the coordinator runs both checks by hand before each merge (the `verifying-features` skill, step 12).
 
 ## Dependabot

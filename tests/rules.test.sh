@@ -446,5 +446,13 @@ check "D129 names the rows it refines, D77 and D114" \
 check "D114 quotes the question its owner's answer settled" \
   in_row D114 'answering "Apply the feature checks and the walkthrough check only to pushes to main?"'
 refute "in_row reads only the row named" in_row D128 'Refines D77'
+# A private showcase repository writes no CI job: its Actions minutes are
+# scarce (D39), so it runs both checks by hand before each merge (finding
+# 4). The owner settled only the public case, so D129 leaves this out.
+for f in "$SETUP" "$VF" "$AGENTS_T" "$ROOT/README.md"; do
+  check "${f#"$ROOT"/} has a private showcase repository write no job" grep -qF 'writes no job' "$f"
+done
+refute "the setup file no longer leaves a private repository's job unclear" grep -qF 'keeps the by-hand run' "$SETUP"
+refute "D129 no longer settles the private case" in_row D129 'private showcase repository'
 
 finish
