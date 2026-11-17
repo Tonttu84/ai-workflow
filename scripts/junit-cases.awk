@@ -24,18 +24,29 @@ function join(a, lo, hi,    mid) {
   mid = int((lo + hi) / 2)
   return join(a, lo, mid) join(a, mid + 1, hi)
 }
-# strip(s, start, re, end): s without every start...end section (re is
-# start as a regular expression); a start inside a section is part of
-# it. Linear: one split, then one search per piece.
-function strip(s, start, re, end,    n, i, j, piece) {
-  n = split(s, piece, re)
+# strip(s): s without its comments, CDATA sections and processing
+# instructions, read in document order as an XML parser reads them: a
+# section ends at the first end marker after its own opener ("<!-->"
+# does not close itself), and nothing inside a section opens another.
+# Linear: s is split once on "<", and since no end marker holds a "<",
+# each search for one stays inside one piece.
+function strip(s,    n, i, j, piece, rest, out, o, start, end) {
+  n = split(s, piece, "<")
+  out[o = 1] = piece[1]
+  end = ""
   for (i = 2; i <= n; i++) {
-    # Every piece after the first begins inside a section.
-    if ((j = index(piece[i], end)) > 0) piece[i] = substr(piece[i], j + length(end))
-    else if (i < n) piece[i] = "" # the section goes on past the next start
-    else { problem("an unclosed " start " section: the runner did not finish writing it"); n = i - 1 }
+    rest = piece[i] # what follows the i-1th "<"
+    if (end == "") {
+      if (substr(rest, 1, 3) == "!--") { start = "<!--"; end = "-->"; rest = substr(rest, 4) }
+      else if (substr(rest, 1, 8) == "![CDATA[") { start = "<![CDATA["; end = "]]>"; rest = substr(rest, 9) }
+      else if (substr(rest, 1, 1) == "?") { start = "<?"; end = "?>"; rest = substr(rest, 2) }
+      else { out[++o] = "<" rest; continue } # a tag
+    }
+    # Inside a section: a "<" here is part of it.
+    if ((j = index(rest, end)) > 0) { out[++o] = substr(rest, j + length(end)); end = "" }
   }
-  return join(piece, 1, n)
+  if (end != "") problem("an unclosed " start " section: the runner did not finish writing it")
+  return join(out, 1, o)
 }
 # tag_end(s): where the tag that s starts with ends, quotes respected
 function tag_end(s,    i, n, c, q) {
@@ -81,9 +92,7 @@ function suite_counts(s,    i, k, e, tag, n, best, part) {
 { sub(/\r$/, ""); line[++lines] = $0 "\n" }
 END {
   s = join(line, 1, lines)
-  s = strip(s, "<![CDATA[", "<![[]CDATA[[]", "]]>")
-  s = strip(s, "<!--", "<!--", "-->")
-  s = strip(s, "<?", "<[?]", "?>")
+  s = strip(s)
   sub(/^[ \t\n]+/, "", s)
   sub(/[ \t\n]+$/, "", s)
   if (s == "") problem("is empty")
