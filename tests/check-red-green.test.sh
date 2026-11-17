@@ -198,12 +198,47 @@ check "a change hidden by skip-worktree fails" status_is 1 "$before" "$CMD" e2e/
 check "it counts the flagged file" says '1 flagged'
 git -C "$repo" update-index --no-skip-worktree src/extra.sh
 git -C "$repo" checkout -q -- src/extra.sh
+printf 'echo other\n' > "$repo/src/extra.sh"
+git -C "$repo" update-index --assume-unchanged src/extra.sh
+check "a change hidden by assume-unchanged fails" status_is 1 "$before" "$CMD" e2e/extra.test.sh
+check "it counts the file as flagged" says '1 flagged'
+git -C "$repo" update-index --no-assume-unchanged src/extra.sh
+git -C "$repo" checkout -q -- src/extra.sh
 printf 'build/\n' > "$repo/.gitignore"
 git -C "$repo" add .gitignore
 git -C "$repo" commit -q -m "chore: ignore the build"
 mkdir -p "$repo/build"
 printf 'built\n' > "$repo/build/out.txt"
 check "files the committed .gitignore ignores do not count" status_is 0 "$before" "$CMD" e2e/extra.test.sh
+reset_repo
+
+# An untracked .gitignore that ignores itself hides what is next to it
+# from git: here a helper that makes the locked test pass on the head.
+# Only committed .gitignore files may hide a file, so one in or above a
+# locked path fails.
+# shellcheck disable=SC2016
+printf 'here=$(dirname "$0")\n[ "$(bash "$here/../src/greet.sh")" = nope ] || [ -f "$here/conftest.sh" ]\n' \
+  > "$repo/e2e/hidden.test.sh"
+git -C "$repo" add e2e/hidden.test.sh
+git -C "$repo" commit -q -m "test: lock a test a hidden helper passes"
+printf '*\n' > "$repo/e2e/.gitignore"
+printf 'skip\n' > "$repo/e2e/conftest.sh"
+check "git status shows nothing" test -z "$(git -C "$repo" status --porcelain)"
+check "an untracked .gitignore in a locked directory fails" status_is 1 "$before" "$CMD" e2e
+check "it counts the .gitignore" says '1 untracked .gitignore'
+check "an untracked .gitignore above a locked file fails" status_is 1 "$before" "$CMD" e2e/hidden.test.sh
+rm "$repo/e2e/.gitignore" "$repo/e2e/conftest.sh"
+mkdir -p "$repo/e2e/deep"
+printf '*\n' > "$repo/e2e/deep/.gitignore"
+printf 'skip\n' > "$repo/e2e/deep/conftest.sh"
+check "one deeper in a locked directory fails too" status_is 1 "$before" "$CMD" e2e
+rm -r "$repo/e2e/deep"
+# Test tools write such files into their caches (.pytest_cache,
+# .ruff_cache, a Python 3.13 .venv); outside the locked paths they do
+# not count.
+mkdir -p "$repo/.pytest_cache"
+printf '*\n' > "$repo/.pytest_cache/.gitignore"
+check "a self-ignoring cache directory outside the locked paths passes" status_is 0 "$before" "$CMD" e2e/one.test.sh
 reset_repo
 
 # --- a test that fails on the head

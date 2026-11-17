@@ -139,6 +139,27 @@ git -C "$repo" config --unset core.excludesFile
 rm -f "$repo/e2e/conftest.sh"
 reset_repo
 
+# An untracked .gitignore that ignores itself hides a new file next to
+# it from git status; one in or above a locked path fails.
+printf '*\n' > "$repo/e2e/.gitignore"
+printf 'skip everything\n' > "$repo/e2e/conftest.sh"
+check "git status shows nothing" test -z "$(git -C "$repo" status --porcelain)"
+check "an untracked .gitignore in a locked directory fails" status_is 1 "$base" e2e
+check "it names the .gitignore" says 'e2e/.gitignore'
+check "an untracked .gitignore above a locked file fails" status_is 1 "$base" e2e/one.test.sh
+from_e2e() { (cd "$repo/e2e" && bash "$LOCK" "$base" one.test.sh) > "$TMP/out" 2>&1; }
+from_e2e
+check "and so it does from a subdirectory" test "$?" -eq 1
+rm "$repo/e2e/.gitignore" "$repo/e2e/conftest.sh"
+printf '*\n' > "$repo/.gitignore"
+check "an untracked .gitignore at the top fails" status_is 1 "$base" e2e/one.test.sh
+rm "$repo/.gitignore"
+mkdir -p "$repo/.pytest_cache"
+printf '*\n' > "$repo/.pytest_cache/.gitignore"
+check "a self-ignoring cache directory outside the locked paths passes" status_is 0 "$base" e2e
+rm -r "$repo/.pytest_cache"
+reset_repo
+
 # --- deleted
 git -C "$repo" rm -q e2e/one.test.sh
 commit_all "test: drop a test"

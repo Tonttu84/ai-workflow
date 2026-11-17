@@ -32,7 +32,9 @@
 # the commit that gets pushed: a file changed, untracked (unless a
 # committed .gitignore file ignores it) or flagged skip-worktree or
 # assume-unchanged fails the check, since the head side would run code
-# that is not pushed. The temporary worktree is always removed.
+# that is not pushed; so does an untracked .gitignore in or above a
+# locked path, ignored or not, since one that ignores itself hides what
+# is next to it. The temporary worktree is always removed.
 #
 # Limits: the tests inside one file still run together, so a vacuous
 # test next to a failing one in the same file is not found. The script
@@ -76,6 +78,31 @@ done
 command -v timeout > /dev/null 2>&1 || die "needs timeout (GNU coreutils)"
 
 git() { command git --literal-pathspecs -c core.quotePath=false "$@"; }
+
+# untracked_ignores <path>...: the untracked .gitignore files, ignored or
+# not, in or above the paths, from the top of the repository, one per
+# line. One that ignores itself hides the files next to it from git, and
+# no other clone has it.
+untracked_ignores() {
+  local path dir rel out specs=()
+  for path in "$@"; do
+    if [ -d "$path" ]; then dir=$path; else dir=$(dirname -- "$path"); fi
+    while [ ! -d "$dir" ]; do dir=$(dirname -- "$dir"); done
+    rel=$(cd -- "$dir" && command git rev-parse --show-prefix) || return 1
+    if [ -d "$path" ]; then specs+=("${rel:-.}"); fi
+    while :; do
+      specs+=("${rel}.gitignore")
+      [ -n "$rel" ] || break
+      rel=${rel%/}
+      case $rel in */*) rel=${rel%/*}/ ;; *) rel= ;; esac
+    done
+  done
+  out=$(
+    git -C "$(git rev-parse --show-toplevel)" ls-files -z --others -- "${specs[@]}" | tr '\0' '\n'
+    exit "${PIPESTATUS[0]}"
+  ) || return 1
+  printf '%s\n' "$out" | awk -F / '$NF == ".gitignore"'
+}
 git rev-parse --is-inside-work-tree > /dev/null 2>&1 || die "not inside a git work tree"
 base=$(git rev-parse --verify --quiet "$1^{commit}") || die "unknown commit: $1"
 cmd=$2
@@ -108,6 +135,8 @@ git -C "$top" ls-files -v > "$tmp/flags" || die "git ls-files -v failed"
 changed=$(tr -cd '\0' < "$tmp/changed" | wc -c | tr -d ' ')
 untracked=$(tr -cd '\0' < "$tmp/untracked" | wc -c | tr -d ' ')
 flagged=$(awk '/^[a-zS] / { n++ } END { print n + 0 }' "$tmp/flags")
+untracked_ignores "$@" > "$tmp/ignores" || die "git ls-files failed on the .gitignore files"
+ignores=$(awk 'NF { n++ } END { print n + 0 }' "$tmp/ignores")
 
 timeout -k 10 "$limit" git worktree add --quiet --detach "$wt" "$base" > "$tmp/add.log" 2>&1 ||
   die "could not check out $base in a temporary worktree: $(tail -n 3 "$tmp/add.log")"
@@ -182,8 +211,9 @@ fi
 
 short=$(git rev-parse --short "$base")
 problems=0
-if [ "$changed" -ne 0 ] || [ "$untracked" -ne 0 ] || [ "$flagged" -ne 0 ]; then
-  echo "check-red-green.sh: the working tree is not HEAD ($changed changed, $untracked untracked, $flagged flagged skip-worktree or assume-unchanged): the head side would run code that is not pushed; commit it or stash it (git status --short --untracked-files=all lists most of it)" >&2
+if [ "$changed" -ne 0 ] || [ "$untracked" -ne 0 ] || [ "$flagged" -ne 0 ] || [ "$ignores" -ne 0 ]; then
+  echo "check-red-green.sh: the working tree is not HEAD ($changed changed, $untracked untracked, $flagged flagged skip-worktree or assume-unchanged, $ignores untracked .gitignore in or above a locked path): the head side would run code that is not pushed; commit it or stash it (git status --short --untracked-files=all lists most of it)" >&2
+  if [ "$ignores" -ne 0 ]; then sed 's/^/  untracked .gitignore: /' "$tmp/ignores" >&2; fi
   problems=$((problems + 1))
 fi
 # check <side> <dir> <path>: runs one test file on one side and judges it
