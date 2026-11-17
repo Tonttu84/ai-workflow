@@ -232,6 +232,7 @@ mkdir -p "$repo/e2e/deep"
 printf '*\n' > "$repo/e2e/deep/.gitignore"
 printf 'skip\n' > "$repo/e2e/deep/conftest.sh"
 check "one deeper in a locked directory fails too" status_is 1 "$before" "$CMD" e2e
+check "it counts the deeper .gitignore" says '1 untracked .gitignore'
 rm -r "$repo/e2e/deep"
 # The walk goes up past the locked path's own directory to the top.
 printf '*\n' > "$repo/.gitignore"
