@@ -13,7 +13,7 @@ This file holds only what is specific to this project and wins where it says so.
 **Solo** | **Showcase**  <!-- keep one -->
 
 - Solo: commit to `main` and push once the local gate is green; fresh-agent review before pushing any non-trivial change. With feature files, a feature's work stays on its branch until the trace, the black-box test, the review, the hardening and the owner's walkthrough; then the coordinator merges and pushes. A change that adds or revises a feature item is feature work, on its own branch; other bug fixes and small changes go straight to `main`. Tier 1.
-- Showcase: branch, pull request, fresh-agent review, squash-merge on the owner's word. Tier 1, plus the tier 2 bonus.
+- Showcase: branch, pull request, fresh-agent review, squash-merge on the owner's word. Tier 1, plus the tier 2 bonus. With feature files, a required CI check (`<workflow file>`) runs the feature checks and the walkthrough check on each pull request, set up before the first feature pull request merges (ai-workflow D129); until it exists, or for good in a private repository (say so here), the coordinator runs the two checks by hand before each merge.
 
 The tiers of verification:
 

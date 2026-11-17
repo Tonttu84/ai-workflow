@@ -371,4 +371,24 @@ done
 check "docs/decisions.md records D128, amending D39 and D114" \
   grep -qE '^\| D128 \|.*D39.*D114' "$ROOT/docs/decisions.md"
 
+# --- a showcase project merges on GitHub, where no local hook runs: a
+# required CI check runs the feature checks and the walkthrough check on
+# its pull requests, set up before its first feature pull request merges;
+# until then the coordinator runs both by hand before the merge (D129).
+check "the setup file has a showcase project with feature files add the CI job" \
+  grep -qF 'A showcase project with feature files adds a CI job' "$SETUP"
+# shellcheck disable=SC2016
+check "the setup file makes that job a required check" grep -qF 'a required check in the ruleset on `main`' "$SETUP"
+for f in "$SETUP" "$VF" "$AGENTS_T" "$ROOT/README.md"; do
+  check "${f#"$ROOT"/} names D129" grep -qF 'D129' "$f"
+done
+# The by-hand run uses the hook's real interface: check-walkthrough
+# [<commit>], installed next to pre-push.
+check "the walkthrough hook takes a commit" grep -qxF '# Usage: check-walkthrough [<commit>]' "$ROOT/hooks/check-walkthrough"
+check "the skill runs the walkthrough check by hand before a showcase merge" \
+  grep -qF 'bash .githooks/check-walkthrough HEAD' "$VF"
+# shellcheck disable=SC2016
+check "the skill merges only the commit it checked" grep -qF -- '--match-head-commit "$(git rev-parse HEAD)"' "$VF"
+check "the skill says a merge on GitHub runs no local hook" grep -qF 'runs no local hook' "$VF"
+
 finish

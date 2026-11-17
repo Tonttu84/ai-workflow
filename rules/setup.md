@@ -61,6 +61,8 @@ Repositories the owner does not own, and the owner's inactive repositories that 
   git fetch origin
   ```
 
+- A merge on GitHub runs no local hook, so a showcase project's merge would skip the feature checks and the walkthrough check (D129). A showcase project with feature files adds a CI job as part of its setup, before its first feature pull request merges. The job runs on pull requests, runs `.ai-workflow/check-features.sh --base origin/main` and the walkthrough check (`bash .githooks/check-walkthrough HEAD`) on the pull request's head, with full history and the pull-request refs (above), and is a required check in the ruleset on `main`. The project writes the job for its own stack (toolchain, test runner, JUnit reports) and records it as a row in its `docs/decisions.md`. Public repositories get required checks and Actions minutes free on GitHub Free; a private showcase repository cannot require the check, so it keeps the by-hand run and says so in its `AGENTS.md`. Until the job exists, the coordinator runs both checks by hand before each merge (the `verifying-features` skill, step 12).
+
 ## Dependabot
 
 - Security updates are on in every repository, private ones too: Settings, Code security, Dependabot security updates.
