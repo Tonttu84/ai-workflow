@@ -42,7 +42,7 @@ Repositories the owner does not own, and the owner's inactive repositories that 
 - A project with feature files: `hooks/install.sh --gate` also copies the push-gate scripts (`check-features.sh`, the checks it runs, their awk helpers and `stryker-mutate-ranges.sh`) into the project's `.ai-workflow/` and stages them; commit it. Then:
   - Add a committed `feature-checks.conf` at the top of the repository (its keys are in `templates/AGENTS.md` and `.ai-workflow/check-features.sh --help`).
   - Turn on the test runner's JUnit reporter, so that `run` writes the reports, and create the count file that lists them (its format: `.ai-workflow/check-test-count.sh --help`). Each report is deleted before the run, so its path must be inside the repository and untracked; ignore it in a committed `.gitignore`, since the gate fails on an untracked file nothing ignores.
-  - Put `.ai-workflow/check-features.sh --base origin/main` in the gate before every push to `main` (D114); feature branches skip it.
+  - Put `.ai-workflow/check-features.sh --base origin/main` in the gate, which runs before a push to `main` or the merge of a pull request, never on a push to another branch (D114, D128).
   - The project then needs no path to an ai-workflow clone, for collaborators or a future CI job (D101). Rerun `--gate` to update the copies when the scripts change.
 - The feature checks need each locked commit and `origin/main` in the clone, so a clone or CI job that runs the gate needs full history (`actions/checkout` with `fetch-depth: 0`) and, in a repository that squash-merges, the pull-request refs (D78, below); otherwise they die with "unknown commit".
 - Scheduled mutation testing in CI (D75) is deferred until the first project with feature files sets up its CI (D100, confirmed by the owner in D116): that project writes the workflow, with D39's triggers for a private repository (by hand and on a schedule), and records it. Until then mutation testing runs only in the hardening step.
@@ -51,7 +51,7 @@ Repositories the owner does not own, and the owner's inactive repositories that 
 
 - Copy `templates/commit-check.yml` to `.github/workflows/`. It is the gate for commit messages and confirms the local check: public repositories run it on every push and pull request; private ones, short of Actions minutes, delete the push trigger and run it on pull requests, by hand (`workflow_dispatch`) and on its schedule.
 - A ruleset on `main` blocks force pushes and deletion. In a repository that works through pull requests it also requires the `commit-check` jobs; a solo repository's does not, since a required check would reject its direct pushes. GitHub Free offers rulesets only on public repositories, so private ones have none (a recorded exception).
-- So in a private solo repository: the local gate and `pre-push` before every push, CI by hand and on a schedule, no ruleset.
+- So in a private solo repository: the local gate before every push to `main`, `pre-push` on every push, CI by hand and on a schedule, no ruleset.
 - A repository that squash-merges sets the PR title as the squash subject, once: `gh api -X PATCH repos/OWNER/REPO -f squash_merge_commit_title=PR_TITLE -f squash_merge_commit_message=PR_BODY`. By default a one-commit PR gets that commit's subject instead.
 - A showcase project that squash-merges fetches pull-request refs in its setup command, so the commit a walkthrough names stays findable after the merge deletes its branch:
 

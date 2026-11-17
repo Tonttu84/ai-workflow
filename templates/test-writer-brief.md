@@ -32,7 +32,7 @@ If an item is too vague to test from its entry point, or its outcome cannot be c
 
 - Tests and their fixtures only: no production code, and no stubs or fakes of the feature itself.
 - Use the project's test data and test accounts, never real ones. No network in unit tests; every wait has a deadline.
-- The commit hook must pass (never `--no-verify`). Do not push: the locked tests keep the branch's tests red until the feature is built.
+- The commit hook must pass (never `--no-verify`). You may push the feature's branch for backup, never `main`: a branch push needs only the commit check, so it is allowed while the locked tests are red (ai-workflow D128).
 
 ## Report
 

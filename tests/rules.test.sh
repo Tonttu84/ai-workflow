@@ -329,4 +329,44 @@ refute "an idea without why not now is noticed" every_idea_complete "$TMP/idea.m
 # --- the agent brief keeps parallel agents' scratch files apart
 check "the agent brief names scratch files by project" grep -qF '`<project>-<task>-' "$ROOT/templates/agent-brief.md"
 
+# --- the local gate guards main, not every push (D128): it runs before a
+# push to main or the merge of a pull request; a push to another branch
+# needs only the hook's commit check, so a feature branch may be pushed
+# while the test writer's locked tests are still red.
+BRIEF="$ROOT/templates/agent-brief.md"
+WRITER="$ROOT/templates/test-writer-brief.md"
+# gate_before_every_push <file...>: a line runs the gate or the tests
+# before every push, other than before every push to main
+gate_before_every_push() {
+  grep -hiE 'before every push($|[^ ]| [^t]| t[^o])' "$@" | grep -qiE 'gate|tests'
+}
+refute "no doc runs the gate or the tests before every push" gate_before_every_push "${DOCS[@]}"
+printf 'Run them, with the tests, lint, types and build, before every push.\n' > "$TMP/every-push.md"
+check "a doc that runs the tests before every push is noticed" gate_before_every_push "$TMP/every-push.md"
+# shellcheck disable=SC2016
+printf 'Put it in the gate before every push to `main`.\n' > "$TMP/push-to-main.md"
+refute "a gate before every push to main is not" gate_before_every_push "$TMP/push-to-main.md"
+refute "the rules no longer run the local gate before every push" grep -qF 'Before every push, run the local gate' "$RULES"
+refute "the AGENTS template no longer has the gate before every push" grep -qF 'The local gate before every push' "$AGENTS_T"
+refute "the skill no longer has a branch push run the rest of the gate" grep -qF 'it runs the rest of the gate' "$VF"
+refute "the agent brief no longer holds a branch push until its gate is green" \
+  grep -qF 'once its gate (tests, lint, types, build) is green' "$BRIEF"
+refute "the test-writer brief no longer forbids a push because its tests are red" \
+  grep -qF 'Do not push: the locked tests' "$WRITER"
+# shellcheck disable=SC2016
+for f in "$RULES" "$SETUP" "$AGENTS_T" "$VF" "$ROOT/README.md"; do
+  check "${f#"$ROOT"/} runs the gate before a push to main or the merge of a pull request" \
+    grep -qF 'before a push to `main` or the merge of a pull request' "$f"
+done
+for f in "$RULES" "$AGENTS_T" "$VF" "$BRIEF" "$WRITER"; do
+  check "${f#"$ROOT"/} lets a feature branch be pushed while its locked tests are red" \
+    grep -qF 'locked tests are red' "$f"
+done
+# A branch push needing no gate never lets an implementer report red work
+# as done.
+check "the agent brief still runs Verify before work is reported done" grep -qF 'before you report it done' "$BRIEF"
+for f in "$SETUP" "$VF"; do
+  check "${f#"$ROOT"/} names D128" grep -qF 'D128' "$f"
+done
+
 finish

@@ -62,7 +62,7 @@ The coordinator is the session talking with the owner. A subagent working from a
   - Types: `feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `build`, `ci`, `chore`, `revert`. The scope is optional and lower case; `!` before the colon marks a breaking change.
   - One logical change per commit. Task ids go in a `Refs:` footer, never in the subject.
 - A PR title follows the same format, since a squash merge makes it the subject on `main`; the CI check covers it.
-- Before every push, run the local gate: tests, lint, types, build and the `pre-push` commit check; before a push to `main`, also the feature checks where `AGENTS.md` lists them (`.ai-workflow/check-features.sh --base origin/main`), and the hook checks the walkthrough. Never use `--no-verify`; fix the message instead.
+- The local gate guards `main`: run it before a push to `main` or the merge of a pull request. It is the tests, lint, types, build, the `pre-push` commit check and, where `AGENTS.md` lists them, the feature checks (`.ai-workflow/check-features.sh --base origin/main`); on a push to `main` the hook also checks the walkthrough. A push to another branch needs only the hook's commit check, so a feature branch may be pushed while its locked tests are red. Never use `--no-verify`; fix the message instead.
 - Parallel agents: one worktree per task; merge one at a time. Before the first commit, check which branch you are on and fetch `main`.
 
 ## Decisions
