@@ -21,14 +21,14 @@
 #   --base  the commit the push goes onto, such as origin/main: the count
 #           file is compared with its version there
 #
-# Run it at the top of the repository, or anywhere in it, for a push to
-# the default branch. The checks are found next to this script (scripts/
-# in the ai-workflow clone, or the project's .ai-workflow/ after
-# hooks/install.sh --gate). Without docs/features/*.md there is nothing to
-# check. With feature files, the config file feature-checks.conf at the
-# top of the repository is required, and a missing or incomplete one
-# fails. Its lines are "<key> = <value>"; blank lines and lines starting
-# with # are ignored:
+# Run it at the top of the repository, or anywhere in it, before a push
+# to main or the merge of a pull request. The checks are found next to
+# this script (scripts/ in the ai-workflow clone, or the project's
+# .ai-workflow/ after hooks/install.sh --gate). Without docs/features/*.md
+# there is nothing to check. With feature files, the config file
+# feature-checks.conf at the top of the repository is required, and a
+# missing or incomplete one fails. Its lines are "<key> = <value>";
+# blank lines and lines starting with # are ignored:
 #
 #   test_command  required: the test command for one test file, with
 #                 {path} where the path goes ('npx vitest run {path}')
