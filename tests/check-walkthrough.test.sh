@@ -81,7 +81,10 @@ check "not every item functional, empty field: passes" status_is 0
 feature export.md 'Walkthrough: maybe later' "$(row F1-1 1 functional)" "$(row F1-2 1 —)"
 check "not every item functional, malformed field: passes" status_is 0
 cp "$ROOT/templates/feature.md" "$proj/docs/features/export.md"
-check "the unfilled template passes" status_is 0
+# Its placeholder row is no item: a row that is not one fails (see
+# the table problems below).
+check "the unfilled template fails" status_is 1
+check "it names the placeholder row" says 'F<n>-1'
 # The template with its item functional: it needs the walkthrough, and
 # the examples in its comment are not taken for the field.
 sed -e 's/^| F<n>-1 | 1 |\(.*\)| — |\([^|]*|\)$/| F1-1 | 1 |\1| functional |\2/' \
@@ -319,6 +322,23 @@ check "all functional with a bad Rev: fails" status_is 1
 check "it names the bad Rev" says '"x"'
 feature export.md 'Walkthrough:' "$(row F1-1 1 functional)" '| F1-2 | 1 | a short row |'
 check "a row too short to have a Level is not functional" status_is 0
+# A row of an item table that is not an item fails: read as an open
+# item, it would let a finished feature through unwalked.
+for junk in '| | | | | | | |' '| F1-2 (dropped) | 1 | y | a | b | — | — |' '| ... | | | | | | |' \
+  '| F1-2 | one | y | a | b | — | — |' '| F1-02 | 1 | y | a | b | — | — |'; do
+  feature export.md 'Walkthrough:' "$(row F1-1 1 functional)" "$junk"
+  check "all functional but a row that is not an item, '$junk': fails" status_is 1
+  check "it says the row is not an item ('$junk')" says 'is not an item'
+done
+# A dot-named feature file is checked like any other, in the working
+# tree as in a commit.
+reset_features
+feature .draft.md 'Walkthrough:' "$(row F1-1 1 functional)"
+check "a dot-named feature file in the working tree is checked" status_is 1
+check "it names the file" says '.draft.md'
+commit_all "feat: a dot-named feature"
+check "and at a commit" status_is 1 HEAD
+reset_features
 # Read without the escape, the Level column of F1-2 would be "d".
 feature export.md 'Walkthrough:' "$(row F1-1 1 functional)" "| F1-2 | 1 | a \\| b | c | d | functional | e |"
 check "an escaped pipe in a cell does not shift the Level column" status_is 1

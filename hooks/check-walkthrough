@@ -21,16 +21,18 @@
 # A Level must be exists, substantive, wired or functional (backticks,
 # asterisks and case aside), or empty or a dash while the item is not
 # traced: any other value fails, since reading it as "not finished"
-# would let a finished feature through. Tables are read as GitHub
-# Markdown reads them (the outer pipes are optional), and a line that
-# looks like an item row outside an item table fails.
+# would let a finished feature through. For the same reason a row of an
+# item table without an item ID (F<n>-<n>) and a Rev from 1 fails: an
+# empty row, a dropped item, the template's placeholder row. Tables are
+# read as GitHub Markdown reads them (the outer pipes are optional), and
+# a line that looks like an item row outside an item table fails.
 #
 # Usage: check-walkthrough [<commit>]
 #
 # Checks docs/features/ at the top of the repository it runs in: as
 # committed in <commit> (the pre-push hook passes the tip of each ref it
-# pushes), or else as in the working tree. Without docs/features/ there
-# is nothing to check.
+# pushes to the default branch), or else as in the working tree. Without
+# docs/features/ there is nothing to check.
 #
 # Exit status: 0 every finished feature has a walkthrough, 1 a check
 # failed (each is named on stderr with its file), 2 bad usage or input
@@ -71,7 +73,9 @@ if [ -n "$rev" ]; then
     case $path in *.md) files+=("$path") ;; esac
   done < <(git ls-tree -z "$rev" -- docs/features/)
 elif [ -d docs/features ]; then
-  for path in docs/features/*.md; do
+  # Dot-named files too, as git ls-tree above and the other checks list
+  # them.
+  for path in docs/features/*.md docs/features/.*.md; do
     if [ -f "$path" ]; then files+=("$path"); fi
   done
 fi
@@ -193,7 +197,9 @@ END { if (pending) loose(headnr, header) }
 # The parser's records summed up for one feature file:
 #   I<TAB>id<TAB>rev<TAB>level<TAB>line   per item row (level lower case,
 #                                         without backticks or asterisks)
-#   B<TAB>message                         per row that cannot be read, and
+#   B<TAB>message                         per row that cannot be read, per
+#                                         row of an item table that is not
+#                                         an item (a bad ID or Rev), and
 #                                         per Level that is not a level
 #   S<TAB>items<TAB>not functional<TAB>Walkthrough: lines<TAB>line of an
 #     item table without a Level column (0 if none)
@@ -209,6 +215,8 @@ summarize='
   $1 == "W" && ++walks == 1 { walk = $3 }
   $1 == "I" {
     lv = norm($5)
+    if ($3 !~ /^F[1-9][0-9]*-[1-9][0-9]*$/ || $4 !~ /^[1-9][0-9]*$/)
+      printf "B\tline %d: the row with ID \"%s\" and Rev \"%s\" is not an item: an item table row needs an ID F<feature>-<item> and a Rev from 1 (delete an empty or dropped row)\n", $2, $3, $4
     if (lv != "" && lv !~ /^(exists|substantive|wired|functional|-|—|–)$/)
       printf "B\tline %d: %s has Level \047%s\047, which is none of exists, substantive, wired and functional (leave it empty or write — while the item is not traced)\n", $2, $3, $5
     printf "I\t%s\t%s\t%s\t%d\n", $3, $4, lv, $2
