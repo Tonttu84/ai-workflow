@@ -437,5 +437,14 @@ for f in "$VF" "$SETUP"; do
   refute "${f#"$ROOT"/} no longer runs .git/hooks/check-walkthrough" grep -qF '.git/hooks/check-walkthrough' "$f"
 done
 check "the setup file says the CI job needs the hooks committed" grep -qF 'needs the hooks committed' "$SETUP"
+# A decision row names the rows it changes and the question its owner's
+# words answered (findings 1 and 5).
+# in_row <ID> <text>: that row of docs/decisions.md holds the text
+in_row() { grep -E "^\| $1 \|" "$ROOT/docs/decisions.md" | grep -qF -- "$2"; }
+check "D129 names the rows it refines, D77 and D114" \
+  in_row D129 'Refines D77 (the walkthrough enforced by the pre-push hook) and D114'
+check "D114 quotes the question its owner's answer settled" \
+  in_row D114 'answering "Apply the feature checks and the walkthrough check only to pushes to main?"'
+refute "in_row reads only the row named" in_row D128 'Refines D77'
 
 finish
