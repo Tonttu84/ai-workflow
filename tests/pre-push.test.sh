@@ -140,6 +140,7 @@ wfeature() {
 
 wcommit "chore: add the hooks"
 check "no docs/features: the push passes" wpush origin main
+git -C "$wrepo" remote set-head origin main # what git clone records
 refute "and says nothing of walkthroughs" said walkthrough
 wfeature 1 'Walkthrough:'
 wcommit "feat: add the export"
@@ -159,7 +160,7 @@ wfeature 2 "Walkthrough: done 2026-11-16 at $watched"
 wcommit "feat: change the export"
 refute "a Rev bump after the commit watched: refused" wpush origin main
 check "it says the walkthrough is stale" said stale
-check "another branch is checked as it is, not as the working tree is" wpush origin side
+check "a push of another branch is not checked by the working tree" wpush origin side
 git -C "$wrepo" checkout -q --detach main~3
 check "the old checkout has no docs/features" test ! -e "$wrepo/docs/features"
 refute "pushed from a checkout without docs/features: main is still checked" wpush origin main
@@ -171,7 +172,7 @@ refute "a bad message and a stale walkthrough: refused" wpush origin main
 check "the message is named" said 'breaks the commit rules'
 check "and so is the walkthrough" said stale
 git -C "$wrepo" reset -q --hard HEAD~1
-refute "one commit pushed under two names: refused" wpush origin HEAD:refs/heads/a HEAD:refs/heads/b
+refute "one commit pushed under two names: refused" wpush origin HEAD:refs/heads/main HEAD:refs/tags/t1
 check "and the walkthrough is reported once" test "$(grep -c '^check-walkthrough:' "$TMP/push.out")" -eq 1
 printf '#!/bin/sh\ntouch "%s"\n' "$TMP/local.ran" > "$wrepo/.githooks/pre-push.local"
 chmod +x "$wrepo/.githooks/pre-push.local"
@@ -184,6 +185,32 @@ wfeature 2 "Walkthrough: done 2026-11-17 at $rewatched"
 wcommit "docs: record the export walkthrough again"
 check "walked again at the new revision: the push passes" wpush origin main
 check "the remote has it" test "$(remote_main)" = "$(git -C "$wrepo" rev-parse HEAD)"
+
+# Only a push to the default branch gets the walkthrough check; a
+# feature branch can be pushed at any time (owner, 2026-11-17).
+git -C "$wrepo" checkout -q -b feature
+wfeature 3 'Walkthrough:'
+wcommit "feat: change the export again"
+check "a finished feature without a walkthrough on a feature branch: the push passes" wpush origin feature
+refute "and nothing is said of walkthroughs" said walkthrough
+refute "the same commit pushed to the default branch: refused" wpush origin feature:main
+check "it names the feature file" said docs/features/export.md
+refute "the remote's main did not move" test "$(remote_main)" = "$(git -C "$wrepo" rev-parse HEAD)"
+git -C "$wrepo" remote set-head origin --delete
+refute "with the default branch not recorded, a feature branch is checked too" wpush origin feature:refs/heads/feature2
+check "it says how to record the default branch" said 'git remote set-head origin --auto'
+git -C "$wrepo" checkout -q main
+wfeature 3 'Walkthrough:'
+check "and a branch is checked as committed, not as the working tree is" wpush origin side:refs/heads/side2
+git -C "$wrepo" checkout -q -- docs/features/export.md
+git -C "$wrepo" remote set-head origin main
+check "a feature branch pushed under a new name, with the default recorded, passes" wpush origin feature:refs/heads/trunk
+git -C "$wrepo" remote set-head origin trunk
+git -C "$wrepo" checkout -q feature
+wcommit "chore: more on the feature"
+refute "the recorded default branch is checked whatever its name" wpush origin feature:trunk
+check "and main is then a branch like any other" wpush origin feature:main
+git -C "$wrepo" checkout -q main
 
 # pre-push needs check-walkthrough next to it, as it needs check-commits,
 # even in a project without feature files.

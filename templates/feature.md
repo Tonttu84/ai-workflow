@@ -47,7 +47,8 @@ Walkthrough:
          no walkthrough: the date, the SHA of the commit whose items the
          owner decided not to watch, and the reason, which is required
      The pre-push hook (hooks/check-walkthrough, installed with
-     hooks/install.sh) checks the tip of each ref pushed. While every item is
+     hooks/install.sh) checks the tip of each push to the default branch
+     (a feature branch can be pushed at any time). While every item is
      `functional`, it refuses the push when that line is missing, empty,
      in neither form (the old 'skipped: <reason>' without a date and
      commit included), names a commit the repository does not have, or

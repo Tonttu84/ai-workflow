@@ -2,10 +2,10 @@
 # pre-push hook: checks the message of every commit about to be pushed,
 # with check-commits and the commit-msg hook next to it, as the CI commit
 # check (templates/commit-check.yml) does, so a failure shows up here,
-# for free, instead of in CI. In a project with feature files, it also
-# runs check-walkthrough on the tip of each ref pushed (once per commit,
-# when two refs share a tip): a feature whose items are all functional
-# needs an owner walkthrough recorded, and not stale.
+# for free, instead of in CI. In a project with feature files, a push to
+# the default branch also runs check-walkthrough on the tip it pushes
+# (once per commit, when two refs share a tip): a feature whose items are
+# all functional needs an owner walkthrough recorded, and not stale.
 #
 # git passes <remote> <url>, and one line per ref on stdin:
 # <local ref> <local sha> <remote ref> <remote sha>. Deletions are
@@ -14,6 +14,13 @@
 # with a warning. The walkthrough check reads docs/features/ as committed
 # in that tip, not the working tree, and is skipped when the tip has no
 # docs/features/. A pre-push.local next to this hook runs first.
+#
+# The default branch is the one refs/remotes/<remote>/HEAD names (git
+# clone records it; git remote set-head <remote> --auto records it
+# later). A push to any other branch skips the walkthrough check: a
+# feature branch can be pushed at any time. When the default branch is
+# not recorded, every ref pushed is checked, and so is every ref that is
+# not a branch (a tag, say).
 #
 # Source: https://github.com/Tonttu84/ai-workflow (MIT). Install with
 # hooks/install.sh from that repo. Needs bash 3.2 or later and git.
@@ -35,10 +42,17 @@ if [ -x "$here/pre-push.local" ]; then
   "$here/pre-push.local" "$@" < "$input" || exit
 fi
 
+# The default branch, as refs/heads/<name>, or empty when not recorded.
+default=$(git symbolic-ref -q "refs/remotes/$remote/HEAD" 2> /dev/null) || default=
+case $default in
+  "refs/remotes/$remote/"?*) default=refs/heads/${default#"refs/remotes/$remote/"} ;;
+  *) default= ;;
+esac
+
 status=0
 walk=0
 walked=
-while read -r _local_ref local_sha _remote_ref remote_sha; do
+while read -r _local_ref local_sha remote_ref remote_sha; do
   [ -n "${local_sha//0/}" ] || continue # a deletion
   if [ -n "${remote_sha//0/}" ] && git cat-file -e "$remote_sha^{commit}" 2> /dev/null; then
     check_commits "$remote_sha..$local_sha" || status=1
@@ -50,6 +64,10 @@ while read -r _local_ref local_sha _remote_ref remote_sha; do
     echo "pre-push: nothing is known about $remote yet; checking only the tip, $local_sha" >&2
     check_commits -1 "$local_sha" || status=1
   fi
+  # Only a branch known not to be the default one skips the walkthrough.
+  case $remote_ref in
+    refs/heads/*) [ -z "$default" ] || [ "$remote_ref" = "$default" ] || continue ;;
+  esac
   case " $walked " in *" $local_sha "*) continue ;; esac # pushed under two names
   walked="$walked $local_sha"
   if git cat-file -e "$local_sha^{commit}:docs/features" 2> /dev/null; then
@@ -62,6 +80,9 @@ if [ "$status" -ne 0 ]; then
 fi
 if [ "$walk" -ne 0 ]; then
   echo "pre-push: record the walkthrough in the feature file, commit it and push again; never --no-verify." >&2
+  if [ -z "$default" ]; then
+    echo "pre-push: the default branch of $remote is not recorded here (no refs/remotes/$remote/HEAD), so every branch pushed was checked; to check only the default branch, run: git remote set-head $remote --auto" >&2
+  fi
   status=1
 fi
 exit "$status"
