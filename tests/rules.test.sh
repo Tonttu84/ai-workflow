@@ -228,6 +228,104 @@ check "the review brief caps the reruns after a miss" grep -qF 'at most one reru
 refute "the skills readme no longer calls subagent skills unverified" \
   grep -qF 'was not verified' "$ROOT/skills/README.md"
 
+# --- fixes from the second docs review of 2026-11-17
+COORD="$ROOT/skills/coordinating/SKILL.md"
+AGENTS_T="$ROOT/templates/AGENTS.md"
+HARDEN="$ROOT/templates/hardening-brief.md"
+DOCS=("$RULES" "$SETUP" "$ROOT/README.md" "$ROOT"/templates/*.md "$ROOT"/skills/*/SKILL.md "$ROOT/hooks/install.sh")
+# The feature checks and the walkthrough check act only on pushes to main;
+# a feature branch may be pushed for backup and review fixes (D114).
+# shellcheck disable=SC2016
+check "the rules run the feature checks before a push to main" grep -qF 'before a push to `main`' "$RULES"
+for f in "$RULES" "$VF"; do
+  refute "${f#"$ROOT"/} no longer says 'for backup at any time'" grep -qF 'for backup at any time' "$f"
+done
+refute "the skill's push gate is not 'on every push'" grep -qF '## The push gate, on every push' "$VF"
+check "the setup file says how to record the default branch" grep -qF 'git remote set-head origin --auto' "$SETUP"
+# A feature branch starts at the feature file; a change to an item is
+# feature work; hardening holds the merge (findings 3, 4, 5).
+check "the skill's branch starts at the feature file" grep -qF 'from the feature file to the walkthrough' "$VF"
+for f in "$VF" "$AGENTS_T"; do
+  check "${f#"$ROOT"/} calls a change to an item feature work" grep -qF 'adds or revises a feature item is feature work' "$f"
+done
+for f in "$VF" "$COORD" "$HARDEN"; do
+  check "${f#"$ROOT"/} says a pending skip holds the merge" grep -qF 'holds the merge' "$f"
+done
+refute "the hardening brief no longer runs after the feature has landed" grep -qF 'has landed' "$HARDEN"
+refute "coordinating no longer hardens after a feature lands" grep -qF 'After each feature lands' "$COORD"
+# OpenFastTrace is learned in one showcase project the owner chooses, and
+# every project keeps the planted-bug record (finding 6, D117).
+for f in "$SETUP" "$AGENTS_T" "$VF" "$COORD" "$ROOT/README.md"; do
+  check "${f#"$ROOT"/} learns OpenFastTrace in one showcase project" grep -qF 'one showcase project' "$f"
+done
+refute "the skill no longer has every showcase project trace with OFT" \
+  grep -qF 'A showcase project also traces with OpenFastTrace' "$VF"
+for f in "$AGENTS_T" "$COORD"; do
+  check "${f#"$ROOT"/} says every project keeps the planted-bug record" grep -qF 'every project keeps' "$f"
+done
+# --base is the branch the work merges into (finding 8).
+no_pushed_to_base() { ! grep -nE 'the branch (pushed to|the push goes to)' "$@"; }
+check "no doc gives --base as the branch pushed to" no_pushed_to_base "${DOCS[@]}"
+for f in "$VF" "$AGENTS_T" "$ROOT/hooks/install.sh"; do
+  check "${f#"$ROOT"/} says --base origin/main" grep -qF -- '--base origin/main' "$f"
+done
+# The reviewer writes its verdict to a file; the coordinator posts it
+# (finding 9).
+check "the rules have the reviewer write its verdict to a file" grep -qF 'writes its verdict to a file' "$RULES"
+check "the review brief has the reviewer post nothing" grep -qF 'post nothing' "$ROOT/templates/review-brief.md"
+refute "the review brief no longer has the reviewer post on the PR" \
+  grep -qF 'Post it where the author will see it' "$ROOT/templates/review-brief.md"
+# Casual research is the coordinator's own (finding 10, D64).
+refute "coordinating no longer delegates a lookup without a brief" \
+  grep -qF 'give a general-purpose agent the question' "$COORD"
+# Setup creates the count file, turns on JUnit reports and fetches full
+# history (finding 11).
+for text in 'check-test-count.sh --help' 'JUnit' 'fetch-depth: 0' 'gh repo create'; do
+  check "the setup file mentions $text" grep -qF -- "$text" "$SETUP"
+done
+# No claim that CI runs the gate scripts while no template does (finding 12).
+for f in "$ROOT/README.md" "$ROOT/hooks/install.sh"; do
+  refute "${f#"$ROOT"/} no longer says CI runs check-features.sh" grep -qiE 'gate, (its )?CI and every' "$f"
+done
+# The research reports name the rows they fed (finding 13).
+for f in "$ROOT"/docs/research/*.md; do
+  check "${f#"$ROOT"/} names the decision it fed" grep -qE '^Feeds: .*D[0-9]+' "$f"
+  refute "${f#"$ROOT"/} is no longer 'to be decided'" grep -qF '(to be decided)' "$f"
+done
+# A project's AGENTS.md names its own copy of the trace check (finding 14).
+refute "the AGENTS template does not name the clone's check-trace-links.sh" \
+  grep -qF '`scripts/check-trace-links.sh`' "$AGENTS_T"
+check "the AGENTS template names .ai-workflow/check-trace-links.sh" \
+  grep -qF '.ai-workflow/check-trace-links.sh' "$AGENTS_T"
+# The script changes reach the docs: citations at a revision, the exact
+# lock line, the test file first in the Test cell.
+for f in "$VF" "$ROOT/templates/trace-brief.md"; do
+  check "${f#"$ROOT"/} runs check-citations.sh --rev" grep -qF 'check-citations.sh --rev' "$f"
+done
+check "the test-writer brief writes the lock line at the start of a line" \
+  grep -qF 'at the start of a line' "$ROOT/templates/test-writer-brief.md"
+check "the test-writer brief puts the test file first in the Test cell" \
+  grep -qF 'the file first' "$ROOT/templates/test-writer-brief.md"
+# Ideas left for later have a file, and it is named where an agent parks
+# one and in the layout.
+IDEAS="$ROOT/docs/ideas.md"
+check "docs/ideas.md exists" test -f "$IDEAS"
+for f in "$COORD" "$ROOT/README.md"; do
+  check "${f#"$ROOT"/} names docs/ideas.md" grep -qF 'docs/ideas.md' "$f"
+done
+# every_idea_complete <file>: each "## " entry has the five fields
+every_idea_complete() {
+  awk '
+    /^## / { if (n) check(); n++; seen = "" ; next }
+    /^- (Date|Source|What|Why not now|Revisit when): / { f = $0; sub(/^- /, "", f); sub(/: .*/, "", f); seen = seen "|" f }
+    function check() { if (seen !~ /Date/ || seen !~ /Source/ || seen !~ /What/ || seen !~ /Why not now/ || seen !~ /Revisit when/) bad = 1 }
+    END { if (n) check(); exit (bad || n < 8) }
+  ' "$1"
+}
+check "every idea has a date, a source, what, why not now and when to revisit" every_idea_complete "$IDEAS"
+printf '## One\n- Date: 2026-11-17\n- Source: x\n- What: y\n' > "$TMP/idea.md"
+refute "an idea without why not now is noticed" every_idea_complete "$TMP/idea.md"
+
 # --- the agent brief keeps parallel agents' scratch files apart
 check "the agent brief names scratch files by project" grep -qF '`<project>-<task>-' "$ROOT/templates/agent-brief.md"
 
