@@ -390,5 +390,7 @@ check "the skill runs the walkthrough check by hand before a showcase merge" \
 # shellcheck disable=SC2016
 check "the skill merges only the commit it checked" grep -qF -- '--match-head-commit "$(git rev-parse HEAD)"' "$VF"
 check "the skill says a merge on GitHub runs no local hook" grep -qF 'runs no local hook' "$VF"
+check "docs/decisions.md records D129, after D128" \
+  grep -qE '^\| D129 \|.*required check' "$ROOT/docs/decisions.md"
 
 finish
