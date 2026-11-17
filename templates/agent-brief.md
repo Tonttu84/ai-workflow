@@ -43,7 +43,7 @@
 
 - Branch or worktree: <name>, based on a freshly fetched `main`; with locked tests, on the feature's branch at <the test writer's SHA>, where they are.
 - Commits: Conventional Commits, one logical change each; the commit hook must pass (never `--no-verify`). Task id in a `Refs:` footer.
-- Push / PR: <solo: push to main when the local gate is green | solo, feature work in a project with feature files: commit on the feature's branch and push only that branch, for backup and review fixes, at any time: a branch push needs only the commit check, even while the locked tests are red, but Verify must pass before you report it done; the coordinator runs the gate and merges it after the walkthrough | showcase: open a PR, do not merge>.
+- Push / PR: <solo: push to main when the local gate is green | solo, feature work in a project with feature files: commit on the feature's branch and push only that branch. Push it at any time, for backup and review fixes. A branch push needs only the commit check, so it may go up while the locked tests are red. Verify must still pass before you report it done. The coordinator runs the gate and merges the branch after the walkthrough | showcase: open a PR, do not merge>.
 - Ask instead of guessing on: <anything that is the owner's decision>.
 - Two strikes: if you fail twice to fix the same problem (a failing test, a review finding, a gate error), stop. Commit the attempt on your branch and report what you tried and why each attempt failed. Do not try a third time.
 - Scratch files (reports, CSVs, logs) outside the worktree get a name that starts with the project and task, such as `<project>-<task>-lizard.csv`: parallel agents share scratch folders and overwrite each other's `lizard.csv`.

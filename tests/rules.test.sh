@@ -402,5 +402,29 @@ check "the rules hold a feature until the hardening and the owner's walkthrough"
   grep -qF "the hardening and the owner's walkthrough" "$RULES"
 refute "the agent brief no longer checks the locked tests on every push" grep -qF 'on every push' "$BRIEF"
 check "the skill runs the walkthrough check by hand until the CI job exists" grep -qF 'Until that job exists' "$VF"
+# Plain short sentences (finding 11): the merge step splits the solo merge
+# from the showcase merge, and the brief's push options and the setup
+# file's showcase CI item are broken up.
+# block <file> <text>: the list item holding the text, with its indented
+# sub-items
+block() { awk -v t="$2" 'index($0, t) { on = 1; print; next } on && /^ +[^ ]/ { print; next } on { exit }' "$1"; }
+# longest_sentence: the most words in one sentence of the input; a
+# sentence ends at ". " or at a template's " | "
+longest_sentence() {
+  awk '{ gsub(/\. | \| /, "\n"); n = split($0, s, "\n"); for (i = 1; i <= n; i++) { w = split(s[i], x, " "); if (w > m) m = w } } END { print m + 0 }'
+}
+short_sentences() { [ "$(block "$1" "$2" | longest_sentence)" -le 30 ]; }
+merge_step_has() { block "$VF" '12. Merge' | grep -qE "^ +- $1: "; }
+check "the skill's merge step has a solo item" merge_step_has Solo
+check "the skill's merge step has a showcase item" merge_step_has Showcase
+check "the skill's merge step keeps to short sentences" short_sentences "$VF" '12. Merge'
+check "the agent brief's push options keep to short sentences" short_sentences "$BRIEF" '- Push / PR:'
+SHOWCASE_CI='A showcase project with feature files adds a CI job'
+check "the setup file's showcase CI item keeps to short sentences" short_sentences "$SETUP" "$SHOWCASE_CI"
+check "the setup file's showcase CI item is a list" test "$(block "$SETUP" "$SHOWCASE_CI" | wc -l)" -ge 4
+printf -- '- A sentence that goes on%s.\n  - A short one.\n' "$(printf ' and on%.0s' $(seq 1 15))" > "$TMP/long-sentence.md"
+refute "a long sentence is noticed" short_sentences "$TMP/long-sentence.md" 'A sentence'
+printf -- '- A short one.\n  - A sentence that goes on%s.\n- Another item.\n' "$(printf ' and on%.0s' $(seq 1 15))" > "$TMP/long-sub-item.md"
+refute "a long sentence in a sub-item is noticed" short_sentences "$TMP/long-sub-item.md" 'A short one'
 
 finish
