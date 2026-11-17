@@ -284,6 +284,19 @@ for look in '**Locked tests:** e2e2 at %s' '- Locked tests: e2e2 at %s' 'Locked 
   reset_repo
 done
 
+# --- a feature file made from the template, comments kept, passes once
+# it is filled in: none of the template's own lines reads as a lock line
+sed -e 's/^| F<n>-1 | 1 | .*/| F1-1 | 1 | greet | greet.sh | prints hello | — | e2e\/one.test.sh, F1-1-r1 |/' \
+  -e "s/^Locked tests: <paths> at .*/Locked tests: e2e at $locked/" \
+  "$ROOT/templates/feature.md" > "$repo/docs/features/greet.md"
+check "the filled template differs from the template" \
+  test -n "$(diff "$ROOT/templates/feature.md" "$repo/docs/features/greet.md")"
+check "the filled template keeps its comments" grep -q '^<!--' "$repo/docs/features/greet.md"
+commit_all "docs: a feature file made from the template"
+check "a feature file made from the template and filled in passes" status_is 0 --base "$head"
+refute "no line of the template's comments looks like a lock line" says 'looks like a Locked tests: line'
+reset_repo
+
 # --- each item's Test cell names a committed file under a locked path,
 # and that file carries the item's tag
 greet_test "$repo/e2e/two.test.sh" F1-2-r1 hello
@@ -389,6 +402,36 @@ for listed in src/greet.sh .test-count ../outside.xml reports/../../outside.xml 
   check "not even outside the repository ('$listed')" test -f "$TMP/outside.xml"
   reset_repo
 done
+# Only the real path of a report's directory shows some ways out: on
+# Windows a backslash separates directories, so "reports\..\..\x" has no
+# "/../" in it; elsewhere a symbolic link can lead out.
+# outside_refused <listed report>: refused with 2, and the file outside
+# the repository is kept
+outside_refused() {
+  printf 'kept\n' > "$TMP/outside.xml"
+  mkdir -p "$repo/reports"
+  printf '1 %s\n' "$1" > "$repo/.test-count"
+  commit_all "test: list $1 as a report"
+  features --base "$head"
+  local status=$?
+  [ -f "$TMP/outside.xml" ] && [ "$status" -eq 2 ] && says 'outside the repository'
+}
+if [ "$(dirname 'a\b')" = a ]; then
+  check "a report path out of the repository through backslashes is refused, and nothing is deleted" \
+    outside_refused 'reports\..\..\outside.xml'
+  reset_repo
+fi
+# Git Bash's ln -s copies unless real links are on, so probe outside the
+# repository first.
+if ln -s "$TMP/outside.xml" "$TMP/probe-link" 2> /dev/null && [ -L "$TMP/probe-link" ]; then
+  ln -s "$TMP" "$repo/out"
+  check "a report path out of the repository through a symbolic link is refused, and nothing is deleted" \
+    outside_refused out/outside.xml
+  rm -f "$repo/out"
+  reset_repo
+fi
+rm -rf "$TMP/probe-link"
+
 printf '1 src/greet.sh\n' > "$repo/.test-count"
 commit_all "test: list a tracked file as a report"
 features --base "$head"

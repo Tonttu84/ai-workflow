@@ -217,7 +217,7 @@ install_gate() {
     exit 1
   fi
   echo "Copied the gate scripts to $dest and staged them (the scripts as 100755). Commit .ai-workflow/."
-  echo "The gate runs, before every push to main: .ai-workflow/check-features.sh --base origin/main, with feature-checks.conf."
+  echo "The gate runs, before a push to main or the merge of a pull request: .ai-workflow/check-features.sh --base origin/main, with feature-checks.conf."
 }
 
 if [ "$mode" = hookspath ]; then

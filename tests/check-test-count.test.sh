@@ -124,6 +124,46 @@ check "a testsuite root, comments, a > in an attribute and CDATA are read right"
 check "exactly three tests are counted" row_is reports/unit.xml 3 3 0 0
 reset_repo
 
+# Comments, CDATA sections and processing instructions are read in
+# document order, the way an XML parser reads them: a section ends at the
+# first end marker after its own opener, and nothing inside a section
+# opens another. Each report below holds testcases A (pass), B (fail) and
+# C (pass), with a section between A and B whose text could be misread
+# as the start of another section.
+# cases_are <report> <expected C records, one per line>
+cases_are() {
+  [ "$(LC_ALL=C timeout 60 awk -f "$ROOT/scripts/junit-cases.awk" "$1" | grep '^C')" = "$2" ]
+}
+ABC=$(printf 'C\tpass\tA\nC\tfail\tB\nC\tpass\tC')
+# overlap <file> <section between A and B> <section between B and C>
+overlap() {
+  printf '<testsuites>\n<testsuite name="all">\n<testcase name="A"/>\n%s\n' "$2" > "$1"
+  printf '<testcase name="B"><failure message="x"/></testcase>\n%s\n' "$3" >> "$1"
+  printf '<testcase name="C"><system-out><![CDATA[out]]></system-out></testcase>\n</testsuite>\n</testsuites>\n' >> "$1"
+}
+overlap "$repo/reports/overlap.xml" '<!-- note <!-->' '<!-- end -->'
+check "a comment whose text ends in '<!' ends at its own '-->'" cases_are "$repo/reports/overlap.xml" "$ABC"
+printf '2 reports/overlap.xml\n' > "$repo/.test-count"
+check "so its failing testcase fails the count check (the review's overlap.xml)" status_is 1 .test-count
+check "and all three tests are counted" says '3 tests ran'
+overlap "$repo/reports/overlap.xml" '<?a <?>' '<?end ?>'
+check "a processing instruction whose text ends in '<' ends at its own '?>'" cases_are "$repo/reports/overlap.xml" "$ABC"
+overlap "$repo/reports/overlap.xml" '<!-- see <![CDATA[ -->' '<!-- ]]> -->'
+check "a comment holding '<![CDATA[' opens no CDATA section" cases_are "$repo/reports/overlap.xml" "$ABC"
+overlap "$repo/reports/overlap.xml" '<!-- a <?b -->' '<!-- end -->'
+check "a comment holding '<?' opens no processing instruction" cases_are "$repo/reports/overlap.xml" "$ABC"
+overlap "$repo/reports/overlap.xml" '<system-out><![CDATA[<!-- ]]></system-out>' '<!-- end -->'
+check "a CDATA section holding '<!--' opens no comment" cases_are "$repo/reports/overlap.xml" "$ABC"
+overlap "$repo/reports/overlap.xml" '<!-->' '-->'
+check "'<!-->' does not close itself" cases_are "$repo/reports/overlap.xml" "$(printf 'C\tpass\tA\nC\tpass\tC')"
+overlap "$repo/reports/overlap.xml" '<!-- a <--> b' '<!-- end -->'
+check "a comment's end right after a '<' in its text ends it" cases_are "$repo/reports/overlap.xml" "$ABC"
+printf '<testsuites><testsuite><testcase name="a"/><!-- cut off <testcase name="b"/></testsuite></testsuites>\n' \
+  > "$repo/reports/overlap.xml"
+check "a comment that is never closed is reported" \
+  test "$(LC_ALL=C timeout 60 awk -f "$ROOT/scripts/junit-cases.awk" "$repo/reports/overlap.xml" | cut -f 1)" = E
+reset_repo
+
 # A runner writes a CDATA system-out in each testcase that prints: the
 # parser's time must grow linearly with the sections, not with their
 # square (5000 of them took 47 s with gawk 5.0, 52 s with mawk and 3.7 s

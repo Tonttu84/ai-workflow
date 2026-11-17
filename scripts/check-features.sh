@@ -3,8 +3,10 @@
 # file, so that no feature has to be wired into the gate by hand:
 #
 #   0. the working tree must be HEAD, the commit that gets pushed: no file
-#      changed from it, none untracked (unless a committed .gitignore file
-#      ignores it), none flagged skip-worktree or assume-unchanged;
+#      changed from it, none untracked (unless a .gitignore file in the
+#      working tree ignores it, committed or not: step 1 fails an
+#      untracked one only in or above a locked path), none flagged
+#      skip-worktree or assume-unchanged;
 #   1. for each "Locked tests: <paths> at <SHA>" line of each feature file
 #      (docs/features/*.md): check-locked-tests.sh <SHA> <paths> and
 #      check-red-green.sh <SHA> <paths>, with the config's setup, test
@@ -19,14 +21,14 @@
 #   --base  the commit the push goes onto, such as origin/main: the count
 #           file is compared with its version there
 #
-# Run it at the top of the repository, or anywhere in it, for a push to
-# the default branch. The checks are found next to this script (scripts/
-# in the ai-workflow clone, or the project's .ai-workflow/ after
-# hooks/install.sh --gate). Without docs/features/*.md there is nothing to
-# check. With feature files, the config file feature-checks.conf at the
-# top of the repository is required, and a missing or incomplete one
-# fails. Its lines are "<key> = <value>"; blank lines and lines starting
-# with # are ignored:
+# Run it at the top of the repository, or anywhere in it, before a push
+# to main or the merge of a pull request. The checks are found next to
+# this script (scripts/ in the ai-workflow clone, or the project's
+# .ai-workflow/ after hooks/install.sh --gate). Without docs/features/*.md
+# there is nothing to check. With feature files, the config file
+# feature-checks.conf at the top of the repository is required, and a
+# missing or incomplete one fails. Its lines are "<key> = <value>";
+# blank lines and lines starting with # are ignored:
 #
 #   test_command  required: the test command for one test file, with
 #                 {path} where the path goes ('npx vitest run {path}')
@@ -169,8 +171,13 @@ problem() {
 # --- 0. the working tree is HEAD
 # The test run, the count and the trace links read the working tree, so
 # it must be the commit that gets pushed. Counted as in check-red-green.sh:
-# files changed from HEAD, untracked files (only the committed .gitignore
-# files may hide one) and files flagged skip-worktree or assume-unchanged.
+# files changed from HEAD, untracked files and files flagged skip-worktree
+# or assume-unchanged. Any .gitignore file in the working tree may hide an
+# untracked file, an untracked .gitignore included: check-red-green.sh and
+# check-locked-tests.sh fail one in or above a locked path (D120), but
+# outside the locked paths one that ignores itself hides the files next
+# to it, here too. .git/info/exclude and a global excludes file hide
+# nothing.
 head_is_tree() {
   local changed untracked flagged
   changed=$(set -o pipefail; git diff -z --name-only HEAD | tr -cd '\0' | wc -c | tr -d ' ') ||
