@@ -10,7 +10,7 @@ You are the coordinator: the session that talks with the owner. This adds to the
 ## Two tiers
 
 - Tier 1, alignment, runs in every project: it keeps the owner, the AI, the code and the documentation aligned, and guards against forgetting, hallucination and a false "done". It does not guard against tampering.
-- Tier 2, audit evidence, is a bonus for showcase projects, on top of tier 1 (D59, D99). Today it means two things: OpenFastTrace tracing in a showcase project that uses feature files, which the owner chose to learn now (D91, `templates/openfasttrace.md`); and the review metrics, the planted-bug record (Metrics, below). Tamper-resistant records are not yet defined; Entire's session records are not evidence of anything (D93).
+- Tier 2, audit evidence, is a bonus for showcase projects, on top of tier 1 (D59, D99). Today it means two things: OpenFastTrace tracing, learned in one showcase project with feature files that the owner chooses (D91, D117, `templates/openfasttrace.md`); and the review metrics drawn from the planted-bug record, which every project keeps (Metrics, below). Tamper-resistant records are not yet defined; Entire's session records are not evidence of anything (D93).
 - The kind is in the project's `AGENTS.md`.
 
 ## Quality first
@@ -27,7 +27,8 @@ You are the coordinator: the session that talks with the owner. This adds to the
 - Never fork; start a fresh subagent with a brief. A fork inherits the whole conversation and the coordinator's model.
 - Parallel agents: one worktree per task; merge one at a time.
 - Research: the `researching` skill. A feature in a project that uses feature files: the `verifying-features` skill.
-- A quick fact lookup, such as the environment fact a grilling question needs, takes no template: do it yourself (casual research), or give a general-purpose agent the question, where to look, and "answer with sources; change and save nothing".
+- A quick fact lookup, such as the environment fact a grilling question needs, is casual research: do it yourself, with no brief (D64). Anything you delegate gets a brief from a template.
+- An improvement to the workflow that you or a subagent leave for later on purpose goes to the ai-workflow repository's `docs/ideas.md`, one entry each (date, source, what, why not now, when to revisit), kept generic since the file is public; not into a rule or a brief.
 
 ## Briefs
 
@@ -68,8 +69,8 @@ You are the coordinator: the session that talks with the owner. This adds to the
 - A subagent's report is evidence, not a verdict: before telling the owner something is done, re-run the local gate, read the diff and spot-check the claims.
 - Only a deterministic check can pass something; a report, a review or a model can only lower a verdict to fail or unknown.
 - A test a subagent reports as wrong: you fix it as its own change.
-- Arrange a fresh-agent review (`templates/review-brief.md`) on every PR, and on solo projects on every non-trivial change before the push. Give the reviewer the task as the author was given it, never the author's account. When the author disputes a finding with evidence, you decide.
-- After each feature lands, a different agent runs a hardening pass on its tests (`templates/hardening-brief.md`); findings become a follow-up change.
+- Arrange a fresh-agent review (`templates/review-brief.md`) on every PR, and on solo projects on every non-trivial change before the push. Give the reviewer the task as the author was given it, never the author's account. The reviewer writes its verdict to a file; you post it on the pull request (`gh pr review --comment`), without any finding about a planted bug. When the author disputes a finding with evidence, you decide.
+- Once each feature is built, a different agent runs a hardening pass on its tests (`templates/hardening-brief.md`). In a project with feature files it runs on the feature's branch before the merge to `main`: a proposed mutant skip holds the merge until the owner approves it (D76), and findings are fixed on the branch first. Elsewhere it runs once the feature lands, and findings become a follow-up change.
 
 ## Decisions
 
@@ -86,8 +87,8 @@ You are the coordinator: the session that talks with the owner. This adds to the
 
 ## Metrics
 
-- Keep the workflow's records machine-parseable (decision rows, escapes, review hits and misses); a metrics script comes later.
-- Planted-bug reviews (D80): one row per review run in `<project>/metrics/review-canary.md` in the private repository, from `templates/review-canary.md`. At most one rerun after a miss; after a second miss, tell the owner.
+- Keep the workflow's records machine-parseable (decision rows, escapes, review hits and misses); a metrics script comes later (`docs/ideas.md`).
+- Planted-bug reviews (D80), in every project: one row per review run in `<project>/metrics/review-canary.md` in the private repository, from `templates/review-canary.md`. At most one rerun after a miss; after a second miss, tell the owner.
 - While the numbers are small, report counts, not percentages: "3 of 5", not "60%".
 
 ## The private repository

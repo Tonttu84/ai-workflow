@@ -6,7 +6,7 @@ Repositories the owner does not own, and the owner's inactive repositories that 
 
 ## Kickoff (new project)
 
-1. Grill the owner (the `grilling` skill) about the goal, the users, the scope and the kind: solo or showcase. Every project gets tier 1 (alignment). A showcase project adds tier 2 (audit evidence) as a bonus: today, OpenFastTrace tracing if it uses feature files, which the owner chose to learn now in a showcase project (D91, `templates/openfasttrace.md`), and the review metrics. `templates/AGENTS.md` says what each tier covers.
+1. Grill the owner (the `grilling` skill) about the goal, the users, the scope and the kind: solo or showcase. Every project gets tier 1 (alignment). A showcase project adds tier 2 (audit evidence) as a bonus: today, the review metrics drawn from the planted-bug record every project keeps (D80) and, in one showcase project with feature files that the owner chooses, OpenFastTrace tracing (D91, D117, `templates/openfasttrace.md`); ask the owner whether this is that project. `templates/AGENTS.md` says what each tier covers.
 2. Write `docs/kickoff.md` from `templates/kickoff.md` before any code.
 3. The stack is discussed every time. Open with a proposal:
    - Web app: TypeScript (strict), Next.js, Tailwind, Prisma, Zod, Vitest, Playwright.
@@ -38,8 +38,14 @@ Repositories the owner does not own, and the owner's inactive repositories that 
 - A project that already uses husky keeps it: `install.sh --copy-only` and the README's husky recipe.
 - Node projects may use commitlint and husky with `templates/commitlint.config.mjs` instead of `commit-msg`.
 - The setup command runs `git config core.hooksPath .githooks`: a fresh clone has the hooks off until it does.
-- A project with feature files: `hooks/install.sh --gate` also copies the push-gate scripts (`check-features.sh`, the checks it runs, their awk helpers and `stryker-mutate-ranges.sh`) into the project's `.ai-workflow/` and stages them; commit it. Add a committed `feature-checks.conf` at the top of the repository (its keys are in `templates/AGENTS.md` and `.ai-workflow/check-features.sh --help`) and put `.ai-workflow/check-features.sh --base origin/main` in the gate. The project then needs no path to an ai-workflow clone, in CI or for collaborators (D101). Rerun `--gate` to update the copies when the scripts change.
-- Scheduled mutation testing in CI (D75) is deferred until the first project with feature files sets it up (D100): that project writes the workflow, with D39's triggers for a private repository (by hand and on a schedule), and records it. Until then mutation testing runs only in the hardening step.
+- The pre-push hook checks walkthroughs only on pushes to the default branch, which it reads from `refs/remotes/origin/HEAD`. `git clone` records it; a repository created with `gh repo create --source . --push` does not, so run `git remote set-head origin --auto` once there, or every branch pushed is checked (tags always are).
+- A project with feature files: `hooks/install.sh --gate` also copies the push-gate scripts (`check-features.sh`, the checks it runs, their awk helpers and `stryker-mutate-ranges.sh`) into the project's `.ai-workflow/` and stages them; commit it. Then:
+  - Add a committed `feature-checks.conf` at the top of the repository (its keys are in `templates/AGENTS.md` and `.ai-workflow/check-features.sh --help`).
+  - Turn on the test runner's JUnit reporter, so that `run` writes the reports, and create the count file that lists them (its format: `.ai-workflow/check-test-count.sh --help`). Each report is deleted before the run, so its path must be inside the repository and untracked; ignore it in a committed `.gitignore`, since the gate fails on an untracked file nothing ignores.
+  - Put `.ai-workflow/check-features.sh --base origin/main` in the gate before every push to `main` (D114); feature branches skip it.
+  - The project then needs no path to an ai-workflow clone, for collaborators or a future CI job (D101). Rerun `--gate` to update the copies when the scripts change.
+- The feature checks need each locked commit and `origin/main` in the clone, so a clone or CI job that runs the gate needs full history (`actions/checkout` with `fetch-depth: 0`) and, in a repository that squash-merges, the pull-request refs (D78, below); otherwise they die with "unknown commit".
+- Scheduled mutation testing in CI (D75) is deferred until the first project with feature files sets up its CI (D100, confirmed by the owner in D116): that project writes the workflow, with D39's triggers for a private repository (by hand and on a schedule), and records it. Until then mutation testing runs only in the hardening step.
 
 ## CI and repository settings
 

@@ -45,9 +45,9 @@ The coordinator is the session talking with the owner. A subagent working from a
 ## Git
 
 - The project kind, stated in `AGENTS.md`, sets the flow:
-  - Solo: commit to `main` and push once the local gate is green. In a project with feature files, a feature stays on its branch (push it for backup at any time) until the coordinator merges it after the trace, the black-box test, the review and the owner's walkthrough.
+  - Solo: commit to `main` and push once the local gate is green. In a project with feature files, a feature (any change that adds or revises a feature item) stays on its branch until the coordinator merges it after the trace, the black-box test, the review, the hardening and the owner's walkthrough; push the branch for backup and review fixes.
   - Showcase or team: branch, pull request, fresh-agent review, squash-merge on the owner's word.
-- Fresh-agent review on every PR, and on solo projects on every non-trivial change before the push (trivial: a typo, formatting, a comment). The reviewer reads the diff cold, without the author's conversation (`templates/review-brief.md`). It posts its verdict (`gh pr review --comment` when there is a PR); the author fixes, or disputes a finding with evidence for the coordinator to settle; a fix that goes beyond a finding is reviewed again.
+- Fresh-agent review on every PR, and on solo projects on every non-trivial change before the push (trivial: a typo, formatting, a comment). The reviewer reads the diff cold, without the author's conversation (`templates/review-brief.md`). It writes its verdict to a file, and the coordinator posts it (`gh pr review --comment` when there is a PR) without any finding about a planted bug; the author fixes, or disputes a finding with evidence for the coordinator to settle; a fix that goes beyond a finding is reviewed again.
 - Commit messages follow Conventional Commits plus good-message rules:
 
   ```text
@@ -62,7 +62,7 @@ The coordinator is the session talking with the owner. A subagent working from a
   - Types: `feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `build`, `ci`, `chore`, `revert`. The scope is optional and lower case; `!` before the colon marks a breaking change.
   - One logical change per commit. Task ids go in a `Refs:` footer, never in the subject.
 - A PR title follows the same format, since a squash merge makes it the subject on `main`; the CI check covers it.
-- Before every push, run the local gate: tests, lint, types, build, the `pre-push` commit check, and the feature checks where `AGENTS.md` lists them (`.ai-workflow/check-features.sh`). Never use `--no-verify`; fix the message instead.
+- Before every push, run the local gate: tests, lint, types, build and the `pre-push` commit check; before a push to `main`, also the feature checks where `AGENTS.md` lists them (`.ai-workflow/check-features.sh --base origin/main`), and the hook checks the walkthrough. Never use `--no-verify`; fix the message instead.
 - Parallel agents: one worktree per task; merge one at a time. Before the first commit, check which branch you are on and fetch `main`.
 
 ## Decisions

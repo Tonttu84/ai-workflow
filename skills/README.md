@@ -6,7 +6,7 @@ Two kinds of skill live here: the grill skills, tracked from upstream, and this 
 
 `coordinating`, `researching` and `verifying-features` are this repository's own, under its MIT licence. They hold the procedure only the coordinator needs (the session talking with the owner), which would be noise in every subagent if it stayed in the always-loaded rules. `rules/working-agreements.md` keeps a one-line trigger for each.
 
-- `coordinating`: delegation and briefs, models and escalation, two strikes, checking reports, reviews and hardening, decision records, escapes and metrics.
+- `coordinating`: delegation and briefs, models and escalation, two strikes, checking reports, reviews and hardening, decision records, escapes, metrics, and where an idea left for later goes (`docs/ideas.md`).
 - `researching`: when to research, at which depth and on which model, where reports live and when an old one is stale.
 - `verifying-features`: the feature pipeline, from feature items before any code to the owner's walkthrough.
 

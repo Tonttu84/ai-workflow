@@ -18,7 +18,8 @@
      a second miss, tell the owner. Record each run as a row of
      <project>/metrics/review-canary.md in the private repository (the
      table: templates/review-canary.md). The other findings apply to the
-     real change: post them there yourself, without the planted bug's.
+     real change: post them there yourself (gh pr review <n> --comment
+     --body-file <file> on a pull request), without the planted bug's.
      Delete the copy branch afterwards; the real change merges from its
      own. -->
 
@@ -54,7 +55,7 @@ Run the gate yourself if you can (`<command>`); report what you ran. Do not edit
 
 ## Verdict
 
-Post it where the author will see it. For a pull request: `gh pr review <n> --comment --body-file <file>`. <Or: write it to <file> and post nothing; delete the option that does not apply.>
+Write it to <file> and post nothing: the coordinator posts it where the author will see it (on a pull request, with `gh pr review --comment`).
 
 ```text
 Verdict: ready | changes needed
@@ -73,7 +74,7 @@ Severity: **blocker** (wrong behaviour, data loss, security hole, broken build),
 
 Every finding carries its evidence: file:line and, above a nit, a scenario that fails. The author may dispute a finding with counter-evidence; the coordinator settles it.
 
-In your reply to the coordinator, not in the posted verdict, add:
+In your reply to the coordinator, not in the verdict, add:
 
 - Decisions you made between real alternatives, one per line in the format of `docs/decisions.md`: `<decision> | <reason> | <chosen against> | YYYY-MM-DD · agent · <evidence> · <one-way or two-way>` (`agent under Dn` when it falls within decision Dn), or none.
 - Assumptions you could not verify, one per line: `<assumption> | <why it matters>; <why it could not be checked> | — | YYYY-MM-DD · agent · assumed · two-way`, or none.

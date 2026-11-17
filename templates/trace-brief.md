@@ -4,8 +4,10 @@
      parallel with the black-box test and the review. Give it the feature
      file, the code and the locked tests; never the diff, the author's
      report or the review.
-     Afterwards, at the traced SHA, run scripts/check-citations.sh on the
-     report. A level line with a citation that does not resolve does not
+     Afterwards run scripts/check-citations.sh --rev <traced SHA>
+     <report>: it reads only files committed at that SHA, so a citation
+     of ignored code (node_modules/) or of an uncommitted change fails.
+     A level line with a citation that does not resolve does not
      hold, nor does a missing level line or one that cites nothing: set
      the item to the level below it, in the feature file and the
      report. -->
@@ -48,7 +50,7 @@ Then list new code that no item asked for. Stay within the items: no style comme
   gap: <what stops the next level, file:line>  (none at functional)
 ```
 
-Every claim cites `path:line` or `path:start-end`, with the path from the repository root (`src/export.ts:42`; a top-level file without an extension as `./Makefile:3`). A script checks that each citation names a file and lines it has; a level line whose citation does not resolve does not count. Write a host with a port as a URL (`http://localhost:3000`), or it is read as a citation.
+Every claim cites `path:line` or `path:start-end`, with the path from the repository root (`src/export.ts:42`; a top-level file without an extension as `./Makefile:3`). A script checks that each citation names a file committed at the traced SHA and lines it has there; a citation of an untracked or ignored file (a dependency under `node_modules/`) or of an uncommitted change does not resolve, and a level line whose citation does not resolve does not count. Write a host with a port as a URL (`http://localhost:3000`), or it is read as a citation.
 
 3. Code no item asked for, with `path:line`.
 4. The test commands you ran and their pass/fail counts.

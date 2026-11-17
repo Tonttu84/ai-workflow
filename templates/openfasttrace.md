@@ -3,9 +3,9 @@
 <!-- For a project whose AGENTS.md says "Traceability: light and OpenFastTrace".
      The light check, scripts/check-trace-links.sh, runs in every project
      with feature files (check-features.sh runs it unconditionally), so
-     test names keep their item tags; a showcase project adds OFT on top,
-     the tool the owner chose to learn now (ai-workflow D91). Checked against
-     OFT 4.11.0 (2026-10-18) on 2026-11-16. -->
+     test names keep their item tags; the one showcase project the owner
+     chooses for learning OFT adds it on top (ai-workflow D91, D117).
+     Checked against OFT 4.11.0 (2026-10-18) on 2026-11-16. -->
 
 OpenFastTrace (OFT) reads specification items from Markdown and coverage tags from source and test files, then reports every item whose coverage is missing, outdated or unwanted.
 

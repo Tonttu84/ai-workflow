@@ -1,9 +1,12 @@
 # Hardening brief: <feature name>
 
-<!-- For the test hardening run after a feature lands. Give it to an
-     agent that did not write the feature. -->
+<!-- For the test hardening run once a feature is built. Give it to an
+     agent that did not write the feature. In a project with feature
+     files it runs on the feature's branch before the merge to main, and
+     a proposed skip holds the merge until the owner approves it (ai-workflow D76);
+     elsewhere it runs once the feature lands. -->
 
-The feature below has landed with its tests. Your job is to attack those tests, not to change the feature: find inputs and mistakes the tests would let through.
+The feature below is built, with its tests. Your job is to attack those tests, not to change the feature: find inputs and mistakes the tests would let through.
 
 ## The feature
 
@@ -11,7 +14,7 @@ The feature below has landed with its tests. Your job is to attack those tests, 
 - Where it lives: <files or modules>.
 - Its tests: <test files>.
 - Its feature file: `docs/features/<feature>.md`: items, entry points, expected outcomes and locked tests.
-- Landed in: <commit range or PR>; the commit before it (`<base>` below): <SHA>.
+- Built in: <commit range, branch or PR>; the commit before it (`<base>` below): <SHA>.
 - The black-box tester's backend check scripts: <paths, or none>.
 - Background: <the facts you need, each marked `(checked: <source>)` or `(memory)`, and the owner's words with their level and date: Owner (instruction, 2026-11-16): "...". Or none.>
 
@@ -23,7 +26,7 @@ The feature below has landed with its tests. Your job is to attack those tests, 
 4. **Edge cases**: empty, one, many; zero, negative, maximum; duplicates; unicode and long strings; time zones and daylight saving; rounding; concurrent calls; errors from every IO edge.
 5. **Property tests** where an invariant holds for all inputs (round trips, ordering, conservation of totals, idempotence), with the project's property-testing library.
 6. **Outside edges**: if the feature calls a service or takes in outside data, check it against the sections below.
-7. Write the missing tests. If one fails because the feature has a real bug, do not fix the feature and do not commit the failing test to `main`: put the test in the report so the follow-up `fix:` change commits it together with the fix.
+7. Write the missing tests. If one fails because the feature has a real bug, do not fix the feature and do not commit the failing test: put the test in the report so the follow-up `fix:` change commits it together with the fix (on the feature's branch, before the merge, where there is one).
 
 ## Mutation run on the changed lines
 
@@ -33,7 +36,7 @@ The feature below has landed with its tests. Your job is to attack those tests, 
 - TypeScript (StrykerJS): `npx stryker run --incremental --reporters clear-text,html --mutate "$(.ai-workflow/stryker-mutate-ranges.sh <base>)"`; the script, copied into the project by the ai-workflow `hooks/install.sh --gate` (or in the clone's `scripts/` where the project has no `.ai-workflow/`), turns the diff into line ranges, since StrykerJS has no diff mode. Stryker's exit status ignores survivors unless `thresholds.break` is set: read them from the clear-text report.
 - Python (mutmut 3; on Windows only inside WSL, since it needs `fork`): mutmut has no diff mode, so run it on each function the feature changed, `mutmut run "<module>.<function>*"`. `mutmut results` lists every mutant not killed, `mutmut show <name>` shows one; every one of them counts. https://mutmut.readthedocs.io/en/latest/
 
-The policy: **no unexplained surviving mutant on the changed lines.** A timeout or an untested mutant counts as a survivor. For each one, either add a test that kills it, or propose a skip with the mutant, its line and why no test should kill it (an equivalent mutant, say). You may only propose: a proposed skip counts as unknown and blocks the step like a fail until the owner approves it. Do not add skip annotations yourself. Once the owner approves, the annotation goes in with the reason, the approval and its date:
+The policy: **no unexplained surviving mutant on the changed lines.** A timeout or an untested mutant counts as a survivor. For each one, either add a test that kills it, or propose a skip with the mutant, its line and why no test should kill it (an equivalent mutant, say). You may only propose: a proposed skip counts as unknown, blocks the step like a fail and holds the merge until the owner approves it. Do not add skip annotations yourself. Once the owner approves, the annotation goes in with the reason, the approval and its date:
 
 - Rust: `#[mutants::skip] // equivalent: <reason>; approved by the owner YYYY-MM-DD` (the `mutants` crate as a regular dependency).
 - StrykerJS: `// Stryker disable next-line <Mutator>: equivalent: <reason>; approved by the owner YYYY-MM-DD`

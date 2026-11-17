@@ -23,7 +23,8 @@
 ## Locked tests
 
 <!-- Optional, when a test writer ran; delete otherwise. The gate's
-     .ai-workflow/check-features.sh checks them on every push. -->
+     .ai-workflow/check-features.sh checks them before every push to
+     main. -->
 
 - <paths> at <SHA>. Make them pass; never edit them. If one looks wrong, stop and report why.
 
@@ -40,9 +41,9 @@
 
 ## Work rules
 
-- Branch or worktree: <name>, based on a freshly fetched `main`; with locked tests, on the test writer's branch at <its SHA>, where they are.
+- Branch or worktree: <name>, based on a freshly fetched `main`; with locked tests, on the feature's branch at <the test writer's SHA>, where they are.
 - Commits: Conventional Commits, one logical change each; the commit hook must pass (never `--no-verify`). Task id in a `Refs:` footer.
-- Push / PR: <solo: push to main when the local gate is green | solo, feature work in a project with feature files: commit on the feature's branch and push only that branch; the coordinator merges it after the walkthrough | showcase: open a PR, do not merge>.
+- Push / PR: <solo: push to main when the local gate is green | solo, feature work in a project with feature files: commit on the feature's branch and push only that branch, for backup and review fixes, once its gate (tests, lint, types, build) is green; the feature checks and the walkthrough check run only on pushes to `main`, and the coordinator merges it after the walkthrough | showcase: open a PR, do not merge>.
 - Ask instead of guessing on: <anything that is the owner's decision>.
 - Two strikes: if you fail twice to fix the same problem (a failing test, a review finding, a gate error), stop. Commit the attempt on your branch and report what you tried and why each attempt failed. Do not try a third time.
 - Scratch files (reports, CSVs, logs) outside the worktree get a name that starts with the project and task, such as `<project>-<task>-lizard.csv`: parallel agents share scratch folders and overwrite each other's `lizard.csv`.
