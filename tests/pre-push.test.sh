@@ -209,7 +209,8 @@ git -C "$wrepo" remote set-head origin trunk
 git -C "$wrepo" checkout -q feature
 wcommit "chore: more on the feature"
 refute "the recorded default branch is checked whatever its name" wpush origin feature:trunk
-check "and main is then a branch like any other" wpush origin feature:main
+refute "and main is still checked: a stale or odd record only adds checks" wpush origin feature:main
+check "it names the feature file (main, another default recorded)" said docs/features/export.md
 git -C "$wrepo" checkout -q main
 
 # pre-push needs check-walkthrough next to it, as it needs check-commits,
