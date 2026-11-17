@@ -3,7 +3,7 @@
 Date: 2026-11-16 · Depth: deep (3 of 3)
 Volatility: fast
 Question: How do teams use AI agents to operate a web app's real UI as a periodic acceptance check, and how do they stop the agent from reporting a pass when the feature does not work?
-Feeds: a periodic agent-driven UI run and its pass/fail oracle (to be decided)
+Feeds: a periodic agent-driven UI run and its pass/fail oracle (D74, D92)
 
 ## Answer
 

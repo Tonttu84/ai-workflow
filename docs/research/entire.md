@@ -3,7 +3,7 @@
 Date: 2026-11-16 · Depth: normal (round 2 of 2)
 Volatility: fast
 Question: What does Entire record and guarantee, under what privacy model, and can its records serve as deterministic evidence for verification steps in a solo developer's AI-agent workflow?
-Feeds: adopting Entire, and for which steps (to be decided)
+Feeds: adopting Entire, and for which steps (D93)
 
 ## Answer
 Entire records a redacted copy of each agent transcript in plain git objects under `refs/entire/checkpoints/<shard>/<id>`, linked to a commit by an `Entire-Checkpoint` trailer. By default it pushes those records with the code, so on a public repo the transcripts are public. The records are not tamper-evident. Content signing is best-effort with the user's own key and fails open. The stored SHA-256 sits in the same tree it describes, and checkpoints can be backfilled, rewritten or deleted. The only signed, append-only ledger (gittuf RSL) exists only for repositories hosted on Entire. Entire extracts only *modified* files. Which files an agent read can be found only by parsing the raw transcript, and foreground read-only subagents leave no record at all. Inference: Entire is useful as an audit trail, but it cannot pass a black-box check, a no-diff check or a walkthrough sign-off on its own.

@@ -3,7 +3,7 @@
 Date: 2026-11-16 · Depth: deep (1 of 3)
 Volatility: slow
 Question: Which way of linking requirements to tests best helps verify software written by AI coding agents for a solo developer: a light convention, medium traceability tooling, or heavy executable specifications?
-Feeds: feature-item IDs and test links (to be decided)
+Feeds: feature-item IDs and test links (D70, D91)
 
 ## Answer
 
