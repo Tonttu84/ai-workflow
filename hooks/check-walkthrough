@@ -102,6 +102,11 @@ parse='
 #   X <line> <message>                      a row that cannot be read
 #   W <line> <value>                        a Walkthrough: line, trimmed
 #   L <line> <value>                        a Locked tests: line, trimmed
+#   K <line> <text>                         a line that looks like a Locked
+#                                           tests: line (any case, any
+#                                           Markdown decoration) but does
+#                                           not start with exactly that;
+#                                           text trimmed
 #
 # A table is a header row and a delimiter row with the same number of
 # cells, as in GitHub Markdown; the outer pipes are optional. Its rows are
@@ -145,6 +150,7 @@ FNR == 1 { intable = 0; pending = 0 }
 { sub(/\r$/, "") }
 /^Walkthrough:/ { v = $0; sub(/^Walkthrough:/, "", v); printf "W\t%d\t%s\n", FNR, trim(v) }
 /^Locked tests:/ { v = $0; sub(/^Locked tests:/, "", v); printf "L\t%d\t%s\n", FNR, trim(v) }
+!/^Locked tests:/ && tolower($0) ~ /^[ \t>*+-]*([0-9]+[.)][ \t]*)?[*_`~ \t]*locked[ \t_-]*tests?[*_`~ \t]*:/ { printf "K\t%d\t%s\n", FNR, trim($0) }
 intable && $0 ~ /^[ \t]*$/ { intable = 0; next }
 intable && piped($0) {
   n = cells($0)

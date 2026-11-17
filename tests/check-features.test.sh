@@ -215,15 +215,127 @@ feature_file greet.md F1-1 'e2e/one.test.sh, F1-1-r1' '<paths> at <SHA of the `t
 commit_all "docs: the placeholder"
 check "the template's placeholder counts as missing" status_is 1 --base "$head"
 check "it says the line is missing, not malformed" says 'no filled'
+# Every feature file with items needs a lock while the test-writer
+# experiment lasts, with no opt-out (owner, 2026-11-17): a test that ran
+# and passed with nothing locking it could be weakened freely.
 feature_file greet.md F1-1 '—' '<paths> at <SHA of the `test:` commit>'
 commit_all "docs: no tests yet"
-features --base "$head"
-check "the placeholder with no Test filled is only a note" prints 'has no locked tests yet'
+check "the placeholder with no Test filled fails" status_is 1 --base "$head"
+check "it says the line is missing" says 'no filled'
 refute "and is not called malformed" says "is not 'Locked tests"
 feature_file greet.md F1-1 'e2e/one.test.sh, F1-1-r1' 'e2e, at some point'
 commit_all "docs: a malformed line"
 check "a malformed Locked tests line fails" status_is 1 --base "$head"
 check "it quotes the line" says 'e2e, at some point'
+reset_repo
+
+# The review's case: the test writer wrote and committed a test but left
+# the feature file's placeholders; a later commit weakens the test and
+# breaks the code. Trace links and the count still pass.
+feature_file greet.md F1-1 '<test file and name, carrying F1-1-r1>' '<paths> at <SHA of the `test:` commit>'
+commit_all "docs: the template's placeholders"
+printf '# name: F1-1-r1 greets\ntrue\n' > "$repo/e2e/one.test.sh"
+printf 'echo nope\n' > "$repo/src/greet.sh"
+commit_all "fix: weaken the test and break the code"
+check "a weakened test that no lock line names fails" status_is 1 --base "$head"
+check "it says the lock line is missing" says 'no filled'
+reset_repo
+for cell in '-' ''; do
+  feature_file greet.md F1-1 "$cell" '<paths> at <SHA of the `test:` commit>'
+  commit_all "docs: Test '$cell', no lock"
+  check "Test '$cell' and no lock line: fails" status_is 1 --base "$head"
+  check "it says the lock line is missing (Test '$cell')" says 'no filled'
+  reset_repo
+done
+for header in '| ID | Rev | Item | Level |' '| ID | Rev | Item | Level | Tests |'; do
+  {
+    printf '# Feature: greeting\n\n%s\n' "$header"
+    printf '%s\n' "$header" | sed 's/[^|][^|]*|/ --- |/g'
+    printf '| F1-1 | 1 | greet | — | e2e/one.test.sh |\n\nWalkthrough:\n'
+  } > "$repo/docs/features/greet.md"
+  commit_all "docs: the table '$header'"
+  check "no Test column ('$header') and no lock line: fails" status_is 1 --base "$head"
+  check "it says the lock line is missing ('$header')" says 'no filled'
+  reset_repo
+done
+
+# Only the template's exact placeholder line is skipped; every other
+# line that looks like a lock line must parse, or it fails.
+feature_file greet.md F1-1 'e2e/one.test.sh, F1-1-r1' "e2e at $locked"
+printf 'Locked tests: e2e2/two.test.sh at %s <!-- F1-2, added later -->\n' "$locked" >> "$repo/docs/features/greet.md"
+commit_all "docs: a second lock line with a comment"
+check "a lock line holding a '<' next to a valid one fails" status_is 1 --base "$head"
+check "it quotes the line" says 'added later'
+reset_repo
+feature_file greet.md F1-1 'e2e/one.test.sh, F1-1-r1' "e2e at $locked"
+printf 'Locked tests:\n' >> "$repo/docs/features/greet.md"
+commit_all "docs: an empty lock line"
+check "an empty Locked tests: line next to a valid one fails" status_is 1 --base "$head"
+reset_repo
+for look in '**Locked tests:** e2e2 at %s' '- Locked tests: e2e2 at %s' 'Locked Tests: e2e2 at %s' \
+  'Locked tests : e2e2 at %s' '  Locked tests: e2e2 at %s' '> _Locked tests_: e2e2 at %s'; do
+  feature_file greet.md F1-1 'e2e/one.test.sh, F1-1-r1' "e2e at $locked"
+  # SC2059: the cases above are the format strings.
+  # shellcheck disable=SC2059
+  printf -- "$look\n" "$locked" >> "$repo/docs/features/greet.md"
+  commit_all "docs: a lock line that only looks like one"
+  check "a line like '$look' next to a valid one fails" status_is 1 --base "$head"
+  check "it says the line only looks like a lock line ('$look')" says 'looks like a Locked tests: line'
+  reset_repo
+done
+
+# --- each item's Test cell names a committed file under a locked path,
+# and that file carries the item's tag
+greet_test "$repo/e2e/two.test.sh" F1-2-r1 hello
+commit_all "test: a second test, never locked"
+{
+  printf '# Feature: greeting\n\n'
+  printf '| ID | Rev | Item | Entry point | Expected outcome | Level | Test |\n'
+  printf '| --- | --- | --- | --- | --- | --- | --- |\n'
+  printf '| F1-1 | 1 | greet | greet.sh | prints hello | — | e2e/one.test.sh, F1-1-r1 |\n'
+  printf '| F1-2 | 1 | greet again | greet.sh | prints hello | — | e2e/two.test.sh, F1-2-r1 |\n\n'
+  printf 'Locked tests: e2e/one.test.sh at %s\n\nWalkthrough:\n' "$locked"
+} > "$repo/docs/features/greet.md"
+commit_all "feat: a second item"
+check "an item whose test no lock line covers fails" status_is 1 --base "$head"
+check "it says the test is under no locked path" says 'under no locked path'
+check "it names the item" says 'item F1-2'
+reset_repo
+for cell in '—' '' '<test file and name, carrying F1-1-r1>'; do
+  feature_file greet.md F1-1 "$cell" "e2e at $locked"
+  commit_all "docs: Test '$cell' with a lock"
+  check "a locked feature whose item has Test '$cell' fails" status_is 1 --base "$head"
+  check "it says the item names no test file (Test '$cell')" says 'names no test file'
+  reset_repo
+done
+feature_file greet.md F1-1 'e2e/missing.test.sh, F1-1-r1' "e2e at $locked"
+commit_all "docs: a test file that does not exist"
+check "a Test cell naming a file not in HEAD fails" status_is 1 --base "$head"
+check "it says the file is not in HEAD" says 'not in HEAD'
+reset_repo
+feature_file greet.md F1-1 '`./e2e/one.test.sh` F1-1-r1' "./e2e/ at $locked"
+commit_all "docs: decorated paths"
+check "./ and backticks around the paths are read" status_is 0 --base "$head"
+reset_repo
+feature_file greet.md F1-1 'e2e/one.test.sh' "e2e at $locked"
+sed 's/^| F1-1 |/| F1-3 |/' "$repo/docs/features/greet.md" > "$TMP/f" && cp "$TMP/f" "$repo/docs/features/greet.md"
+commit_all "docs: an item whose test carries another item's tag"
+check "a locked test that does not carry the item's tag fails" status_is 1 --base "$head"
+check "it says the tag is missing" says 'does not carry its tag F1-3-r1'
+reset_repo
+
+# --- the working tree must be HEAD, whatever the lock lines say
+printf 'echo extra\n' > "$repo/src/extra.sh"
+check "an untracked file fails" status_is 1 --base "$head"
+check "check-features itself says the working tree is not HEAD" says 'check-features.sh: the working tree is not HEAD'
+check "the summary names it" says 'the working tree is HEAD'
+reset_repo
+
+# --- a dot-named feature file is read like any other
+feature_file .draft.md F1-9 'e2e/one.test.sh' 'e2e, at some point'
+commit_all "docs: a dot-named feature file"
+check "a dot-named feature file's lock lines are checked" status_is 1 --base "$head"
+check "it names the dot-named file" says 'docs/features/.draft.md'
 reset_repo
 
 # --- each check can fail the gate
@@ -252,6 +364,35 @@ sed 's/^exit "\$bad"$/exit 1/' "$repo/run-all.sh" > "$TMP/r" && cp "$TMP/r" "$re
 commit_all "chore: a failing run"
 check "a test run that fails fails the gate" status_is 1 --base "$head"
 check "it says the run failed" says 'the test run exited with 1'
+reset_repo
+
+# A test run that hangs is stopped at the config's timeout.
+set_config "$(printf '%s' "$CONFIG" | sed 's/^run = .*/run = sleep 60/; s/^timeout = .*/timeout = 10/')"
+commit_all "chore: a run that hangs"
+started=$SECONDS
+check "a test run that hangs fails" status_is 1 --base "$head"
+took=$((SECONDS - started))
+check "it says the run timed out (exit 124)" says 'the test run exited with 124'
+check "it was stopped near the timeout, not at the end of the hang (${took}s)" test "$took" -lt 50
+reset_repo
+
+# The gate deletes the reports the count file lists before the run, so
+# each must be a file the run writes: never one git tracks, and never
+# one outside the repository.
+for listed in src/greet.sh .test-count ../outside.xml reports/../../outside.xml "$TMP/outside.xml" reports; do
+  printf 'kept\n' > "$TMP/outside.xml"
+  mkdir -p "$repo/reports"
+  printf '1 %s\n' "$listed" > "$repo/.test-count"
+  commit_all "test: list $listed as a report"
+  check "a report path '$listed' is refused" status_is 2 --base "$head"
+  check "and nothing is deleted ('$listed')" test -z "$(git -C "$repo" status --porcelain)"
+  check "not even outside the repository ('$listed')" test -f "$TMP/outside.xml"
+  reset_repo
+done
+printf '1 src/greet.sh\n' > "$repo/.test-count"
+commit_all "test: list a tracked file as a report"
+features --base "$head"
+check "a tracked file listed as a report: it says git tracks it" says 'git tracks'
 reset_repo
 
 printf '0 reports/all.xml\n' > "$repo/.test-count"

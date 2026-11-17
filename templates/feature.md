@@ -22,7 +22,7 @@
   2. `substantive`: it is not a stub or a placeholder.
   3. `wired`: it is imported, registered and called from the entry point, and real data flows through it.
   4. `functional`: its locked test passes and goes through the real path.
-- Test: the test's file and name. The name carries the item's tag at its current revision. `scripts/check-trace-links.sh` reads the names from the JUnit reports of the test run: only a test that ran and passed links, never a tag in a comment or in a skipped test:
+- Test: the test's file and name, the file first (`e2e/export.spec.ts, F3-2-r1 downloads...`): from the top of the repository, under a path on a `Locked tests:` line of this file, committed, and holding the item's tag. `scripts/check-features.sh` fails an item whose Test does not name such a file. The name carries the item's tag at its current revision. `scripts/check-trace-links.sh` reads the names from the JUnit reports of the test run: only a test that ran and passed links, never a tag in a comment or in a skipped test:
   - `F3-2-r1` where a name can hold `-` (Vitest and Playwright titles): `test('F3-2-r1 downloads last month as CSV', ...)`.
   - `f3_2_r1` where it cannot (Rust and Python function names): `fn f3_2_r1_downloads_last_month()`, `def test_f3_2_r1_downloads_last_month():`. The mapping: lower case, `-` becomes `_`.
   - A test that covers two items carries both tags. Write tags only in this form: in a test name, or a test file the check scans, it reads `F3-2` without a revision, or any other spelling, as an error.
@@ -31,7 +31,12 @@ Locked tests: <paths> at <SHA of the `test:` commit>
 <!-- The locked test files or directories, separated by spaces and given
      from the top of the repository, then the SHA of the test: commit;
      tests locked in another commit get a line of their own.
-     scripts/check-features.sh checks every such line. -->
+     scripts/check-features.sh checks every such line, and fails a
+     feature file with items that has none: every feature needs one.
+     Write it exactly as above, at the start of a line, with no Markdown
+     around it: a line that only looks like it (**Locked tests:**,
+     - Locked tests:, another case) fails, and so does any value but
+     <paths> at <SHA>. Only the placeholder line above is skipped. -->
 
 Walkthrough:
 <!-- Empty until the owner has watched the feature work, or decided not
