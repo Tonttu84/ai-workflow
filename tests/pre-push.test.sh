@@ -213,6 +213,36 @@ refute "and main is still checked: a stale or odd record only adds checks" wpush
 check "it names the feature file (main, another default recorded)" said docs/features/export.md
 git -C "$wrepo" checkout -q main
 
+# git clone records the remote's default branch, and a later fetch does
+# not move the record when the remote's default changes while the old
+# branch stays. A push to main is checked all the same.
+git init -q --bare -b master "$TMP/stale-remote.git"
+git clone -q "$TMP/stale-remote.git" "$TMP/stale-seed" 2> /dev/null
+git -C "$TMP/stale-seed" -c user.name=test -c user.email=test@example.com \
+  commit -q --allow-empty -m "chore: start"
+git -C "$TMP/stale-seed" push -q origin master 2> /dev/null
+srepo="$TMP/stale"
+git clone -q "$TMP/stale-remote.git" "$srepo" 2> /dev/null
+git -C "$srepo" config user.name test
+git -C "$srepo" config user.email test@example.com
+git -C "$TMP/stale-remote.git" branch main master
+git -C "$TMP/stale-remote.git" symbolic-ref HEAD refs/heads/main
+git -C "$srepo" fetch -q origin
+check "the stale record still names master" \
+  test "$(git -C "$srepo" symbolic-ref refs/remotes/origin/HEAD)" = refs/remotes/origin/master
+git -C "$srepo" checkout -q main
+bash "$ROOT/hooks/install.sh" "$srepo" > /dev/null 2>&1
+mkdir -p "$srepo/docs/features"
+cp "$wrepo/docs/features/export.md" "$srepo/docs/features/export.md"
+sed -i.bak 's/^Walkthrough:.*/Walkthrough:/' "$srepo/docs/features/export.md" && rm "$srepo/docs/features/export.md.bak"
+git -C "$srepo" add -A
+git -C "$srepo" commit -q --no-verify -m "feat: add the export"
+spushed() { git -C "$srepo" push -q "$@" > "$TMP/push.out" 2>&1; }
+refute "a stale default-branch record: a push to main is still checked" spushed origin main
+check "it names the feature file (stale record)" said docs/features/export.md
+refute "the remote's main did not move (stale record)" \
+  test "$(git -C "$TMP/stale-remote.git" rev-parse main)" = "$(git -C "$srepo" rev-parse HEAD)"
+
 # pre-push needs check-walkthrough next to it, as it needs check-commits,
 # even in a project without feature files.
 commit "feat: one more change"

@@ -3,9 +3,10 @@
 # with check-commits and the commit-msg hook next to it, as the CI commit
 # check (templates/commit-check.yml) does, so a failure shows up here,
 # for free, instead of in CI. In a project with feature files, a push to
-# the default branch also runs check-walkthrough on the tip it pushes
-# (once per commit, when two refs share a tip): a feature whose items are
-# all functional needs an owner walkthrough recorded, and not stale.
+# main or the default branch also runs check-walkthrough on the tip it
+# pushes (once per commit, when two refs share a tip): a feature whose
+# items are all functional needs an owner walkthrough recorded, and not
+# stale.
 #
 # git passes <remote> <url>, and one line per ref on stdin:
 # <local ref> <local sha> <remote ref> <remote sha>. Deletions are
@@ -17,7 +18,10 @@
 #
 # The default branch is the one refs/remotes/<remote>/HEAD names (git
 # clone records it; git remote set-head <remote> --auto records it
-# later). A push to any other branch skips the walkthrough check: a
+# later). A push to main, the name the rules use, is checked whatever
+# that ref says: git does not move the ref when the remote's default
+# changes while the old branch stays, so a stale or odd record can only
+# add checks. A push to any other branch skips the walkthrough check: a
 # feature branch can be pushed at any time. When the default branch is
 # not recorded, every ref pushed is checked, and so is every ref that is
 # not a branch (a tag, say).
@@ -64,8 +68,10 @@ while read -r _local_ref local_sha remote_ref remote_sha; do
     echo "pre-push: nothing is known about $remote yet; checking only the tip, $local_sha" >&2
     check_commits -1 "$local_sha" || status=1
   fi
-  # Only a branch known not to be the default one skips the walkthrough.
+  # Only a branch known to be neither main nor the default one skips the
+  # walkthrough.
   case $remote_ref in
+    refs/heads/main) ;;
     refs/heads/*) [ -z "$default" ] || [ "$remote_ref" = "$default" ] || continue ;;
   esac
   case " $walked " in *" $local_sha "*) continue ;; esac # pushed under two names
@@ -81,7 +87,7 @@ fi
 if [ "$walk" -ne 0 ]; then
   echo "pre-push: record the walkthrough in the feature file, commit it and push again; never --no-verify." >&2
   if [ -z "$default" ]; then
-    echo "pre-push: the default branch of $remote is not recorded here (no refs/remotes/$remote/HEAD), so every branch pushed was checked; to check only the default branch, run: git remote set-head $remote --auto" >&2
+    echo "pre-push: the default branch of $remote is not recorded here (no refs/remotes/$remote/HEAD), so every branch pushed was checked; to check only main and the default branch, run: git remote set-head $remote --auto" >&2
   fi
   status=1
 fi
