@@ -124,6 +124,22 @@ check "a testsuite root, comments, a > in an attribute and CDATA are read right"
 check "exactly three tests are counted" row_is reports/unit.xml 3 3 0 0
 reset_repo
 
+# A runner writes a CDATA system-out in each testcase that prints: the
+# parser's time must grow linearly with the sections, not with their
+# square (5000 of them took 47 s with gawk 5.0 before).
+awk 'BEGIN {
+  print "<testsuites><testsuite name=\"s\">"
+  for (i = 1; i <= 5000; i++)
+    printf "<testcase name=\"t%d\"><system-out><![CDATA[%400s]]></system-out><!-- c --></testcase>\n", i, "x"
+  print "</testsuite></testsuites>"
+}' > "$TMP/big.xml"
+started=$SECONDS
+LC_ALL=C timeout 120 awk -f "$ROOT/scripts/junit-cases.awk" "$TMP/big.xml" > "$TMP/big.out"
+took=$((SECONDS - started))
+check "5000 testcases with CDATA sections are all read" \
+  test "$(awk -F '\t' '$1 == "C" && $2 == "pass"' "$TMP/big.out" | wc -l)" -eq 5000
+check "in under 15 seconds (took ${took}s)" test "$took" -lt 15
+
 # --- a run that did not finish, or no report at all
 rm "$repo/reports/e2e.xml"
 check "a missing report fails" status_is 1 .test-count

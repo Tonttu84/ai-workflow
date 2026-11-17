@@ -16,16 +16,26 @@
 # a ">" inside a quoted attribute does not end a tag. Used by
 # check-test-count.sh and check-trace-links.sh.
 function problem(msg) { if (!err) printf "E\t%s\n", msg; err = 1 }
-# strip(s, start, end): s without every start...end section
-function strip(s, start, end,    i, j, out) {
-  out = ""
-  while ((i = index(s, start)) > 0) {
-    out = out substr(s, 1, i - 1)
-    s = substr(s, i + length(start))
-    if ((j = index(s, end)) == 0) { problem("an unclosed " start " section: the runner did not finish writing it"); return out }
-    s = substr(s, j + length(end))
+# join(a, lo, hi): a[lo] a[lo + 1] ... a[hi], joined half by half, so the
+# copying stays O(n log n) in an awk that copies on every concatenation
+function join(a, lo, hi,    mid) {
+  if (lo > hi) return ""
+  if (lo == hi) return a[lo]
+  mid = int((lo + hi) / 2)
+  return join(a, lo, mid) join(a, mid + 1, hi)
+}
+# strip(s, start, re, end): s without every start...end section (re is
+# start as a regular expression); a start inside a section is part of
+# it. Linear: one split, then one search per piece.
+function strip(s, start, re, end,    n, i, j, piece) {
+  n = split(s, piece, re)
+  for (i = 2; i <= n; i++) {
+    # Every piece after the first begins inside a section.
+    if ((j = index(piece[i], end)) > 0) piece[i] = substr(piece[i], j + length(end))
+    else if (i < n) piece[i] = "" # the section goes on past the next start
+    else { problem("an unclosed " start " section: the runner did not finish writing it"); n = i - 1 }
   }
-  return out s
+  return join(piece, 1, n)
 }
 # tag_end(s): where the tag that s starts with ends, quotes respected
 function tag_end(s,    i, n, c, q) {
@@ -56,23 +66,24 @@ function attr(tag, key,    v) {
 }
 # suite_counts(s): the largest errors= plus failures= of the testsuite and
 # testsuites tags in s
-function suite_counts(s,    i, e, tag, n, best) {
+function suite_counts(s,    i, k, e, tag, n, best, part) {
   best = 0
-  while ((i = index(s, "<testsuite")) > 0) {
-    s = substr(s, i + 1)
-    e = tag_end(s)
-    if (e == 0) break
-    tag = substr(s, 1, e)
+  k = split(s, part, "<testsuite")
+  for (i = 2; i <= k; i++) {
+    e = tag_end(part[i])
+    if (e == 0) continue
+    tag = substr(part[i], 1, e)
     n = attr(tag, "errors") + attr(tag, "failures")
     if (n > best) best = n
   }
   return best
 }
-{ sub(/\r$/, ""); s = s $0 "\n" }
+{ sub(/\r$/, ""); line[++lines] = $0 "\n" }
 END {
-  s = strip(s, "<![CDATA[", "]]>")
-  s = strip(s, "<!--", "-->")
-  s = strip(s, "<?", "?>")
+  s = join(line, 1, lines)
+  s = strip(s, "<![CDATA[", "<![[]CDATA[[]", "]]>")
+  s = strip(s, "<!--", "<!--", "-->")
+  s = strip(s, "<?", "<[?]", "?>")
   sub(/^[ \t\n]+/, "", s)
   sub(/[ \t\n]+$/, "", s)
   if (s == "") problem("is empty")
@@ -85,24 +96,25 @@ END {
   }
   if (err) exit
   n = split(s, part, "<testcase")
-  outside = part[1]
+  out[++o] = part[1] # what is outside every testcase
   for (i = 2; i <= n; i++) {
     p = part[i]
-    if (substr(p, 1, 1) !~ /[ \t\n\/>]/) { outside = outside "<testcase" p; continue } # a longer tag name
+    if (substr(p, 1, 1) !~ /[ \t\n\/>]/) { out[++o] = "<testcase" p; continue } # a longer tag name
     e = tag_end(p)
     if (e == 0) { problem("a <testcase> tag is not closed"); exit }
     tag = substr(p, 1, e)
     name = attr(tag, "name")
-    if (substr(p, e - 1, 1) == "/") { cases[++m] = "pass\t" name; outside = outside substr(p, e + 1); continue } # <testcase .../>
+    if (substr(p, e - 1, 1) == "/") { cases[++m] = "pass\t" name; out[++o] = substr(p, e + 1); continue } # <testcase .../>
     k = index(p, "</testcase>")
     if (k == 0) { problem("a <testcase> is never closed"); exit }
     body = substr(p, e + 1, k - e - 1)
-    outside = outside substr(p, k + length("</testcase>"))
+    out[++o] = substr(p, k + length("</testcase>"))
     if (body ~ /<skipped[ \t\n\/>]/) cases[++m] = "skip\t" name
     else if (body ~ /<(failure|error)[ \t\n\/>]/) cases[++m] = "fail\t" name
     else cases[++m] = "pass\t" name
   }
   for (i = 1; i <= m; i++) printf "C\t%s\n", cases[i]
+  outside = join(out, 1, o)
   loose = gsub(/<(failure|error)[ \t\n\/>]/, "&", outside)
   attrs = suite_counts(outside)
   printf "O\t%d\n", (loose > attrs) ? loose : attrs
