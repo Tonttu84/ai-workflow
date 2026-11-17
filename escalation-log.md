@@ -152,3 +152,15 @@ When the task ends, append its outcome as a new line at the bottom of the file. 
   work if the skills that now hold them trigger reliably, a mechanism newer
   than the model's training. And it must stay under a word cap while adding
   rules.
+- Outcome (2026-11-16: workflow rules repository, restructuring always-loaded
+  rules into tiers and skills): it succeeded after review rounds. The first
+  cold review, sentence by sentence against the old file, found no rule lost
+  and no "must" softened, but it found a rule moved into an on-demand skill
+  whose trigger never fired at the moment the rule applies, two decisions
+  carried at the wrong strength and two carried only in part; later rounds
+  fixed contradictions between documents, mostly in rules added after the
+  restructure. Whether xhigh was needed is not shown: there was no run at
+  the default effort to compare, and the gaps found were the kind the extra
+  effort did not prevent. Lesson: a rewrite whose losses no test can see
+  needs a cold review against the old text, and a rule moved into a skill
+  needs a trigger at the moment it applies, not just a home.
