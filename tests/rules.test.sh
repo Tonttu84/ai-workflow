@@ -368,5 +368,7 @@ check "the agent brief still runs Verify before work is reported done" grep -qF 
 for f in "$SETUP" "$VF"; do
   check "${f#"$ROOT"/} names D128" grep -qF 'D128' "$f"
 done
+check "docs/decisions.md records D128, amending D39 and D114" \
+  grep -qE '^\| D128 \|.*D39.*D114' "$ROOT/docs/decisions.md"
 
 finish
