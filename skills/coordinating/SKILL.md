@@ -66,7 +66,7 @@ You are the coordinator: the session that talks with the owner. This adds to the
 
 ## Reports, reviews and hardening
 
-- A subagent's report is evidence, not a verdict: before telling the owner something is done, re-run the local gate, read the diff and spot-check the claims.
+- A subagent's report is evidence, not a verdict: before telling the owner something is done, re-run the local gate, read the diff and spot-check the claims. On a feature branch before the implementation, re-run the brief's Verify instead of the gate: the locked tests are red by design (D128).
 - Only a deterministic check can pass something; a report, a review or a model can only lower a verdict to fail or unknown.
 - A test a subagent reports as wrong: you fix it as its own change.
 - Arrange a fresh-agent review (`templates/review-brief.md`) on every PR, and on solo projects on every non-trivial change before the push to `main`. Give the reviewer the task as the author was given it, never the author's account. The reviewer writes its verdict to a file; you post it on the pull request (`gh pr review --comment`), without any finding about a planted bug. When the author disputes a finding with evidence, you decide.

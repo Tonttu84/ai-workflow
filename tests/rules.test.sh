@@ -462,5 +462,10 @@ for f in "$RULES" "$AGENTS_T" "$COORD"; do
     grep -qF 'non-trivial change before the push to `main`' "$f"
 done
 refute "the AGENTS template no longer reviews before pushing" grep -qF 'before pushing any non-trivial change' "$AGENTS_T"
+# Before the implementation a feature branch's gate is red by design, so
+# the coordinator re-runs the brief's Verify there, not the gate (finding
+# 8, D128).
+check "coordinating re-runs the brief's Verify while the locked tests are red" \
+  grep -qF "re-run the brief's Verify instead of the gate" "$COORD"
 
 finish
