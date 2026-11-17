@@ -82,26 +82,30 @@ git() { command git --literal-pathspecs -c core.quotePath=false "$@"; }
 # untracked_ignores <path>...: the untracked .gitignore files, ignored or
 # not, in or above the paths, from the top of the repository, one per
 # line. One that ignores itself hides the files next to it from git, and
-# no other clone has it.
+# no other clone has it. The name is matched in any case: git on a
+# case-insensitive file system (Windows, macOS) reads .GITIGNORE too.
 untracked_ignores() {
-  local path dir rel out specs=()
+  local path dir rel out icase=':(icase,literal)' specs=()
   for path in "$@"; do
     if [ -d "$path" ]; then dir=$path; else dir=$(dirname -- "$path"); fi
     while [ ! -d "$dir" ]; do dir=$(dirname -- "$dir"); done
     rel=$(cd -- "$dir" && command git rev-parse --show-prefix) || return 1
-    if [ -d "$path" ]; then specs+=("${rel:-.}"); fi
+    if [ -d "$path" ]; then specs+=("$icase${rel:-.}"); fi
     while :; do
-      specs+=("${rel}.gitignore")
+      specs+=("$icase${rel}.gitignore")
       [ -n "$rel" ] || break
       rel=${rel%/}
       case $rel in */*) rel=${rel%/*}/ ;; *) rel= ;; esac
     done
   done
+  # Pathspec magic, so not the git() above (--literal-pathspecs), and
+  # with the environment's global pathspec settings off.
   out=$(
-    git -C "$(git rev-parse --show-toplevel)" ls-files -z --others -- "${specs[@]}" | tr '\0' '\n'
+    GIT_LITERAL_PATHSPECS=0 GIT_GLOB_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 GIT_ICASE_PATHSPECS=0 \
+      command git -C "$(git rev-parse --show-toplevel)" ls-files -z --others -- "${specs[@]}" | tr '\0' '\n'
     exit "${PIPESTATUS[0]}"
   ) || return 1
-  printf '%s\n' "$out" | awk -F / '$NF == ".gitignore"'
+  printf '%s\n' "$out" | awk -F / 'tolower($NF) == ".gitignore"'
 }
 git rev-parse --is-inside-work-tree > /dev/null 2>&1 || die "not inside a git work tree"
 base=$(git rev-parse --verify --quiet "$1^{commit}") || die "unknown commit: $1"

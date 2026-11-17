@@ -154,6 +154,24 @@ rm "$repo/e2e/.gitignore" "$repo/e2e/conftest.sh"
 printf '*\n' > "$repo/.gitignore"
 check "an untracked .gitignore at the top fails" status_is 1 "$base" e2e/one.test.sh
 rm "$repo/.gitignore"
+# git on a case-insensitive file system (Windows, macOS) reads
+# .GITIGNORE as the folder's .gitignore, so the name is compared without
+# regard to case. On a case-sensitive one the new file is not hidden and
+# the check fails all the same.
+printf '*\n' > "$repo/e2e/.GITIGNORE"
+printf 'skip everything\n' > "$repo/e2e/conftest.sh"
+check "an untracked upper-case .GITIGNORE in a locked directory fails" status_is 1 "$base" e2e
+check "an untracked upper-case .GITIGNORE above a locked file fails" status_is 1 "$base" e2e/one.test.sh
+rm "$repo/e2e/.GITIGNORE"
+mkdir -p "$repo/e2e/deep"
+printf '*\n' > "$repo/e2e/deep/.GitIgnore"
+mv "$repo/e2e/conftest.sh" "$repo/e2e/deep/conftest.sh"
+check "a mixed-case .GitIgnore deeper in a locked directory fails" status_is 1 "$base" e2e
+rm -r "$repo/e2e/deep"
+printf '*\n' > "$repo/.GITIGNORE"
+printf 'skip everything\n' > "$repo/e2e/conftest.sh"
+check "an untracked upper-case .GITIGNORE at the top fails" status_is 1 "$base" e2e/one.test.sh
+rm "$repo/.GITIGNORE" "$repo/e2e/conftest.sh"
 mkdir -p "$repo/.pytest_cache"
 printf '*\n' > "$repo/.pytest_cache/.gitignore"
 check "a self-ignoring cache directory outside the locked paths passes" status_is 0 "$base" e2e

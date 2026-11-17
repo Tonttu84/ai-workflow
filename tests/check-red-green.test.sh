@@ -233,6 +233,25 @@ printf '*\n' > "$repo/e2e/deep/.gitignore"
 printf 'skip\n' > "$repo/e2e/deep/conftest.sh"
 check "one deeper in a locked directory fails too" status_is 1 "$before" "$CMD" e2e
 rm -r "$repo/e2e/deep"
+# git on a case-insensitive file system (Windows, macOS) reads
+# .GITIGNORE as the folder's .gitignore, so the name is compared without
+# regard to case. On a case-sensitive one the helper is not hidden and
+# the check fails all the same.
+printf '*\n' > "$repo/e2e/.GITIGNORE"
+printf 'skip\n' > "$repo/e2e/conftest.sh"
+check "an untracked upper-case .GITIGNORE in a locked directory fails" status_is 1 "$before" "$CMD" e2e
+check "it counts the upper-case .GITIGNORE" says '1 untracked .gitignore'
+check "an untracked upper-case .GITIGNORE above a locked file fails" status_is 1 "$before" "$CMD" e2e/hidden.test.sh
+rm "$repo/e2e/.GITIGNORE" "$repo/e2e/conftest.sh"
+mkdir -p "$repo/e2e/deep"
+printf '*\n' > "$repo/e2e/deep/.GitIgnore"
+check "a mixed-case .GitIgnore deeper in a locked directory fails" status_is 1 "$before" "$CMD" e2e
+check "it counts the mixed-case .GitIgnore" says '1 untracked .gitignore'
+rm -r "$repo/e2e/deep"
+printf '*\n' > "$repo/.GITIGNORE"
+printf 'skip\n' > "$repo/e2e/conftest.sh"
+check "an untracked upper-case .GITIGNORE at the top fails" status_is 1 "$before" "$CMD" e2e/hidden.test.sh
+rm "$repo/.GITIGNORE" "$repo/e2e/conftest.sh"
 # Test tools write such files into their caches (.pytest_cache,
 # .ruff_cache, a Python 3.13 .venv); outside the locked paths they do
 # not count.
