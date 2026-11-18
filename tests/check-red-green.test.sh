@@ -136,8 +136,9 @@ reset_repo
 
 # A file in a locked directory that is not a test (a helper the tests
 # use) is copied to the base but not run on its own.
-# shellcheck disable=SC2016
 printf 'expected=hello\n' > "$repo/e2e/helper.sh"
+# SC2016: the test file expands these itself when it runs.
+# shellcheck disable=SC2016
 printf 'here=$(dirname "$0")\n. "$here/helper.sh" || exit 1\n[ "$(bash "$here/../src/greet.sh")" = "$expected" ]\n' \
   > "$repo/e2e/uses-helper.test.sh"
 git -C "$repo" add -A

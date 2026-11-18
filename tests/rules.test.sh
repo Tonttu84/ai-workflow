@@ -171,6 +171,8 @@ for text in 'Delegate all coding except trivial edits' 'skills/<name>/SKILL.md' 
 done
 # Paths in the rules are the clone's only where the rules and the
 # ai-workflow skills and templates name them: a project has its own scripts/.
+# SC2016: the backticks are Markdown in the rules, matched literally.
+# shellcheck disable=SC2016
 refute "the rules do not claim every scripts/ path for the clone" \
   grep -qF 'Paths under `templates/`, `hooks/`, `scripts/`' "$RULES"
 
@@ -293,6 +295,8 @@ for f in "$ROOT"/docs/research/*.md; do
   refute "${f#"$ROOT"/} is no longer 'to be decided'" grep -qF '(to be decided)' "$f"
 done
 # A project's AGENTS.md names its own copy of the trace check (finding 14).
+# SC2016: the backticks are Markdown in the template, matched literally.
+# shellcheck disable=SC2016
 refute "the AGENTS template does not name the clone's check-trace-links.sh" \
   grep -qF '`scripts/check-trace-links.sh`' "$AGENTS_T"
 check "the AGENTS template names .ai-workflow/check-trace-links.sh" \

@@ -193,6 +193,8 @@ head_is_tree() {
 gate "the working tree is HEAD" head_is_tree
 
 # --- 1. locked tests, per feature
+# SC2016: the template's placeholder holds literal backticks.
+# shellcheck disable=SC2016
 PLACEHOLDER='<paths> at <SHA of the `test:` commit>'
 # normal <path>: the path without a leading ./ or a trailing /
 normal() {

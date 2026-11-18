@@ -52,6 +52,8 @@ write 'src/app.ts:1'
 check "a root that is not a directory: error" status_is 2 "$report" "$TMP/nothing"
 
 # --- citations that resolve
+# SC2016: the backticks are Markdown in the trace report.
+# shellcheck disable=SC2016
 write '# Trace' \
   'F1-1: functional' \
   '  path: src/app.ts:1 -> `src/app.ts:10` -> (src/app.ts:3-7)' \

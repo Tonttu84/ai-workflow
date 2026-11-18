@@ -211,6 +211,8 @@ feature_file greet.md F1-1 'e2e/one.test.sh, F1-1-r1' -
 commit_all "docs: drop the locked tests line"
 check "an item with a Test and no Locked tests line fails" status_is 1 --base "$head"
 check "it says the line is missing" says 'no filled'
+# SC2016: the template's placeholder holds literal backticks.
+# shellcheck disable=SC2016
 feature_file greet.md F1-1 'e2e/one.test.sh, F1-1-r1' '<paths> at <SHA of the `test:` commit>'
 commit_all "docs: the placeholder"
 check "the template's placeholder counts as missing" status_is 1 --base "$head"
@@ -218,6 +220,8 @@ check "it says the line is missing, not malformed" says 'no filled'
 # Every feature file with items needs a lock while the test-writer
 # experiment lasts, with no opt-out (owner, 2026-11-17): a test that ran
 # and passed with nothing locking it could be weakened freely.
+# SC2016: the template's placeholder holds literal backticks.
+# shellcheck disable=SC2016
 feature_file greet.md F1-1 '—' '<paths> at <SHA of the `test:` commit>'
 commit_all "docs: no tests yet"
 check "the placeholder with no Test filled fails" status_is 1 --base "$head"
@@ -232,6 +236,8 @@ reset_repo
 # The review's case: the test writer wrote and committed a test but left
 # the feature file's placeholders; a later commit weakens the test and
 # breaks the code. Trace links and the count still pass.
+# SC2016: the template's placeholder holds literal backticks.
+# shellcheck disable=SC2016
 feature_file greet.md F1-1 '<test file and name, carrying F1-1-r1>' '<paths> at <SHA of the `test:` commit>'
 commit_all "docs: the template's placeholders"
 printf '# name: F1-1-r1 greets\ntrue\n' > "$repo/e2e/one.test.sh"
@@ -241,6 +247,8 @@ check "a weakened test that no lock line names fails" status_is 1 --base "$head"
 check "it says the lock line is missing" says 'no filled'
 reset_repo
 for cell in '-' ''; do
+  # SC2016: the template's placeholder holds literal backticks.
+  # shellcheck disable=SC2016
   feature_file greet.md F1-1 "$cell" '<paths> at <SHA of the `test:` commit>'
   commit_all "docs: Test '$cell', no lock"
   check "Test '$cell' and no lock line: fails" status_is 1 --base "$head"
@@ -326,6 +334,8 @@ commit_all "docs: a test file that does not exist"
 check "a Test cell naming a file not in HEAD fails" status_is 1 --base "$head"
 check "it says the file is not in HEAD" says 'not in HEAD'
 reset_repo
+# SC2016: the backticks are Markdown in the Test cell.
+# shellcheck disable=SC2016
 feature_file greet.md F1-1 '`./e2e/one.test.sh` F1-1-r1' "./e2e/ at $locked"
 commit_all "docs: decorated paths"
 check "./ and backticks around the paths are read" status_is 0 --base "$head"
@@ -373,6 +383,8 @@ check "a report left from an earlier run is deleted, so a run that writes none f
 check "it says the report is missing" says 'no such report'
 reset_repo
 
+# SC2016: $bad is text in run-all.sh, matched literally.
+# shellcheck disable=SC2016
 sed 's/^exit "\$bad"$/exit 1/' "$repo/run-all.sh" > "$TMP/r" && cp "$TMP/r" "$repo/run-all.sh"
 commit_all "chore: a failing run"
 check "a test run that fails fails the gate" status_is 1 --base "$head"

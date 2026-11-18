@@ -482,6 +482,8 @@ refute "a row missing a cell is noticed" short_row_ok
 # assumption_line_ok <brief>: the assumption line has the log's cells
 assumption_line_ok() {
   local line
+  # SC2016: the backticks are Markdown in the brief, matched literally.
+  # shellcheck disable=SC2016
   line=$(grep -o '`<assumption> |[^`]*`' "$1") || return 1
   [ "$(printf '%s' "$line" | tr -cd '|' | wc -c)" -eq 3 ]
 }

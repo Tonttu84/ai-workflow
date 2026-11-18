@@ -380,6 +380,8 @@ refute "rejects an unknown option" run_install --bogus "$TMP/a"
 # hook in every install mode, in a linked worktree too, where .git is a
 # file and .git/hooks/ is not a folder (the final docs review, finding 2).
 VF="$ROOT/skills/verifying-features/SKILL.md"
+# SC2016: the backticks are Markdown in the skill, matched literally.
+# shellcheck disable=SC2016
 by_hand_cmds() { grep -oE '`bash [^`]*check-walkthrough[^`]*`' "$VF" | tr -d '`' | sort -u; }
 # a_cmd_runs_hook <dir>: one of the skill's commands runs the hook there.
 # It exits 1 on the unfilled feature file; 126 or 127 means no hook.
