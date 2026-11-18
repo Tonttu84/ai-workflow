@@ -59,6 +59,15 @@
 # group gets TERM, and KILL 5 seconds later. There is no switch to skip
 # it; give the push command a deadline that covers the gate.
 #
+# A pass is recorded for the commit pushed in <git common dir>/
+# ai-workflow/gate-passed (the last 20), and a later push of that commit
+# runs every other check but not the gate again: git holds an SSH
+# connection to the remote idle while this hook runs, and a remote that
+# drops it after a long gate fails the push, which then only needs a
+# second try. A gate that fails or is stopped records nothing. git push
+# --dry-run runs this hook too, so a dry run first runs and records the
+# gate without holding a connection that matters.
+#
 # Source: https://github.com/Tonttu84/ai-workflow (MIT). Install with
 # hooks/install.sh from that repo. Needs bash 3.2 or later and git.
 set -u
@@ -400,6 +409,28 @@ if [ "$ok" -ne 0 ]; then
   exit 1
 fi
 
+# The gate's passes, one "<commit> <time>" line each, the last 20, kept
+# in git's common dir: linked worktrees share it, since a commit is the
+# same in all of them, and the working tree never holds it (D152). A
+# push of a commit whose gate passed, after every other check above,
+# does not run the gate again: git holds an SSH connection to the remote
+# idle while this hook runs, and a remote that drops it after a long
+# gate fails the push, which then only needs a second try.
+records=$(git rev-parse --git-common-dir 2> /dev/null) || records=
+if [ -n "$records" ]; then
+  case $records in /* | [A-Za-z]:*) ;; *) records="$top/$records" ;; esac
+  records="$records/ai-workflow/gate-passed"
+fi
+head=$(git rev-parse HEAD)
+passed_at=
+if [ -n "$records" ] && [ -f "$records" ]; then
+  passed_at=$(awk -v c="$head" '$1 == c { t = $2 } END { print t }' "$records")
+fi
+if [ -n "$passed_at" ]; then
+  echo "pre-push: the gate passed for $head at $passed_at; not running it again." >&2
+  exit 0
+fi
+
 echo "pre-push: running the gate of gate.conf, with a deadline of $limit s: $command" >&2
 started=$SECONDS
 run_gate "$limit" "$command"
@@ -428,4 +459,12 @@ if [ "$ok" -ne 0 ]; then
   exit 1
 fi
 echo "pre-push: the gate passed in $took s." >&2
+if [ -n "$records" ] && mkdir -p "${records%/*}" &&
+  { if [ -f "$records" ]; then cat "$records"; fi
+    printf '%s %s\n' "$head" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"; } | tail -n 20 > "$records.new" &&
+  mv -f "$records.new" "$records"; then
+  echo "pre-push: the pass is recorded for $head. If the push now fails because the remote dropped the idle connection, push again: the gate will not run twice for this commit." >&2
+else
+  echo "pre-push: warning: could not record the gate's pass (in the common git dir: ${records:-not found}); a second push of this commit runs the gate again." >&2
+fi
 exit 0
