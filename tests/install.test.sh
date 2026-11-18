@@ -246,6 +246,8 @@ check "--force does not overwrite it either" run_install --git-hooks --force "$T
 check "the foreign one is still pre-push.local" grep -q lfs.ran "$TMP/d2/.git/hooks/pre-push.local"
 git init -q --bare -b main "$TMP/d2-remote.git"
 git -C "$TMP/d2" remote add origin "$TMP/d2-remote.git"
+printf 'command = true\n' > "$TMP/d2/gate.conf" # the gate a push to main runs (D142)
+git -C "$TMP/d2" add gate.conf
 commits_ok "$TMP/d2" "chore: start"
 check "a push goes through both hooks" q git -C "$TMP/d2" push -q origin main
 check "the chained pre-push got git's arguments" grep -q "^args: origin " "$TMP/lfs.ran"
@@ -310,6 +312,7 @@ chmod +x "$TMP/husky/.husky/_/pre-push"
 printf '.githooks/pre-push "$@"\n' > "$TMP/husky/.husky/pre-push"
 git init -q --bare -b main "$TMP/husky-remote.git"
 git -C "$TMP/husky" remote add origin "$TMP/husky-remote.git"
+printf 'command = true\n' > "$TMP/husky/gate.conf"
 git -C "$TMP/husky" add -A
 git -C "$TMP/husky" commit -q --no-verify -m "chore: add the hooks"
 check "husky recipe: a good push passes" q git -C "$TMP/husky" push -q origin main

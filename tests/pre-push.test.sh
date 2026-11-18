@@ -17,6 +17,10 @@ git init -q --bare -b main "$TMP/remote.git"
 git init -q -b main "$repo"
 git -C "$repo" remote add origin "$TMP/remote.git"
 bash "$ROOT/hooks/install.sh" "$repo" > /dev/null 2>&1
+# A push to main runs the gate gate.conf declares (D142); it passes here,
+# and its own tests are below.
+GATE='command = true'
+printf '%s\n' "$GATE" > "$repo/gate.conf"
 
 # commit <message with escapes>: a commit the commit-msg hook never saw
 commit() {
@@ -69,10 +73,14 @@ refute "the branch is gone" remote_has refs/heads/side
 
 # A merge commit git writes passes; a force push checks the new commits.
 git -C "$repo" checkout -q -b topic
-commit "feat: topic work"
+# On a file of its own: both commits appending to file would conflict,
+# and leave no merge commit to push.
+echo topic > "$repo/topic-file" && git -C "$repo" add topic-file &&
+  git -C "$repo" commit -q --no-verify -m "feat: topic work"
 git -C "$repo" checkout -q main
 commit "fix: main work meanwhile"
 git -C "$repo" merge -q --no-ff --no-edit topic > /dev/null 2>&1
+check "git wrote a merge commit" q git -C "$repo" rev-parse -q --verify HEAD^2
 check "a merge commit git wrote passes" pushes origin main
 git -C "$repo" reset -q --hard HEAD~1
 commit "feat: rewritten history"
@@ -92,7 +100,8 @@ git init -q --bare -b main "$TMP/known-origin.git"
 git -C "$TMP/known" remote add origin "$TMP/known-origin.git"
 git -C "$TMP/known" push -q origin main 2> /dev/null
 bash "$ROOT/hooks/install.sh" "$TMP/known" > /dev/null 2>&1
-echo new >> "$TMP/known/file" && git -C "$TMP/known" commit -q -am "feat: work under the rules"
+echo new >> "$TMP/known/file" && printf '%s\n' "$GATE" > "$TMP/known/gate.conf"
+git -C "$TMP/known" add -A && git -C "$TMP/known" commit -q -m "feat: work under the rules"
 git init -q --bare -b main "$TMP/by-url.git"
 push_known() { git -C "$TMP/known" push -q "$@" > "$TMP/push.out" 2>&1; }
 check "push by URL: commits another remote has are not checked again" push_known "$TMP/by-url.git" main
@@ -102,7 +111,8 @@ check "first push to a newly added remote: the same" push_known second main
 
 old_repo "$TMP/standalone"
 bash "$ROOT/hooks/install.sh" "$TMP/standalone" > /dev/null 2>&1
-echo new >> "$TMP/standalone/file" && git -C "$TMP/standalone" commit -q -am "feat: work under the rules"
+echo new >> "$TMP/standalone/file" && printf '%s\n' "$GATE" > "$TMP/standalone/gate.conf"
+git -C "$TMP/standalone" add -A && git -C "$TMP/standalone" commit -q -m "feat: work under the rules"
 git init -q --bare -b main "$TMP/standalone-remote.git"
 git -C "$TMP/standalone" remote add origin "$TMP/standalone-remote.git"
 push_standalone() { git -C "$TMP/standalone" push -q origin "$@" > "$TMP/push.out" 2>&1; }
@@ -122,6 +132,7 @@ git init -q --bare -b main "$TMP/features-remote.git"
 git init -q -b main "$wrepo"
 git -C "$wrepo" remote add origin "$TMP/features-remote.git"
 bash "$ROOT/hooks/install.sh" "$wrepo" > /dev/null 2>&1
+printf '%s\n' "$GATE" > "$wrepo/gate.conf"
 wpush() { git -C "$wrepo" push -q "$@" > "$TMP/push.out" 2>&1; }
 wcommit() { git -C "$wrepo" add -A && git -C "$wrepo" commit -q --no-verify --allow-empty -m "$1"; }
 said() { grep -qF -- "$1" "$TMP/push.out"; }
@@ -151,6 +162,7 @@ check "it says to record the walkthrough" said 'record the walkthrough'
 check "the remote did not move" test "$(remote_main)" != "$watched"
 wfeature 1 "Walkthrough: done 2026-11-16 at $watched"
 refute "recorded in the working tree but not committed: still refused" wpush origin main
+check "by the walkthrough check, before the gate" said 'record the walkthrough'
 wcommit "docs: record the export walkthrough"
 check "with the walkthrough committed: the push passes" wpush origin main
 git -C "$wrepo" checkout -q -b side
@@ -164,6 +176,7 @@ check "a push of another branch is not checked by the working tree" wpush origin
 git -C "$wrepo" checkout -q --detach main~3
 check "the old checkout has no docs/features" test ! -e "$wrepo/docs/features"
 refute "pushed from a checkout without docs/features: main is still checked" wpush origin main
+check "by the walkthrough check (an old checkout)" said stale
 git -C "$wrepo" checkout -q main
 git -C "$wrepo" tag -a v2 -m v2
 refute "an annotated tag on a stale commit: refused" wpush origin v2
@@ -177,6 +190,7 @@ check "and the walkthrough is reported once" test "$(grep -c '^check-walkthrough
 printf '#!/bin/sh\ntouch "%s"\n' "$TMP/local.ran" > "$wrepo/.githooks/pre-push.local"
 chmod +x "$wrepo/.githooks/pre-push.local"
 refute "with a pre-push.local: a stale walkthrough is still refused" wpush origin main
+check "by the walkthrough check (with a pre-push.local)" said stale
 check "and the pre-push.local ran first" test -e "$TMP/local.ran"
 rm "$wrepo/.githooks/pre-push.local"
 check "deleting a branch checks nothing" wpush origin --delete side
@@ -232,6 +246,7 @@ check "the stale record still names master" \
   test "$(git -C "$srepo" symbolic-ref refs/remotes/origin/HEAD)" = refs/remotes/origin/master
 git -C "$srepo" checkout -q main
 bash "$ROOT/hooks/install.sh" "$srepo" > /dev/null 2>&1
+printf '%s\n' "$GATE" > "$srepo/gate.conf"
 mkdir -p "$srepo/docs/features"
 cp "$wrepo/docs/features/export.md" "$srepo/docs/features/export.md"
 sed -i.bak 's/^Walkthrough:.*/Walkthrough:/' "$srepo/docs/features/export.md" && rm "$srepo/docs/features/export.md.bak"
