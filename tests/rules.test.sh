@@ -529,6 +529,11 @@ check "docs/decisions.md records D137, amending D116" \
 # template, so D137 names it as well (review finding F).
 check "D137 says it also amends D129" \
   in_row D137 'Amends D116, and D129, under which each project wrote its own job. |'
+# install.sh's help names the template instead of a job a project writes
+# (review finding G).
+refute "install.sh no longer waits for a project to write a CI job" \
+  grep -qF 'once a project' "$ROOT/hooks/install.sh"
+check "install.sh names templates/feature-check.yml" grep -qF 'templates/feature-check.yml' "$ROOT/hooks/install.sh"
 
 # --- a pull request behind main is checked again before it merges
 # (D141, review finding C): two pull requests that each pass can break

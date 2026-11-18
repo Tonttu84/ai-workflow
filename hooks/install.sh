@@ -35,8 +35,8 @@
 #                eol=lf` unless a rule already gives them LF. Commit
 #                .ai-workflow/: the project gate and every clone then
 #                run .ai-workflow/check-features.sh with no path to an
-#                ai-workflow clone (and so can a CI job, once a project
-#                writes one). Rerun it to update them;
+#                ai-workflow clone (and so can the CI job of
+#                templates/feature-check.yml). Rerun it to update them;
 #                it replaces the copies. Works with every mode.
 #
 # Node projects may use commitlint and husky instead of this hook, with
