@@ -636,6 +636,117 @@ refute "a gitlink with no .gitmodules entry refuses the push" gpush origin main
 check "with git's reason" said 'no submodule mapping'
 git -C "$grepo" reset -q --hard HEAD~1
 
+# A pass of the gate is recorded for the commit, in git's common dir
+# (D152): when the push fails after the gate (a remote that dropped the
+# idle connection), pushing the same commit again runs every other check
+# but not the gate. A remote whose pre-receive hook refuses stands in for
+# the dropped connection.
+rrepo="$TMP/recorded"
+rremote="$TMP/recorded-remote.git"
+git init -q --bare -b main "$rremote"
+git init -q -b main "$rrepo"
+git -C "$rrepo" remote add origin "$rremote"
+bash "$ROOT/hooks/install.sh" "$rrepo" > /dev/null 2>&1
+rran="$TMP/recorded.ran" # outside the repository: one line per run of the gate
+RPASS="command = echo ran >> '$rran'"
+RFAIL="command = echo ran >> '$rran'; exit 3"
+records="$rrepo/.git/ai-workflow/gate-passed"
+# rpush <push arguments...>: a push from $rrepo, with no gate run yet
+rpush() { rm -f "$rran"; git -C "$rrepo" push -q "$@" > "$TMP/push.out" 2>&1; }
+# rcommit <message> <gate.conf line>...: commits a change with that gate
+rcommit() {
+  local message=$1
+  shift
+  printf '%s\n' "$@" > "$rrepo/gate.conf"
+  echo "$message" >> "$rrepo/file"
+  git -C "$rrepo" add -A && git -C "$rrepo" commit -q --no-verify -m "$message"
+}
+# refusing on|off: the remote refuses every push after the hook, or not
+refusing() {
+  if [ "$1" = on ]; then
+    printf '#!/bin/sh\nexit 1\n' > "$rremote/hooks/pre-receive"
+    chmod +x "$rremote/hooks/pre-receive"
+  else
+    rm -f "$rremote/hooks/pre-receive"
+  fi
+}
+rran_ok() { test -e "$rran"; }
+recorded() { grep -q "^$1 " "$records" 2>/dev/null; }
+rhead() { git -C "$rrepo" rev-parse HEAD; }
+
+rcommit "chore: start" "$RPASS"
+refusing on
+refute "record: a push the remote refuses after the gate fails" rpush origin main
+check "the gate ran before the remote refused" rran_ok
+check "its pass is recorded for the commit" recorded "$(rhead)"
+check "and the hook says to push again" said 'push again'
+refusing off
+check "pushing the same commit again goes through" rpush origin main
+refute "without running the gate again" rran_ok
+check "it says the gate passed for that commit" said "the gate passed for $(rhead)"
+check "the remote has the commit (record)" \
+  test "$(git -C "$rremote" rev-parse main)" = "$(rhead)"
+
+rcommit "feat: a new commit" "$RPASS"
+check "a new commit pushes" rpush origin main
+check "and runs the gate" rran_ok
+
+rcommit "feat: break the recorded gate" "$RFAIL"
+refute "a failing gate refuses the push (record)" rpush origin main
+refute "and records nothing" recorded "$(rhead)"
+refute "the next push of that commit is refused too" rpush origin main
+check "because the gate ran again" rran_ok
+
+rcommit "feat: a slow recorded gate" "command = sleep 30" "timeout = 2"
+refute "a gate past its deadline refuses the push (record)" rpush origin main
+refute "and records nothing (deadline)" recorded "$(rhead)"
+
+# A recorded pass does not skip the other checks.
+rcommit "fix: green again (record)" "$RPASS"
+refusing on
+refute "a pass to record before a dirty tree" rpush origin main
+refusing off
+echo changed >> "$rrepo/file"
+refute "with a recorded pass, a changed working tree still refuses the push" rpush origin main
+check "it says the working tree is not the commit pushed (record)" said 'working tree'
+git -C "$rrepo" checkout -q -- file
+check "with the tree clean again, the push goes through" rpush origin main
+refute "on the recorded pass" rran_ok
+
+# Linked worktrees share the record.
+rcommit "feat: work for two worktrees" "$RPASS"
+git -C "$rrepo" worktree add -q --detach "$TMP/recorded-wt1" HEAD
+git -C "$rrepo" worktree add -q --detach "$TMP/recorded-wt2" HEAD
+wtpush() { rm -f "$rran"; git -C "$1" push -q origin HEAD:main > "$TMP/push.out" 2>&1; }
+refusing on
+refute "a push from one linked worktree that the remote refuses" wtpush "$TMP/recorded-wt1"
+check "ran the gate there" rran_ok
+refusing off
+check "the same commit pushed from another linked worktree goes through" wtpush "$TMP/recorded-wt2"
+refute "on the pass recorded in the first one" rran_ok
+git -C "$rrepo" worktree remove --force "$TMP/recorded-wt1"
+git -C "$rrepo" worktree remove --force "$TMP/recorded-wt2"
+git -C "$rrepo" reset -q --hard "$(git -C "$rremote" rev-parse main)"
+
+# git push --dry-run runs the pre-push hook (git 2.49), so it runs the
+# gate and records its pass without sending anything; the real push
+# then skips the gate.
+rcommit "feat: try it dry first" "$RPASS"
+check "a dry run goes through" rpush --dry-run origin main
+check "and runs the gate (dry run)" rran_ok
+check "the remote did not move on the dry run" \
+  test "$(git -C "$rremote" rev-parse main)" != "$(rhead)"
+check "the real push then goes through" rpush origin main
+refute "without running the gate again (after a dry run)" rran_ok
+
+# The record keeps the last 20 passes.
+mkdir -p "${records%/*}"
+for i in $(seq 1 25); do printf '%040d 2026-01-01T00:00:00Z\n' "$i"; done > "$records"
+rcommit "feat: one more pass" "$RPASS"
+check "one more pass goes through" rpush origin main
+check "the record keeps 20 passes" test "$(wc -l < "$records" | tr -d ' ')" -eq 20
+check "the newest is the last" test "$(tail -n 1 "$records" | cut -d ' ' -f 1)" = "$(rhead)"
+
 # check-commits is what pre-push and CI share: a range and a commit-msg hook.
 cd "$repo" || exit 1
 check "check-commits passes a good range" \
