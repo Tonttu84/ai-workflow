@@ -64,4 +64,11 @@ The security page carries a "Documentation Index" note addressed to AI agents ("
 
 ## Spot-checked by the coordinator
 
-Not spot-checked.
+On 2026-11-18, while preparing the trial (D134, D135). The source was read directly. The docs were read through a fetch agent.
+
+- 0.13.4 is the current release (finding 1): held. Checked against https://github.com/entireio/cli/releases/tag/v0.13.4, where the Windows amd64 archive is 24.1 MB.
+- Entire installs its git hooks into the directory `git rev-parse --git-path hooks` names, which follows `core.hooksPath`, and keeps existing hooks as `<hook>.pre-entire`, run after its own (finding 9): held. Checked against `cmd/entire/cli/strategy/hooks.go` at v0.13.4. The docs page https://docs.entire.com/guides/configuration/git-hooks.md does not mention `core.hooksPath`. Its pre-push hook saves git's ref list and passes it on stdin to the hook it chains to.
+- With the committed `.githooks/`, Entire would rename `commit-msg` and add three hooks (Options, hook interplay): did not hold in full. It renames `pre-push` too, and adds `prepare-commit-msg`, `post-commit` and `post-rewrite`. Checked against `gitHookNames` in the same file.
+- The Claude Code hooks (finding 5): held in the main, with three differences in v0.13.4. It also installs StopFailure. PreToolUse matches Agent only, while PostToolUse matches Agent and Skill. SubagentStart matches only agents a Workflow launches. Checked against `cmd/entire/cli/agent/claudecode/hooks.go` at v0.13.4.
+- Pushing checkpoints is on by default, and `--skip-push-sessions` turns it off (finding 11, Options): held. The setting is `strategy_options.push_sessions`. `entire configure --local --skip-push-sessions` writes it to the gitignored `.entire/settings.local.json`, and `--project` writes it to the committed `.entire/settings.json`. Checked against https://docs.entire.com/cli-reference/configure.md and https://docs.entire.com/guides/checkpoints/keep-checkpoints-local.md.
+- Local recording needs no login (finding 13): held. Checked against https://docs.entire.com/cli-reference/login.md and the README of https://github.com/entireio/cli.
