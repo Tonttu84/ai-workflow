@@ -456,7 +456,7 @@ check "the same, committed with CRLF: fails" status_is 1 HEAD
 
 # From a subdirectory, the repository's docs/features is checked.
 mkdir -p "$proj/src/deep"
-sub() { (cd "$proj/src/deep" && bash "$WALK" "$@") > "$TMP/out" 2> "$TMP/err"; }
+sub() { (cd "$proj/src/deep" && bash "$WALK") > "$TMP/out" 2> "$TMP/err"; }
 sub
 check "run from a subdirectory: still fails on the stale file" test "$?" -eq 1
 
