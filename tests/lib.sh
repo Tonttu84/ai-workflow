@@ -67,6 +67,52 @@ finish() {
   [ "$failed" -eq 0 ]
 }
 
+# --- the workflow templates (templates/*.yml)
+
+# count <text> <file>: the number of lines that hold the text
+count() { grep -c -- "$1" "$2"; }
+
+# hardened <workflow>: every action is pinned by a full SHA, every
+# checkout keeps no credentials, every job has a timeout, the token is
+# read-only, and no ${{ }} expression is pasted into a run script
+hardened() {
+  local uses
+  uses=$(count 'uses: ' "$1")
+  [ "$uses" -gt 0 ] &&
+    [ "$(grep -cE 'uses: [^@ ]+@[0-9a-f]{40}( |$)' "$1")" -eq "$uses" ] &&
+    [ "$(count 'persist-credentials: false' "$1")" -eq "$(count 'uses: actions/checkout@' "$1")" ] &&
+    [ "$(count 'timeout-minutes: ' "$1")" -eq "$(count 'runs-on: ' "$1")" ] &&
+    grep -qx 'permissions:' "$1" && grep -qx '  contents: read' "$1" &&
+    ! awk '
+      /^ *run: \|/ { indent = index($0, "r"); inrun = 1; next }
+      inrun && NF && index($0, substr($0, 1, indent - 1) " ") != 1 { inrun = 0 }
+      inrun && /\$\{\{/ { bad = 1 }
+      /^ *run: [^|]/ && /\$\{\{/ { bad = 1 }
+      END { exit !bad }
+    ' "$1"
+}
+
+# run_script <step name>: the run block of that step in $WORKFLOW, dedented
+run_script() {
+  awk -v step="- name: $1" '
+    index($0, step) { found = 1; next }
+    found && /^ *run: \|/ { indent = index($0, "r") + 2; inrun = 1; next }
+    inrun && NF && substr($0, 1, indent - 1) ~ /[^ ]/ { exit }
+    inrun { print substr($0, indent) }
+  ' "$WORKFLOW"
+}
+
+# yaml_ok <file>: parses with yq or PyYAML; status 2 when neither exists
+yaml_ok() {
+  if command -v yq > /dev/null 2>&1; then
+    yq eval '.' "$1" > /dev/null 2>&1
+  elif python3 -c 'import yaml' > /dev/null 2>&1; then
+    python3 -c 'import sys, yaml; yaml.safe_load(open(sys.argv[1]))' "$1" > /dev/null 2>&1
+  else
+    return 2
+  fi
+}
+
 # help_ok <script>: --help prints the whole leading comment block, without
 # the shebang or any code after the block.
 help_ok() {

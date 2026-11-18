@@ -33,24 +33,8 @@ for rule in "'subject-case': \[0\]" "'body-max-line-length': \[0\]" "'footer-max
 done
 
 # --- commit-check.yml: hardened, and its scripts do what they say
+# (hardened and run_script, which reads $WORKFLOW, are in lib.sh)
 WORKFLOW="$ROOT/templates/commit-check.yml"
-count() { grep -c -- "$1" "$2"; }
-hardened() { # hardened <workflow>
-  local uses
-  uses=$(count 'uses: ' "$1")
-  [ "$uses" -gt 0 ] &&
-    [ "$(grep -cE 'uses: [^@ ]+@[0-9a-f]{40}( |$)' "$1")" -eq "$uses" ] &&
-    [ "$(count 'persist-credentials: false' "$1")" -eq "$(count 'uses: actions/checkout@' "$1")" ] &&
-    [ "$(count 'timeout-minutes: ' "$1")" -eq "$(count 'runs-on: ' "$1")" ] &&
-    grep -qx 'permissions:' "$1" && grep -qx '  contents: read' "$1" &&
-    ! awk '
-      /^ *run: \|/ { indent = index($0, "r"); inrun = 1; next }
-      inrun && NF && index($0, substr($0, 1, indent - 1) " ") != 1 { inrun = 0 }
-      inrun && /\$\{\{/ { bad = 1 }
-      /^ *run: [^|]/ && /\$\{\{/ { bad = 1 }
-      END { exit !bad }
-    ' "$1"
-}
 check "commit-check.yml is hardened" hardened "$WORKFLOW"
 sed 's/@3d3c42e5aac5ba805825da76410c181273ba90b1/@v7/' "$WORKFLOW" > "$TMP/unpinned.yml"
 refute "an unpinned action is noticed" hardened "$TMP/unpinned.yml"
@@ -62,16 +46,6 @@ check "the injection mutant differs from the workflow" test -n "$(diff "$WORKFLO
 refute "an expression inside a run script is noticed" hardened "$TMP/inject.yml"
 grep -v 'timeout-minutes' "$WORKFLOW" > "$TMP/no-timeout.yml"
 refute "a job without a timeout is noticed" hardened "$TMP/no-timeout.yml"
-
-# run_script <step name>: the run block of that step, dedented
-run_script() {
-  awk -v step="- name: $1" '
-    index($0, step) { found = 1; next }
-    found && /^ *run: \|/ { indent = index($0, "r") + 2; inrun = 1; next }
-    inrun && NF && substr($0, 1, indent - 1) ~ /[^ ]/ { exit }
-    inrun { print substr($0, indent) }
-  ' "$WORKFLOW"
-}
 
 repo="$TMP/project"
 git init -q -b main "$repo"
@@ -385,16 +359,7 @@ repo=$main_repo base=$main_base
 DEPENDABOT="$ROOT/templates/dependabot.yml"
 uncommented() { sed 's/^#  /  /' "$DEPENDABOT"; } # with the placeholders switched on
 sed 's/^#  /  /' "$DEPENDABOT" > "$TMP/dependabot.all.yml"
-yaml_ok() { # yaml_ok <file>: parses with yq or PyYAML; status 2 when neither exists
-  if command -v yq > /dev/null 2>&1; then
-    yq eval '.' "$1" > /dev/null 2>&1
-  elif python3 -c 'import yaml' > /dev/null 2>&1; then
-    python3 -c 'import sys, yaml; yaml.safe_load(open(sys.argv[1]))' "$1" > /dev/null 2>&1
-  else
-    return 2
-  fi
-}
-yaml_ok "$DEPENDABOT"
+yaml_ok "$DEPENDABOT" # in lib.sh
 case $? in
   0) pass ;;
   2) printf 'templates.test.sh: SKIP: no YAML parser (yq or PyYAML) to parse dependabot.yml\n' ;;
