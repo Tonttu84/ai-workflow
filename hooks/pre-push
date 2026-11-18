@@ -48,11 +48,16 @@
 # .gitignore whose folder no other one ignores, a file flagged
 # skip-worktree or assume-unchanged, and the same in every submodule,
 # which must be checked out, whatever .gitmodules says to ignore. The
-# gate runs in a process group of its own, with no terminal: its input
-# is /dev/null, GIT_PAGER and PAGER are cat, GIT_TERMINAL_PROMPT is 0,
-# and the GIT_* variables that locate a repository are unset (git exports
-# GIT_DIR to a hook in a linked worktree). There is no switch to skip it;
-# give the push command a deadline that covers the gate.
+# gate runs in a process group of its own, with its input from
+# /dev/null, GIT_PAGER and PAGER set to cat and GIT_TERMINAL_PROMPT to 0,
+# so git's pager and its credential prompt do not wait for anyone; a
+# step that opens the terminal itself (/dev/tty), such as an ssh
+# passphrase prompt, still waits until the deadline. The GIT_* variables
+# that locate a repository are unset (git exports GIT_DIR to a hook in a
+# linked worktree). When the gate exits, whatever it left running in its
+# process group is killed; when the push is stopped (Ctrl-C, TERM), the
+# group gets TERM, and KILL 5 seconds later. There is no switch to skip
+# it; give the push command a deadline that covers the gate.
 #
 # Source: https://github.com/Tonttu84/ai-workflow (MIT). Install with
 # hooks/install.sh from that repo. Needs bash 3.2 or later and git.
@@ -220,9 +225,11 @@ differences() {
 # submodule, recursively; a submodule not checked out, or in conflict,
 # is a difference too
 all_differences() {
-  local subs flag path
+  local subs line flag path
   differences "" || return 1
-  subs=$(git submodule status --recursive 2> /dev/null) || return 1
+  # Its errors stay on stderr: they say why (a gitlink .gitmodules does
+  # not name, say).
+  subs=$(git submodule status --recursive) || return 1
   [ -n "$subs" ] || return 0
   while IFS= read -r line; do
     flag=${line%"${line#?}"}
@@ -316,15 +323,31 @@ read_gate() {
   return "$ok"
 }
 
+# stop_group <pid> <seconds>: TERM to the process group of that leader,
+# and KILL to whatever of it is left the given seconds later
+stop_group() {
+  local n=0
+  kill -TERM -- "-$1" 2> /dev/null
+  while kill -0 -- "-$1" 2> /dev/null && [ "$n" -lt "$2" ]; do
+    sleep 1
+    n=$((n + 1))
+  done
+  kill -KILL -- "-$1" 2> /dev/null
+}
+
 # run_gate <seconds> <command>: runs the command with bash, in a process
-# group of its own (set -m) and with no terminal (see the top), which a
-# watchdog stops past the deadline: TERM to the whole group, KILL 10
-# seconds later; then it sets stopped=1. Returns the command's status. A
-# bash watchdog, not timeout(1): macOS has no GNU timeout, and one way
-# everywhere is tested everywhere.
+# group of its own (set -m), set up as the top says. A watchdog stops
+# the group past the deadline (TERM, KILL 10 seconds later) and sets
+# stopped=1; it ignores the signals that stop a push, so the deadline
+# holds whatever happens to this hook. When the push is stopped (INT,
+# TERM, HUP), this hook stops the group (TERM, KILL 5 seconds later) and
+# the watchdog. When the gate's leader exits, whatever it left running
+# in its group is killed, before anything checks the tree again. Returns
+# the command's status. A bash watchdog, not timeout(1): macOS has no GNU
+# timeout, and one way everywhere is tested everywhere.
 stopped=0
 run_gate() {
-  local seconds=$1 gate=$2 pid watchdog code
+  local seconds=$1 gate=$2 pid watchdog='' code
   rm -f "$late"
   set -m
   (
@@ -336,19 +359,17 @@ run_gate() {
   pid=$!
   set +m
   # Ctrl-C reaches git and this hook, not the gate's own process group.
-  trap 'kill -TERM -- "-$pid" 2> /dev/null; exit 130' INT TERM HUP
+  trap 'trap - INT TERM HUP
+    [ -z "$watchdog" ] || kill -KILL "$watchdog" 2> /dev/null
+    stop_group "$pid" 5
+    exit 130' INT TERM HUP
   (
+    trap '' INT TERM HUP
     start=$SECONDS
     while kill -0 "$pid" 2> /dev/null; do
       if [ $((SECONDS - start)) -ge "$seconds" ]; then
         : > "$late"
-        kill -TERM -- "-$pid" 2> /dev/null
-        n=0
-        while kill -0 -- "-$pid" 2> /dev/null && [ "$n" -lt 10 ]; do
-          sleep 1
-          n=$((n + 1))
-        done
-        kill -KILL -- "-$pid" 2> /dev/null
+        stop_group "$pid" 10
         exit 0
       fi
       sleep 1
@@ -357,6 +378,7 @@ run_gate() {
   watchdog=$!
   { wait "$pid"; } 2> /dev/null # no job notice when the watchdog kills it
   code=$?
+  kill -KILL -- "-$pid" 2> /dev/null # what the gate left running
   wait "$watchdog"
   trap - INT TERM HUP
   [ ! -e "$late" ] || stopped=1
