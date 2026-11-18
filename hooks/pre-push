@@ -6,7 +6,8 @@
 # main or the default branch also runs check-walkthrough on the tip it
 # pushes (once per commit, when two refs share a tip): a feature whose
 # items are all functional needs an owner walkthrough recorded, and not
-# stale.
+# stale. A push to main or the default branch then runs the project's
+# gate, once per push, when those checks pass.
 #
 # git passes <remote> <url>, and one line per ref on stdin:
 # <local ref> <local sha> <remote ref> <remote sha>. Deletions are
@@ -26,6 +27,33 @@
 # not recorded, every ref pushed is checked, and so is every ref that is
 # not a branch (a tag, say).
 #
+# The gate: an update of refs/heads/main, or of the recorded default
+# branch (with none recorded, of refs/heads/master), runs the command
+# that gate.conf, committed at the top of the repository in the commit
+# pushed, declares. Never a push to another branch, a tag or a deletion.
+# Its lines are "<key> = <value>"; blank lines and lines starting with #
+# are ignored:
+#
+#   command  required: the gate, run with bash at the top of the
+#            repository ('make test lint')
+#   timeout  optional: its deadline, in whole seconds, at most 86400
+#            (default 3600)
+#
+# The push is refused when gate.conf is missing or invalid, when the
+# commit pushed is not HEAD, when the command fails or is not found, and
+# when it passes its deadline: then its whole process group gets TERM,
+# and KILL 10 seconds later. It is refused too when the working tree is
+# not HEAD, before the gate runs or after it: a tracked file changed or
+# staged, an untracked file that no .gitignore ignores, an untracked
+# .gitignore whose folder no other one ignores, a file flagged
+# skip-worktree or assume-unchanged, and the same in every submodule,
+# which must be checked out, whatever .gitmodules says to ignore. The
+# gate runs in a process group of its own, with no terminal: its input
+# is /dev/null, GIT_PAGER and PAGER are cat, GIT_TERMINAL_PROMPT is 0,
+# and the GIT_* variables that locate a repository are unset (git exports
+# GIT_DIR to a hook in a linked worktree). There is no switch to skip it;
+# give the push command a deadline that covers the gate.
+#
 # Source: https://github.com/Tonttu84/ai-workflow (MIT). Install with
 # hooks/install.sh from that repo. Needs bash 3.2 or later and git.
 set -u
@@ -39,8 +67,10 @@ check_commits() { bash "$here/check-commits" "$here/commit-msg" "$@"; }
 
 # A pre-push that was here before ours (Git LFS installs one) was kept as
 # pre-push.local; it runs first, with the same arguments and input.
-input=$(mktemp) || exit 1
-trap 'rm -f "$input"' EXIT
+scratch=$(mktemp -d) || exit 1
+trap 'rm -rf "$scratch"' EXIT
+input="$scratch/input"
+late="$scratch/late" # made by the gate's watchdog when the deadline passes
 cat > "$input"
 if [ -x "$here/pre-push.local" ]; then
   "$here/pre-push.local" "$@" < "$input" || exit
@@ -53,9 +83,17 @@ case $default in
   *) default= ;;
 esac
 
+# is_gated <remote ref>: a push to it runs the gate: main, and the default
+# branch, or master when none is recorded
+is_gated() {
+  [ "$1" = refs/heads/main ] && return 0
+  if [ -n "$default" ]; then [ "$1" = "$default" ]; else [ "$1" = refs/heads/master ]; fi
+}
+
 status=0
 walk=0
 walked=
+gated= # the commits pushed to a gated branch
 while read -r _local_ref local_sha remote_ref remote_sha; do
   [ -n "${local_sha//0/}" ] || continue # a deletion
   if [ -n "${remote_sha//0/}" ] && git cat-file -e "$remote_sha^{commit}" 2> /dev/null; then
@@ -67,6 +105,9 @@ while read -r _local_ref local_sha remote_ref remote_sha; do
   else
     echo "pre-push: nothing is known about $remote yet; checking only the tip, $local_sha" >&2
     check_commits -1 "$local_sha" || status=1
+  fi
+  if is_gated "$remote_ref"; then
+    case " $gated " in *" $local_sha "*) ;; *) gated="$gated $local_sha" ;; esac
   fi
   # Only a branch known to be neither main nor the default one skips the
   # walkthrough.
@@ -91,4 +132,278 @@ if [ "$walk" -ne 0 ]; then
   fi
   status=1
 fi
-exit "$status"
+# The gate is the costly check: it runs only once the others pass.
+[ "$status" -eq 0 ] && [ -n "$gated" ] || exit "$status"
+
+# --- the gate
+
+if [ -z "$default" ]; then
+  echo "pre-push: the default branch of $remote is not recorded here (no refs/remotes/$remote/HEAD), so pushes to main and master run the gate; to gate the default branch whatever its name, run: git remote set-head $remote --auto" >&2
+fi
+
+# The variables that point git at a repository (git rev-parse
+# --local-env-vars lists them). A gate whose tests make throwaway
+# repositories would act on this one with them set, and a git command
+# run in a submodule would act on its superproject.
+local_vars="GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR $(git rev-parse --local-env-vars 2> /dev/null)"
+unset_local() { for v in $local_vars; do unset "$v"; done; }
+
+# pushed_is_head: every commit pushed to a gated branch is HEAD, the
+# commit the working tree is checked out from
+pushed_is_head() {
+  local head sha commit ok=0
+  head=$(git rev-parse -q --verify 'HEAD^{commit}' 2> /dev/null) || head=
+  for sha in $gated; do
+    commit=$(git rev-parse -q --verify "$sha^{commit}" 2> /dev/null) || commit=$sha
+    [ "$commit" = "$head" ] && continue
+    echo "pre-push: the commit pushed to main or the default branch, $commit, is not HEAD (${head:-none}): the gate tests the working tree, so check that commit out and push it from there." >&2
+    ok=1
+  done
+  return "$ok"
+}
+
+# A git directory with nothing in it, so that check-ignore below reads
+# only the .gitignore files of a working tree: not .git/info/exclude,
+# not a global excludes file, which no other clone has.
+( unset_local && git init -q --bare "$scratch/none.git" ) || exit 1
+: > "$scratch/no-excludes"
+
+# untracked_ignores: the untracked .gitignore files of the repository
+# here, ignored or not, matched in any case (git on a case-insensitive
+# file system reads .GITIGNORE too, D132), whose folder no .gitignore
+# file ignores. One of them can hide files from the untracked check, and
+# no other clone has it; one inside a folder that is ignored anyway
+# hides nothing more (a virtual environment's own .gitignore). A folder
+# ignored only by another untracked .gitignore leaves that one to name.
+untracked_ignores() {
+  local found file dir top_here
+  top_here=$(pwd)
+  found=$(
+    set -o pipefail
+    GIT_LITERAL_PATHSPECS=0 GIT_GLOB_PATHSPECS=0 GIT_NOGLOB_PATHSPECS=0 GIT_ICASE_PATHSPECS=0 \
+      git ls-files -z --others -- ':(icase,glob)**/.gitignore' | tr '\0' '\n'
+  ) || return 1
+  [ -n "$found" ] || return 0
+  printf '%s\n' "$found" | while IFS= read -r file; do
+    case $file in */*) dir=${file%/*} ;; *) dir= ;; esac
+    # check-ignore takes no pathspec magic, so every global pathspec
+    # setting is off.
+    if [ -n "$dir" ] && (unset_local && GIT_LITERAL_PATHSPECS=0 GIT_GLOB_PATHSPECS=0 \
+      GIT_NOGLOB_PATHSPECS=0 GIT_ICASE_PATHSPECS=0 git --git-dir="$scratch/none.git" \
+      --work-tree="$top_here" -c core.excludesFile="$scratch/no-excludes" \
+      check-ignore -q --no-index -- "$dir"); then
+      continue
+    fi
+    printf '%s\n' "$file"
+  done
+}
+
+# differences <prefix>: how the working tree of the repository here
+# differs from its HEAD, one "<kind><tab><prefix><path>" line each; fails
+# when git does
+differences() {
+  local prefix=$1 out
+  git update-index -q --refresh > /dev/null 2>&1
+  out=$(git diff --name-only --ignore-submodules=none HEAD --) || return 1
+  printf '%s\n' "$out" | awk -v p="$prefix" 'NF { print "changed\t" p $0 }'
+  out=$(git diff --cached --name-only --ignore-submodules=none HEAD --) || return 1
+  printf '%s\n' "$out" | awk -v p="$prefix" 'NF { print "staged\t" p $0 }'
+  out=$(git ls-files --others --exclude-per-directory=.gitignore) || return 1
+  printf '%s\n' "$out" | awk -v p="$prefix" 'NF { print "untracked\t" p $0 }'
+  out=$(untracked_ignores) || return 1
+  printf '%s\n' "$out" | awk -v p="$prefix" 'NF { print "untracked .gitignore\t" p $0 }'
+  out=$(git ls-files -v) || return 1
+  printf '%s\n' "$out" | awk -v p="$prefix" '/^[a-zS] / { print "flagged skip-worktree or assume-unchanged\t" p substr($0, 3) }'
+}
+
+# all_differences: differences at the top of the repository and in every
+# submodule, recursively; a submodule not checked out, or in conflict,
+# is a difference too
+all_differences() {
+  local subs flag path
+  differences "" || return 1
+  subs=$(git submodule status --recursive 2> /dev/null) || return 1
+  [ -n "$subs" ] || return 0
+  while IFS= read -r line; do
+    flag=${line%"${line#?}"}
+    path=${line#?}
+    path=${path#* }
+    case $path in *' ('*')') path=${path% (*} ;; esac
+    case $flag in
+      -) printf 'not checked out\t%s\n' "$path"; continue ;;
+      U) printf 'in conflict\t%s\n' "$path"; continue ;;
+    esac
+    (unset_local && cd "$path" && differences "$path/") || return 1
+  done <<EOF
+$subs
+EOF
+}
+
+# some <what> <lines>: prints a problem's first ten lines, indented
+some() {
+  [ -n "$2" ] || return 0
+  printf '%s\n' "$2" | awk -v what="$1" 'NR <= 10 { print "  " what ": " $0 } END { if (NR > 10) print "  ... and " NR - 10 " more" }' >&2
+}
+
+# tree_is_head <message>: the working tree is HEAD, every submodule's
+# too; otherwise prints the message and what differs
+tree_is_head() {
+  local found kind
+  found=$(all_differences) || {
+    echo "pre-push: git failed while comparing the working tree with HEAD; the push is refused." >&2
+    return 1
+  }
+  [ -n "$found" ] || return 0
+  echo "$1" >&2
+  for kind in changed staged untracked "untracked .gitignore" "flagged skip-worktree or assume-unchanged" \
+    "not checked out" "in conflict"; do
+    some "$kind" "$(printf '%s\n' "$found" | awk -F '\t' -v k="$kind" '$1 == k { print $2 }')"
+  done
+  return 1
+}
+
+# read_gate <commit>: sets command and limit from the gate.conf committed
+# in the commit; prints each problem and fails when it is missing or
+# invalid
+read_gate() {
+  local entry key value seen=' ' ok=0
+  command='' limit=3600
+  if [ "$(git cat-file -t "$1:gate.conf" 2> /dev/null)" != blob ]; then
+    echo "pre-push: a push to main or the default branch runs the project's gate, which gate.conf declares, committed at the top of the repository; the commit pushed has none. Commit one that names the gate's command, for example:" >&2
+    echo "  command = make test lint" >&2
+    echo "  timeout = 3600" >&2
+    return 1
+  fi
+  while IFS= read -r entry; do
+    key=${entry%%$'\t'*}
+    value=${entry#*$'\t'}
+    case $key in
+      '!'*) echo "pre-push: gate.conf:${key#!}: not '<key> = <value>': $value" >&2; ok=1; continue ;;
+    esac
+    case $seen in *" $key "*) echo "pre-push: gate.conf: $key is set twice" >&2; ok=1; continue ;; esac
+    seen="$seen$key "
+    case $key in
+      command) command=$value ;;
+      timeout) limit=$value ;;
+      *) echo "pre-push: gate.conf: unknown key '$key' (the keys are command and timeout)" >&2; ok=1 ;;
+    esac
+  done < <(git cat-file blob "$1:gate.conf" | awk '
+    { sub(/\r$/, "") }
+    /^[ \t]*(#|$)/ { next }
+    /^[ \t]*[a-z_]+[ \t]*=/ {
+      key = $0; sub(/^[ \t]*/, "", key); sub(/[ \t]*=.*/, "", key)
+      value = $0; sub(/^[^=]*=[ \t]*/, "", value); sub(/[ \t]+$/, "", value)
+      printf "%s\t%s\n", key, value
+      next
+    }
+    { printf "!%d\t%s\n", NR, $0 }
+  ')
+  if [ -z "$command" ]; then
+    echo "pre-push: gate.conf has no command; add the gate's command, for example: command = make test lint" >&2
+    ok=1
+  fi
+  case $limit in
+    '' | 0* | *[!0-9]*)
+      echo "pre-push: gate.conf: timeout must be whole seconds, not '$limit'" >&2
+      ok=1 ;;
+    *)
+      # Checked by length first: bash's integers overflow.
+      if [ "${#limit}" -gt 5 ] || [ "$limit" -gt 86400 ]; then
+        echo "pre-push: gate.conf: timeout must be at most 86400 seconds (a day), not '$limit'" >&2
+        ok=1
+      fi ;;
+  esac
+  return "$ok"
+}
+
+# run_gate <seconds> <command>: runs the command with bash, in a process
+# group of its own (set -m) and with no terminal (see the top), which a
+# watchdog stops past the deadline: TERM to the whole group, KILL 10
+# seconds later; then it sets stopped=1. Returns the command's status. A
+# bash watchdog, not timeout(1): macOS has no GNU timeout, and one way
+# everywhere is tested everywhere.
+stopped=0
+run_gate() {
+  local seconds=$1 gate=$2 pid watchdog code
+  rm -f "$late"
+  set -m
+  (
+    unset_local
+    GIT_PAGER=cat PAGER=cat GIT_TERMINAL_PROMPT=0
+    export GIT_PAGER PAGER GIT_TERMINAL_PROMPT
+    exec bash -c "$gate"
+  ) < /dev/null &
+  pid=$!
+  set +m
+  # Ctrl-C reaches git and this hook, not the gate's own process group.
+  trap 'kill -TERM -- "-$pid" 2> /dev/null; exit 130' INT TERM HUP
+  (
+    start=$SECONDS
+    while kill -0 "$pid" 2> /dev/null; do
+      if [ $((SECONDS - start)) -ge "$seconds" ]; then
+        : > "$late"
+        kill -TERM -- "-$pid" 2> /dev/null
+        n=0
+        while kill -0 -- "-$pid" 2> /dev/null && [ "$n" -lt 10 ]; do
+          sleep 1
+          n=$((n + 1))
+        done
+        kill -KILL -- "-$pid" 2> /dev/null
+        exit 0
+      fi
+      sleep 1
+    done
+  ) < /dev/null &
+  watchdog=$!
+  { wait "$pid"; } 2> /dev/null # no job notice when the watchdog kills it
+  code=$?
+  wait "$watchdog"
+  trap - INT TERM HUP
+  [ ! -e "$late" ] || stopped=1
+  return "$code"
+}
+
+top=$(git rev-parse --show-toplevel 2> /dev/null) || {
+  echo "pre-push: a push to main or the default branch runs the gate, which needs a working tree; push from a checkout. Never --no-verify." >&2
+  exit 1
+}
+cd "$top" || exit 1
+ok=0
+pushed_is_head || ok=1
+tree_is_head "pre-push: the working tree is not the commit pushed, so the gate would test files that are not pushed; commit them, stash them or ignore them in a committed .gitignore:" || ok=1
+first=${gated# }
+read_gate "${first%% *}" || ok=1
+if [ "$ok" -ne 0 ]; then
+  echo "pre-push: the gate did not run; fix the above and push again; never --no-verify." >&2
+  exit 1
+fi
+
+echo "pre-push: running the gate of gate.conf, with a deadline of $limit s: $command" >&2
+started=$SECONDS
+run_gate "$limit" "$command"
+code=$?
+took=$((SECONDS - started))
+if [ "$stopped" -eq 1 ]; then
+  echo "pre-push: the gate ran past its deadline of $limit s (gate.conf timeout) and was stopped; the push is refused. Make it faster or raise the timeout, never --no-verify." >&2
+  exit 1
+fi
+case $code in
+  0) ;;
+  127)
+    echo "pre-push: the gate failed (exit 127: a command was not found; install the tool or put it on PATH) after $took s; the push is refused. Never --no-verify." >&2
+    exit 1 ;;
+  *)
+    echo "pre-push: the gate failed (exit $code) after $took s; the push is refused. Fix it and push again; never --no-verify." >&2
+    exit 1 ;;
+esac
+
+# What passed must be what is pushed: the gate may have written to the
+# working tree (a linter's --fix, a formatter), or it was edited meanwhile.
+ok=0
+pushed_is_head || ok=1
+tree_is_head "pre-push: the gate passed, but the working tree changed while the gate ran (the gate wrote to it, or it was edited meanwhile), so what passed is not what would be pushed; the push is refused. Make the gate leave the tree alone (a check mode, outputs in a committed .gitignore), or commit the change and push again:" || ok=1
+if [ "$ok" -ne 0 ]; then
+  exit 1
+fi
+echo "pre-push: the gate passed in $took s." >&2
+exit 0
