@@ -1,0 +1,138 @@
+# The CI job for the feature checks and the walkthrough check (D129,
+# D137). A merge on GitHub runs no local hook, so in a showcase project
+# with feature files this job is what checks a pull request before its
+# merge. On every pull request into main it checks out the pull
+# request's head (never the merge commit GitHub makes), with full history
+# and every pull request's ref, and runs:
+#   - .ai-workflow/check-features.sh --base origin/main, the feature checks;
+#   - check-walkthrough HEAD, the walkthrough check.
+# Both come from the pull request's base, so a change cannot weaken its
+# own check; from the pull request itself only when it adds them, with a
+# warning. A failing check fails the job.
+#
+# For a public repository, where GitHub Free gives required checks and
+# free Actions minutes. A private showcase repository writes no job: its
+# minutes are scarce and GitHub Free cannot require the check there, so
+# the coordinator runs both checks by hand before each merge (D133).
+#
+# Copy to .github/workflows/feature-check.yml in a project that commits
+# .ai-workflow/ (hooks/install.sh --gate from ai-workflow) and its hooks
+# in .githooks/ (the default install, or --copy-only under husky; a
+# --git-hooks install commits none). Then:
+#   - fill in the toolchain step below, the one step that depends on the
+#     stack; until then it fails the job;
+#   - change `main` below if the default branch has another name;
+#   - make `feature-check`, the job's name, a required check in the
+#     ruleset on main;
+#   - raise timeout-minutes if the project's test run needs longer.
+#
+# The checks need each commit a Locked tests: or Walkthrough: line names.
+# Once a squash merge deletes a branch, such a commit lives only on the
+# pull request's ref, refs/pull/<n>/head, so a step fetches those (D78).
+#
+# The trigger stays pull_request: a pull request from a fork then gets a
+# read-only token and no secrets. Never use its _target variant, which
+# runs with write access in the base repository's context: this job runs
+# the pull request's code.
+name: feature-check
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
+
+# Every run script gets bash -eo pipefail, not the default bash -e.
+defaults:
+  run:
+    shell: bash
+
+# A newer run for a pull request replaces an older one.
+concurrency:
+  group: feature-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  feature-check:
+    # The check name the ruleset requires.
+    name: feature-check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Fetch the pull-request refs
+        run: |
+          timeout 300 git fetch --no-tags origin '+refs/pull/*/head:refs/remotes/origin/pr/*'
+      # The toolchain and the dependencies, for the project's stack.
+      # check-features.sh runs the commands of feature-checks.conf: its
+      # setup in a checkout of each locked commit, but the tests and the
+      # run here, in the working tree. So install the toolchain and the
+      # dependencies here, into paths a committed .gitignore ignores: the
+      # checks fail on an untracked file that nothing ignores. Replace the
+      # step below with the project's own steps; delete it only when the
+      # runner's own tools are all the project needs. For example:
+      #   Node (add `npx playwright install --with-deps` for Playwright):
+      #     - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      #       with:
+      #         node-version-file: .nvmrc
+      #     - run: npm ci
+      #   Python with uv:
+      #     - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      #     - run: uv sync --locked
+      #   Rust (rustup is on the runner; it reads rust-toolchain.toml):
+      #     - run: rustup toolchain install && cargo fetch --locked
+      - name: Toolchain and dependencies (fill in)
+        run: |
+          echo "::error::Fill in the toolchain step of .github/workflows/feature-check.yml for the project's stack"
+          exit 1
+      - name: The feature checks and the walkthrough check
+        env:
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # The pull request's head, never the merge commit.
+          if [ "$(git rev-parse HEAD)" != "$PR_HEAD" ]; then
+            echo "::error::The checkout is $(git rev-parse HEAD), not the pull request's head $PR_HEAD; check out ref: the head SHA"
+            exit 1
+          fi
+          if ! git cat-file -e "$PR_BASE^{commit}" 2> /dev/null; then
+            echo "::error::The pull request's base $PR_BASE is not in the clone; check out with fetch-depth: 0"
+            exit 1
+          fi
+          # take <file> <path>: copies the path (the file, or the folder
+          # that holds it) into $checks as committed in the base, or else
+          # in the head, with a warning, when only the head has the file.
+          checks=$(mktemp -d "$RUNNER_TEMP/checks.XXXXXX")
+          take() {
+            local from=$PR_BASE file
+            if ! git cat-file -e "$PR_BASE:$1" 2> /dev/null; then
+              if ! git cat-file -e "$PR_HEAD:$1" 2> /dev/null; then
+                echo "::error::$1 is missing; install it with hooks/install.sh from ai-workflow and commit it"
+                return 1
+              fi
+              from=$PR_HEAD
+              echo "::warning::$1 is new in this pull request; checking with its own copy"
+            fi
+            git ls-tree -r -z --name-only "$from" -- "$2" | while IFS= read -r -d '' file; do
+              mkdir -p "$checks/$(dirname "$file")"
+              git show "$from:$file" > "$checks/$file"
+            done
+          }
+          take .ai-workflow/check-features.sh .ai-workflow
+          take .githooks/check-walkthrough .githooks/check-walkthrough
+          status=0
+          if ! bash "$checks/.githooks/check-walkthrough" HEAD; then
+            echo "::error::The walkthrough check failed; see the lines above"
+            status=1
+          fi
+          if ! bash "$checks/.ai-workflow/check-features.sh" --base origin/main; then
+            echo "::error::The feature checks failed; see the lines above"
+            status=1
+          fi
+          exit "$status"
