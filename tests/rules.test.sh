@@ -526,4 +526,22 @@ check "idea 8 says its mutation half still waits" idea_8_says 'The mutation half
 check "docs/decisions.md records D137, amending D116" \
   grep -qE '^\| D137 \|.*templates/feature-check\.yml.*Amends D116' "$ROOT/docs/decisions.md"
 
+# --- a pull request behind main is checked again before it merges
+# (D141, review finding C): two pull requests that each pass can break
+# main together, so the required check is strict, and the by-hand run
+# merges only a head that contains the current main.
+for text in '"Require branches to be up to date before merging"' 'D141'; do
+  check "the setup file's showcase CI item says: $text" in_ci_item "$text"
+done
+# shellcheck disable=SC2016
+readme_ruleset() { grep -F 'also requires `feature-check`' "$ROOT/README.md" | grep -qF -- "$1"; }
+for text in 'up to date before merging' 'D141'; do
+  check "the readme's ruleset item says: $text" readme_ruleset "$text"
+done
+merge_step_says() { block "$VF" '12. Merge' | grep -qF -- "$1"; }
+check "the by-hand merge checks that the head contains main" \
+  merge_step_says 'git merge-base --is-ancestor origin/main HEAD'
+check "and otherwise updates the branch and checks again" \
+  merge_step_says 'otherwise update the branch and run the checks again'
+
 finish

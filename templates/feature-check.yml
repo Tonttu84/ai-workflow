@@ -27,7 +27,9 @@
 #   - if the default branch has another name, change `main` in both
 #     places below: `branches: [main]` and `--base origin/main`;
 #   - make `feature-check`, the job's name, a required check in the
-#     ruleset on main;
+#     ruleset on main, and turn on "Require branches to be up to date
+#     before merging" there (D141): a pull request behind main is then
+#     checked again before it merges;
 #   - raise timeout-minutes if the project's test run needs longer.
 #
 # The checks need each commit a Locked tests: or Walkthrough: line names.

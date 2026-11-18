@@ -65,6 +65,7 @@ Repositories the owner does not own, and the owner's inactive repositories that 
   - A merge on GitHub runs no local hook. Without the job, nothing enforces the feature checks and the walkthrough check before a showcase project's merge.
   - The job runs on pull requests, on the pull request's head. It runs `.ai-workflow/check-features.sh --base origin/main` and the walkthrough check, `check-walkthrough HEAD`. The check scripts come from the pull request's base, so a pull request cannot switch them off. The workflow, `feature-checks.conf`, the tests and `docs/features/` come from the pull request: tier 1 does not guard against tampering (D59).
   - It needs full history and the pull-request refs (above). It is a required check in the ruleset on `main`.
+  - The ruleset's status-check rule also turns on "Require branches to be up to date before merging" (D141). A pull request behind `main` then cannot merge until it is updated and checked again.
   - It needs the hooks committed in `.githooks/`: the default mode of `hooks/install.sh`, or `--copy-only` under husky. A `--git-hooks` install commits none.
   - The project copies `templates/feature-check.yml` to `.github/workflows/` and fills in its toolchain step, the one step that depends on the stack (D137). Until then that step fails the job.
   - The toolchain step installs the toolchain and the dependencies, into paths a committed `.gitignore` ignores. The checks run the tests in the working tree, where the config's `setup` never runs.
