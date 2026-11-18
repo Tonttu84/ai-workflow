@@ -44,6 +44,16 @@ refute "bad message rejected after install" commits_ok "$TMP/a" "added stuff."
 check "good message accepted after install" commits_ok "$TMP/a" "chore: start the project"
 check "second install is a no-op" run_install "$TMP/a"
 
+# A push to main runs the gate gate.conf declares and is refused without
+# one (D142), so the installer reminds a project that has none.
+new_repo "$TMP/gate-reminder"
+check "an install without a gate.conf succeeds" run_install "$TMP/gate-reminder"
+check "it reminds that a push to main needs a committed gate.conf" said 'gate.conf'
+check "and shows an example command" said 'command = '
+printf 'command = true\n' > "$TMP/gate-reminder/gate.conf"
+check "an install with a gate.conf succeeds" run_install "$TMP/gate-reminder"
+refute "and gives no reminder" said 'gate.conf'
+
 # The hooks reach the index as executable even when chmod cannot (Git for
 # Windows sets core.filemode=false); git on Linux skips a 100644 hook.
 # modes_are <mode> <repo> [tree]: every .githooks file has that mode in
