@@ -127,8 +127,15 @@ in_order() {
 check "the refs and the toolchain come before the checks" in_order
 
 # --- the header: for public repositories, from D129 and D137
-for text in D129 D137 D133 'writes no job' 'refs/pull/' '.githooks/' 'install.sh --gate' 'required'; do
-  check "the header names $text" grep -qF -- "$text" <(sed -n '/^name:/q; p' "$WORKFLOW")
+# header: the comment block above name:, as one line, so a phrase may wrap
+header() { sed -n '/^name:/q; s/^# \{0,1\}//; p' "$WORKFLOW" | tr '\n' ' ' | tr -s ' '; }
+# Only the check scripts come from the base; the rest of a pull request
+# is trusted, since tier 1 does not guard against tampering (D59).
+refute "the header does not claim a change cannot weaken its own check" \
+  grep -qF 'cannot weaken its own check' <(header)
+for text in D129 D137 D133 'writes no job' 'refs/pull/' '.githooks/' 'install.sh --gate' 'required' \
+  'cannot switch them off' 'this workflow file, feature-checks.conf, the tests' 'D59'; do
+  check "the header names $text" grep -qF -- "$text" <(header)
 done
 
 # --- the run scripts, in a fresh clone of a bare remote

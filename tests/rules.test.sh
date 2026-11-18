@@ -501,8 +501,24 @@ in_ci_item() { block "$SETUP" "$SHOWCASE_CI" | grep -qF -- "$1"; }
 # shellcheck disable=SC2016
 for text in 'fills in its toolchain step' 'installs the toolchain and the dependencies' \
   'Until then that step fails the job' 'The check to require is `feature-check`' \
-  "Both come from the pull request's base"; do
+  "The check scripts come from the pull request's base, so a pull request cannot switch them off" \
+  'tier 1 does not guard against tampering (D59)'; do
   check "the setup file's showcase CI item says: $text" in_ci_item "$text"
+done
+# Only the check scripts come from the base: the workflow, the config,
+# the tests and the feature files come from the pull request (D59), so
+# neither the setup file nor the readme claims a change cannot weaken
+# its own check (review finding B).
+refute "the setup file's showcase CI item does not claim a change cannot weaken its check" \
+  in_ci_item 'cannot weaken its own check'
+# readme_ci <text>: the readme's paragraph on the feature-check job holds the text
+# SC2016: the backticks are Markdown in the readme, matched literally.
+# shellcheck disable=SC2016
+readme_ci() { grep -F '[`templates/feature-check.yml`]' "$ROOT/README.md" | grep -qF -- "$1"; }
+refute "the readme's feature-check paragraph does not claim it either" readme_ci 'cannot weaken its own check'
+# (Without "tier 1": the tier 2 check reads that line's "runs both".)
+for text in 'cannot switch them off' 'do not guard against tampering (D59)'; do
+  check "the readme's feature-check paragraph says: $text" readme_ci "$text"
 done
 check "the setup file keeps the mutation run deferred after D137" grep -qF 'again in D137' "$SETUP"
 check "idea 8 marks its gate half taken up by D137" idea_8_says 'Taken up, the gate half: D137'
