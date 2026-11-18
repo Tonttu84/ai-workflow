@@ -286,7 +286,7 @@ check_record() {
   if [[ $value =~ $re ]]; then
     what=walkthrough
   else
-    re="^skipped[[:blank:]]+$when[[:blank:]]*:(.*)\$"
+    re="^skipped[[:blank:]]+${when}[[:blank:]]*:(.*)\$"
     if [[ $value =~ $re ]]; then
       what=skip
     elif [[ $value == skipped:* ]]; then

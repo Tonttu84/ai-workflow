@@ -57,7 +57,7 @@ says() { grep -qF -- "$1" "$TMP/err"; }
 row_is() {
   local report=$1
   shift
-  grep -qE "^$report[[:space:]]+$(printf '%s[[:space:]]+' "$@" | sed 's/\[\[:space:\]\]+$//')\$" "$TMP/out"
+  grep -qE "^${report}[[:space:]]+$(printf '%s[[:space:]]+' "$@" | sed 's/\[\[:space:\]\]+$//')\$" "$TMP/out"
 }
 
 # --- arguments and the count file
