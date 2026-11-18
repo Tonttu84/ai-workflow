@@ -525,6 +525,10 @@ check "idea 8 marks its gate half taken up by D137" idea_8_says 'Taken up, the g
 check "idea 8 says its mutation half still waits" idea_8_says 'The mutation half still waits'
 check "docs/decisions.md records D137, amending D116" \
   grep -qE '^\| D137 \|.*templates/feature-check\.yml.*Amends D116' "$ROOT/docs/decisions.md"
+# D129 had each project write its own job and chose against a ready
+# template, so D137 names it as well (review finding F).
+check "D137 says it also amends D129" \
+  in_row D137 'Amends D116, and D129, under which each project wrote its own job. |'
 
 # --- a pull request behind main is checked again before it merges
 # (D141, review finding C): two pull requests that each pass can break
