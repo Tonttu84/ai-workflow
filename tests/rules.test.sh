@@ -543,5 +543,7 @@ check "the by-hand merge checks that the head contains main" \
   merge_step_says 'git merge-base --is-ancestor origin/main HEAD'
 check "and otherwise updates the branch and checks again" \
   merge_step_says 'otherwise update the branch and run the checks again'
+check "docs/decisions.md records D141 under D60" \
+  grep -qE '^\| D141 \|.*up to date before merging.*agent under D60 · checked \(https://docs\.github\.com/' "$ROOT/docs/decisions.md"
 
 finish
