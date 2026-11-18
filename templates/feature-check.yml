@@ -24,7 +24,8 @@
 # --git-hooks install commits none). Then:
 #   - fill in the toolchain step below, the one step that depends on the
 #     stack; until then it fails the job;
-#   - change `main` below if the default branch has another name;
+#   - if the default branch has another name, change `main` in both
+#     places below: `branches: [main]` and `--base origin/main`;
 #   - make `feature-check`, the job's name, a required check in the
 #     ruleset on main;
 #   - raise timeout-minutes if the project's test run needs longer.

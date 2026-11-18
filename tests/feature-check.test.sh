@@ -133,8 +133,11 @@ header() { sed -n '/^name:/q; s/^# \{0,1\}//; p' "$WORKFLOW" | tr '\n' ' ' | tr 
 # is trusted, since tier 1 does not guard against tampering (D59).
 refute "the header does not claim a change cannot weaken its own check" \
   grep -qF 'cannot weaken its own check' <(header)
+# SC2016: the backticks are text in the header, matched literally.
+# shellcheck disable=SC2016
 for text in D129 D137 D133 'writes no job' 'refs/pull/' '.githooks/' 'install.sh --gate' 'required' \
-  'cannot switch them off' 'this workflow file, feature-checks.conf, the tests' 'D59'; do
+  'cannot switch them off' 'this workflow file, feature-checks.conf, the tests' 'D59' \
+  'in both places below: `branches: [main]` and `--base origin/main`'; do
   check "the header names $text" grep -qF -- "$text" <(header)
 done
 
