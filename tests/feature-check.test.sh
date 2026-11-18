@@ -65,6 +65,32 @@ check "the _target mutant differs" differs "$TMP/target.yml"
 target_only() { test "$(triggers "$TMP/target.yml")" = pull_request; }
 refute "the _target trigger is noticed" target_only
 check "it runs on pull requests into main" grep -qx '    branches: \[main\]' "$WORKFLOW"
+# The activity types, exactly: a run follows every push to a pull request.
+# types_ok <workflow>: one types: line, with exactly these types
+types_ok() {
+  [ "$(grep -c '^ *types: ' "$1")" -eq 1 ] && grep -qx '    types: \[opened, reopened, synchronize\]' "$1"
+}
+check "it runs when a pull request is opened, reopened or pushed to" types_ok "$WORKFLOW"
+sed 's/^    types: \[opened, reopened, synchronize\]$/    types: [closed]/' "$WORKFLOW" > "$TMP/closed.yml"
+check "the closed-types mutant differs" differs "$TMP/closed.yml"
+refute "other activity types are noticed" types_ok "$TMP/closed.yml"
+# Nothing may skip the job or let it pass a failure: a job skipped by a
+# conditional reports success to a required check, and a failed step
+# marked continue-on-error does not fail its job.
+# never_skips <workflow>: no if: anywhere and no continue-on-error
+never_skips() { ! grep -qE '^ *(- )?if:' "$1" && ! grep -q 'continue-on-error' "$1"; }
+check "no conditional and no continue-on-error" never_skips "$WORKFLOW"
+awk '{ print } /^  feature-check:$/ { print "    if: false" }' "$WORKFLOW" > "$TMP/job-if.yml"
+check "the job-if mutant differs" differs "$TMP/job-if.yml"
+refute "a conditional on the job is noticed" never_skips "$TMP/job-if.yml"
+# step_mutant <line>: the workflow with the line added to the checks step
+step_mutant() { awk -v step="      - name: $CHECKS" -v add="$1" '{ print } $0 == step { print add }' "$WORKFLOW"; }
+step_mutant '        if: false' > "$TMP/step-if.yml"
+check "the step-if mutant differs" differs "$TMP/step-if.yml"
+refute "a conditional on the checks step is noticed" never_skips "$TMP/step-if.yml"
+step_mutant '        continue-on-error: true' > "$TMP/continue.yml"
+check "the continue-on-error mutant differs" differs "$TMP/continue.yml"
+refute "continue-on-error on the checks step is noticed" never_skips "$TMP/continue.yml"
 # SC2016: GitHub expressions, matched as text.
 # shellcheck disable=SC2016
 check "a newer run for a pull request replaces an older one" \
