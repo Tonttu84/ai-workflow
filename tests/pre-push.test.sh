@@ -369,7 +369,7 @@ gcommit "feat: a slow gate" "command = sleep 30 & echo \$! > '$pids'; echo \$\$ 
 started=$SECONDS
 refute "a gate past its deadline refuses the push" gpush origin main
 check "it is stopped at the deadline, not after the sleep" test $((SECONDS - started)) -lt 25
-check "it says the deadline passed" said deadline
+check "it says the deadline passed" said 'past its deadline'
 alive() { local p; while read -r p; do kill -0 "$p" 2> /dev/null && return 0; done < "$pids"; return 1; }
 check "the gate wrote its process IDs" test -s "$pids"
 refute "and leaves no process running" alive
@@ -383,20 +383,41 @@ refute "and KILL reaches its whole process group" alive
 # Stopping the push (TERM or Ctrl-C to the hook) stops the gate's process
 # group too, though it is not the hook's own.
 hookpid="$TMP/gate.hook"
+# interrupt <what>: pushes main, sends TERM to the hook once the gate
+# (which writes the hook's PID to $hookpid) runs, and checks that the
+# push fails soon after and leaves nothing of the gate running
+interrupt() {
+  local pushing waited=0 started
+  rm -f "$hookpid" "$pids"
+  gpush origin main &
+  pushing=$!
+  while [ ! -s "$hookpid" ] && [ "$waited" -lt 300 ]; do sleep 0.1; waited=$((waited + 1)); done
+  check "$1: the gate started" test -s "$hookpid"
+  started=$SECONDS
+  kill -TERM "$(cat "$hookpid")" 2> /dev/null
+  refute "$1: a push whose hook is stopped fails" wait "$pushing"
+  check "$1: it stops within seconds, not after the sleep" test $((SECONDS - started)) -lt 20
+  sleep 1
+  refute "$1: and the gate's process group is gone" alive
+}
 # shellcheck disable=SC2016
 gcommit "feat: a gate to interrupt" "command = sleep 30 & echo \$! > '$pids'; echo \$\$ >> '$pids'; echo \$PPID > '$hookpid'; wait"
-rm -f "$hookpid" "$pids"
-gpush origin main &
-pushing=$!
-waited=0
-while [ ! -s "$hookpid" ] && [ "$waited" -lt 200 ]; do sleep 0.1; waited=$((waited + 1)); done
-check "the gate to interrupt started" test -s "$hookpid"
-started=$SECONDS
-kill -TERM "$(cat "$hookpid")" 2> /dev/null
-refute "a push whose hook is stopped fails" wait "$pushing"
-check "it stops at once, not after the sleep" test $((SECONDS - started)) -lt 20
-sleep 1
-refute "and the gate's process group is gone" alive
+interrupt "a gate that stops on TERM"
+# A gate that ignores TERM gets KILL a few seconds later, not at its
+# deadline (an hour by default).
+# shellcheck disable=SC2016
+gcommit "feat: a stubborn gate to interrupt" "command = trap '' TERM; sleep 30 & echo \$! > '$pids'; echo \$\$ >> '$pids'; echo \$PPID > '$hookpid'; wait"
+interrupt "a gate that ignores TERM"
+
+# What the gate leaves running in the background when it exits is
+# stopped before the tree is checked again, so it cannot write to the
+# tree after that check.
+# shellcheck disable=SC2016
+gcommit "feat: a gate that leaves a job behind" "command = sleep 30 & echo \$! > '$pids'; (sleep 3; echo late >> file) & echo \$! >> '$pids'; echo ran >> '$ran'"
+check "a gate that leaves background jobs goes through" gpush origin main
+sleep 5
+refute "its background jobs are stopped" alive
+check "and did not write to the tree after the check" test -z "$(git -C "$grepo" status --porcelain)"
 
 # The gate's input is /dev/null, not the refs git gives the hook.
 gcommit "feat: a gate that reads its input" "command = [ -c /dev/stdin ] && [ ! -t 0 ] && echo ran >> '$ran'"
@@ -441,6 +462,21 @@ check "it names the untracked .gitignore" said 'fixtures/.gitignore'
 mv "$grepo/fixtures/.gitignore" "$grepo/fixtures/.GITIGNORE"
 refute "so does an untracked .GITIGNORE" gpush origin main
 rm -r "$grepo/fixtures"
+# Ignore rules that are not pushed do not clear its folder either: not
+# .git/info/exclude, not a global excludes file.
+mkdir -p "$grepo/cases"
+echo needed > "$grepo/cases/data.txt"
+printf '*\n' > "$grepo/cases/.gitignore"
+echo cases/ >> "$grepo/.git/info/exclude"
+refute "an untracked .gitignore in a folder .git/info/exclude ignores refuses the push" gpush origin main
+check "it names that .gitignore (info/exclude)" said 'cases/.gitignore'
+sed -i.bak '/^cases\/$/d' "$grepo/.git/info/exclude" && rm -f "$grepo/.git/info/exclude.bak"
+printf 'cases/\n' > "$TMP/global-excludes"
+git config --file "$GIT_CONFIG_GLOBAL" core.excludesFile "$TMP/global-excludes"
+refute "so does one in a folder a global excludes file ignores" gpush origin main
+check "it names that .gitignore (global excludes)" said 'cases/.gitignore'
+git config --file "$GIT_CONFIG_GLOBAL" --unset core.excludesFile
+rm -r "$grepo/cases"
 mkdir -p "$grepo/venv"
 printf '*\n' > "$grepo/venv/.gitignore"
 echo local > "$grepo/venv/python"
@@ -574,6 +610,31 @@ git -C "$grepo" submodule deinit -q -f lib > /dev/null 2>&1
 refute "a submodule that is not checked out refuses the push" gpush origin main
 check "it says the submodule is not checked out" said 'not checked out'
 git -C "$grepo" -c protocol.file.allow=always submodule update -q --init > /dev/null 2>&1
+
+# A submodule in a linked worktree: git exports GIT_DIR to the hook, and
+# the checks inside the submodule must not follow it to the superproject.
+swt="$TMP/gated-sub-wt"
+git -C "$grepo" worktree add -q --detach "$swt" HEAD
+git -C "$swt" -c protocol.file.allow=always submodule update -q --init > /dev/null 2>&1
+echo more >> "$swt/file"
+git -C "$swt" add file && git -C "$swt" commit -q --no-verify -m "feat: work in a worktree"
+swt_push() { rm -f "$ran"; git -C "$swt" push -q origin HEAD:main > "$TMP/push.out" 2>&1; }
+echo new > "$swt/lib/new.txt"
+refute "an untracked file in a submodule of a linked worktree refuses the push" swt_push
+check "it names the file in that submodule" said 'lib/new.txt'
+rm "$swt/lib/new.txt"
+check "with that submodule clean, the push from the worktree goes through" swt_push
+check "and the gate ran (worktree submodule)" gate_ran
+git -C "$grepo" worktree remove --force "$swt"
+git -C "$grepo" reset -q --hard "$(gremote main)"
+
+# A gitlink that .gitmodules does not name: git's own reason is shown.
+gcommit "feat: one more before an orphan gitlink" "$PASS"
+git -C "$grepo" update-index --add --cacheinfo "160000,$(git -C "$sub_origin" rev-parse HEAD),orphan"
+git -C "$grepo" commit -q --no-verify -m "feat: an orphan gitlink"
+refute "a gitlink with no .gitmodules entry refuses the push" gpush origin main
+check "with git's reason" said 'no submodule mapping'
+git -C "$grepo" reset -q --hard HEAD~1
 
 # check-commits is what pre-push and CI share: a range and a commit-msg hook.
 cd "$repo" || exit 1
