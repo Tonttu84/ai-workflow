@@ -561,5 +561,7 @@ check "and otherwise updates the branch and checks again" \
   merge_step_says 'otherwise update the branch and run the checks again'
 check "docs/decisions.md records D141 under D60" \
   grep -qE '^\| D141 \|.*up to date before merging.*agent under D60 · checked \(https://docs\.github\.com/' "$ROOT/docs/decisions.md"
+# D141 adds to D129's ruleset, so its Decision cell names it (re-review nit 2).
+check "D141's decision ends by refining D129" in_row D141 'feature-check template. Refines D129. |'
 
 finish
