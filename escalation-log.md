@@ -164,3 +164,21 @@ When the task ends, append its outcome as a new line at the bottom of the file. 
   effort did not prevent. Lesson: a rewrite whose losses no test can see
   needs a cold review against the old text, and a rule moved into a skill
   needs a trigger at the moment it applies, not just a home.
+
+### 2026-11-18: workflow rules repository, a shared pre-push hook that runs each project's gate
+
+- Model and effort: opus, high (step 2 of the D81 ladder)
+- Task: Make the pre-push hook that every project installs run the
+  project's declared gate before a push to the main branch, and refuse the
+  push when the gate fails or cannot run, with tests and docs.
+- Why it is hard for an AI: a mistake in a hook every project shares either
+  blocks every project's pushes or passes a bad push silently. The hook must
+  run under bash 3.2 on macOS, Git for Windows and Linux, and give the gate a
+  deadline without GNU timeout. It must prove that what it tests is exactly
+  the commit being pushed: a modified file, an untracked file the tests
+  import, or a push of a commit other than HEAD would each be a false pass,
+  and the same check needed several review rounds in this repository's
+  feature checks. It must leave pushes to other branches fast and allowed
+  while red, as an earlier decision requires. And dozens of existing
+  end-to-end tests push to main in throwaway repositories; each must keep
+  its meaning once a gate is required there.
