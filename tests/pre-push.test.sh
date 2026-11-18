@@ -701,6 +701,28 @@ rcommit "feat: a slow recorded gate" "command = sleep 30" "timeout = 2"
 refute "a gate past its deadline refuses the push (record)" rpush origin main
 refute "and records nothing (deadline)" recorded "$(rhead)"
 
+# A gate that passes but changes the tree is refused by the check after
+# it, and that pass is not recorded: the next push runs the gate again.
+rcommit "feat: a gate that fixes the file (record)" "command = echo ran >> '$rran'; echo fixed >> file"
+refute "a gate that changes the tree refuses the push (record)" rpush origin main
+refute "and its pass is not recorded" recorded "$(rhead)"
+git -C "$rrepo" checkout -q -- file
+refute "with the file restored, the next push is refused again" rpush origin main
+check "because the gate ran again (tree changed)" rran_ok
+git -C "$rrepo" checkout -q -- file
+
+# A record whose last line has no newline (edited by hand) does not
+# swallow the next pass.
+rcommit "feat: after a record with no last newline" "$RPASS"
+mkdir -p "${records%/*}"
+printf '%040d 2026-01-01T00:00:00Z' 7 > "$records"
+refusing on
+refute "a pass after a record with no last newline, refused by the remote" rpush origin main
+check "is recorded on a line of its own" recorded "$(rhead)"
+refusing off
+check "so the next push of that commit goes through" rpush origin main
+refute "without running the gate again (no last newline)" rran_ok
+
 # A recorded pass does not skip the other checks.
 rcommit "fix: green again (record)" "$RPASS"
 refusing on
