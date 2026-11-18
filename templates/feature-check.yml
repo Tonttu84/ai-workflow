@@ -7,11 +7,12 @@
 #   - .ai-workflow/check-features.sh --base origin/main, the feature checks;
 #   - check-walkthrough HEAD, the walkthrough check.
 # The check scripts (.ai-workflow/ and .githooks/check-walkthrough) come
-# from the pull request's base, so a pull request cannot switch them off;
-# from the pull request itself only when it adds them, with a warning.
-# The rest comes from the pull request: this workflow file,
-# feature-checks.conf, the tests and docs/features/. Tier 1 does not
-# guard against tampering (D59). A failing check fails the job.
+# from the pull request's base, so editing them in the pull request does
+# not switch them off; from the pull request itself only when it adds
+# them, with a warning. The rest comes from the pull request: this
+# workflow file, feature-checks.conf, the tests and docs/features/. D59
+# accepts that, since tier 1 does not guard against tampering. A failing
+# check fails the job.
 #
 # For a public repository, where GitHub Free gives required checks and
 # free Actions minutes. A private showcase repository writes no job: its

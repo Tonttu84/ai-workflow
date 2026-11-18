@@ -63,7 +63,7 @@ Repositories the owner does not own, and the owner's inactive repositories that 
 
 - A showcase project with feature files adds a CI job as part of its setup, before its first feature pull request merges (D129):
   - A merge on GitHub runs no local hook. Without the job, nothing enforces the feature checks and the walkthrough check before a showcase project's merge.
-  - The job runs on pull requests, on the pull request's head. It runs `.ai-workflow/check-features.sh --base origin/main` and the walkthrough check, `check-walkthrough HEAD`. The check scripts come from the pull request's base, so a pull request cannot switch them off. The workflow, `feature-checks.conf`, the tests and `docs/features/` come from the pull request: tier 1 does not guard against tampering (D59).
+  - The job runs on pull requests, on the pull request's head. It runs `.ai-workflow/check-features.sh --base origin/main` and the walkthrough check, `check-walkthrough HEAD`. The check scripts come from the pull request's base, so editing them in the pull request does not switch them off. The workflow, `feature-checks.conf`, the tests and `docs/features/` come from the pull request; D59 accepts that, since tier 1 does not guard against tampering.
   - It needs full history and the pull-request refs (above). It is a required check in the ruleset on `main`.
   - The ruleset's status-check rule also turns on "Require branches to be up to date before merging" (D141). A pull request behind `main` then cannot merge until it is updated and checked again.
   - It needs the hooks committed in `.githooks/`: the default mode of `hooks/install.sh`, or `--copy-only` under husky. A `--git-hooks` install commits none.

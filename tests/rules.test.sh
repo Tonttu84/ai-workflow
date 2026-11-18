@@ -501,10 +501,14 @@ in_ci_item() { block "$SETUP" "$SHOWCASE_CI" | grep -qF -- "$1"; }
 # shellcheck disable=SC2016
 for text in 'fills in its toolchain step' 'installs the toolchain and the dependencies' \
   'Until then that step fails the job' 'The check to require is `feature-check`' \
-  "The check scripts come from the pull request's base, so a pull request cannot switch them off" \
-  'tier 1 does not guard against tampering (D59)'; do
+  "The check scripts come from the pull request's base, so editing them in the pull request does not switch them off" \
+  'come from the pull request; D59 accepts that, since tier 1 does not guard against tampering'; do
   check "the setup file's showcase CI item says: $text" in_ci_item "$text"
 done
+# A pull request can still delete the step from the workflow file, so no
+# doc says it "cannot switch them off" (re-review nit 1).
+refute "the setup file's showcase CI item does not say a pull request cannot switch the checks off" \
+  in_ci_item 'cannot switch them off'
 # Only the check scripts come from the base: the workflow, the config,
 # the tests and the feature files come from the pull request (D59), so
 # neither the setup file nor the readme claims a change cannot weaken
@@ -517,9 +521,12 @@ refute "the setup file's showcase CI item does not claim a change cannot weaken 
 readme_ci() { grep -F '[`templates/feature-check.yml`]' "$ROOT/README.md" | grep -qF -- "$1"; }
 refute "the readme's feature-check paragraph does not claim it either" readme_ci 'cannot weaken its own check'
 # (Without "tier 1": the tier 2 check reads that line's "runs both".)
-for text in 'cannot switch them off' 'do not guard against tampering (D59)'; do
+for text in 'editing them in the pull request does not switch them off' \
+  'come from the pull request; D59 accepts that'; do
   check "the readme's feature-check paragraph says: $text" readme_ci "$text"
 done
+refute "the readme's feature-check paragraph does not say a pull request cannot switch the checks off" \
+  readme_ci 'cannot switch them off'
 check "the setup file keeps the mutation run deferred after D137" grep -qF 'again in D137' "$SETUP"
 check "idea 8 marks its gate half taken up by D137" idea_8_says 'Taken up, the gate half: D137'
 check "idea 8 says its mutation half still waits" idea_8_says 'The mutation half still waits'

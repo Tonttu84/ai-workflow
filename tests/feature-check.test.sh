@@ -133,10 +133,14 @@ header() { sed -n '/^name:/q; s/^# \{0,1\}//; p' "$WORKFLOW" | tr '\n' ' ' | tr 
 # is trusted, since tier 1 does not guard against tampering (D59).
 refute "the header does not claim a change cannot weaken its own check" \
   grep -qF 'cannot weaken its own check' <(header)
+# A pull request can still delete the step from this file.
+refute "the header does not say a pull request cannot switch the checks off" \
+  grep -qF 'cannot switch them off' <(header)
 # SC2016: the backticks are text in the header, matched literally.
 # shellcheck disable=SC2016
 for text in D129 D137 D133 'writes no job' 'refs/pull/' '.githooks/' 'install.sh --gate' 'required' \
-  'cannot switch them off' 'this workflow file, feature-checks.conf, the tests' 'D59' \
+  'editing them in the pull request does not switch them off' \
+  'this workflow file, feature-checks.conf, the tests' 'D59 accepts that' \
   'in both places below: `branches: [main]` and `--base origin/main`' \
   'a skipped job counts as a success' 'Require branches to be up to date before merging' 'D141'; do
   check "the header names $text" grep -qF -- "$text" <(header)
