@@ -38,9 +38,9 @@ See `docs/kickoff.md` for why this stack was chosen.
 | Unit tests | `<...>` |
 | End-to-end tests | `<...>` |
 | Lint, format, type-check | `<...>` |
-| The local gate (tests, lint, types, build; with feature files, the feature checks below) | `<...>` |
+| The local gate (tests, lint, types, build; with feature files, the feature checks below), the `command` of the committed `gate.conf` | `<...>` |
 
-The gate guards `main`: run it before a push to `main` or the merge of a pull request (on the pull request's branch). A push to another branch needs only the `pre-push` commit check, so a feature branch may be pushed while its locked tests are red (ai-workflow D128).
+The gate guards `main`: run it before a push to `main` or the merge of a pull request (on the pull request's branch). The `pre-push` hook runs it from `gate.conf` before a push to `main` and refuses the push if it fails or cannot run (ai-workflow D142), so give that push a deadline longer than the gate's `timeout`. A push to another branch needs only the `pre-push` commit check, so a feature branch may be pushed while its locked tests are red (ai-workflow D128).
 
 With feature files, the gate also runs `.ai-workflow/check-features.sh --base origin/main` (the branch the work merges into; copied into the project by the ai-workflow `hooks/install.sh --gate`; commit `.ai-workflow/`). For every `Locked tests:` line of every feature file it runs `check-locked-tests.sh` (locked tests unchanged) and `check-red-green.sh` (they fail on the code before the feature and pass on the new code), and checks that each item's Test cell starts with a committed, locked test file that carries the item's tag; then the whole test run, `check-test-count.sh` (the runner finished and no test was lost) and `check-trace-links.sh` (every item has a passing test). A project on OpenFastTrace adds its trace to the gate as a command of its own. Its settings are in the committed `feature-checks.conf` (see `check-features.sh --help`):
 
