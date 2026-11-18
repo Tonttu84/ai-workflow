@@ -182,3 +182,17 @@ When the task ends, append its outcome as a new line at the bottom of the file. 
   while red, as an earlier decision requires. And dozens of existing
   end-to-end tests push to main in throwaway repositories; each must keep
   its meaning once a gate is required there.
+- Outcome (2026-11-18: workflow rules repository, a shared pre-push hook
+  that runs each project's gate): it succeeded after three review rounds
+  and two failures in real use. Opus at high effort wrote the tests first
+  and got the environment, the deadline and the process-group kill right,
+  but the reviews found what it had not foreseen: a gate that edits the
+  tree passing content it never tested, ignore rules and submodules hiding
+  files, and tests that 8 of 16 mutants survived. The first real pushes
+  then showed two things no test had: the tool's own worktrees inside the
+  repository tripping the tree check, and an SSH connection dropped while
+  a 25-minute gate ran, fixed by recording a pass per commit. Whether
+  normal effort would have done as well is not shown. Lesson: for a check
+  whose job is to refuse, the brief should ask for a mutant run on every
+  refusal path, and the plan should include the first real use, since two
+  of the defects showed only there.
