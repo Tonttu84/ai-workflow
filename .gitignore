@@ -1,0 +1,5 @@
+# Claude Code's files local to each machine. Committed, because the
+# pre-push gate counts only committed ignore rules, not .git/info/exclude
+# (D151).
+.claude/worktrees/
+.claude/settings.local.json
