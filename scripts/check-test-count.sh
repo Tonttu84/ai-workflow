@@ -104,6 +104,8 @@ parse() {
   '
 }
 
+# SC2094: parse only names the file in its messages; nothing writes it.
+# shellcheck disable=SC2094
 current=$(parse "$file" < "$file") || exit 2
 printf '%s\n' "$current" | grep -q '^C' || die "$file lists no report"
 

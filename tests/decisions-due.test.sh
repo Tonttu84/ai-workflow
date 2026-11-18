@@ -74,6 +74,8 @@ sed 's/$/\r/' "$TMP/decisions.md" > "$TMP/crlf.md"
 check "a CRLF file exits 0" status_is 0 "$TMP/crlf.md" 2026-11-16
 check "a CRLF file gives the same rows" test "$(lines)" -eq 3
 # (grep in Git for Windows matches $'\r' on every line, so tr does the check)
+# SC2094: tr and cmp both only read the file.
+# shellcheck disable=SC2094
 no_cr() { tr -d '\r' < "$1" | cmp -s - "$1"; }
 check "without the carriage returns" no_cr "$TMP/out"
 check "the CR check notices a CR" test "$(printf 'a\r\n' > "$TMP/cr" && no_cr "$TMP/cr"; echo $?)" -ne 0
