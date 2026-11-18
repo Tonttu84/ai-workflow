@@ -478,4 +478,36 @@ check "idea 8 names D129" idea_8_says 'D129'
 check "idea 8 names the showcase CI job as its first candidate" idea_8_says 'first candidate'
 refute "idea_8_says reads only idea 8" idea_8_says 'Formal verification'
 
+# --- the gate half of the CI-template idea is built (D137): a public
+# showcase project with feature files copies templates/feature-check.yml
+# and fills in its toolchain step instead of writing the job; the
+# scheduled mutation run stays deferred.
+for f in "$SETUP" "$VF" "$AGENTS_T" "$ROOT/README.md"; do
+  check "${f#"$ROOT"/} names templates/feature-check.yml" grep -qF 'templates/feature-check.yml' "$f"
+done
+for f in "$SETUP" "$ROOT/README.md"; do
+  check "${f#"$ROOT"/} names D137" grep -qF 'D137' "$f"
+done
+refute "the setup file no longer has the project write the job for its stack" \
+  grep -qF 'writes the job for its own stack' "$SETUP"
+refute "the readme no longer says no template runs the gate" grep -qF 'no template does yet' "$ROOT/README.md"
+refute "the AGENTS template no longer leaves the workflow file a placeholder" \
+  grep -qF '<workflow file>' "$AGENTS_T"
+check "the readme lists the template" grep -qE '^  feature-check\.yml +CI job' "$ROOT/README.md"
+# shellcheck disable=SC2016
+check "the readme has the ruleset require feature-check" grep -qF 'also requires `feature-check`' "$ROOT/README.md"
+# in_ci_item <text>: the setup file's showcase CI item holds the text
+in_ci_item() { block "$SETUP" "$SHOWCASE_CI" | grep -qF -- "$1"; }
+# shellcheck disable=SC2016
+for text in 'fills in its toolchain step' 'installs the toolchain and the dependencies' \
+  'Until then that step fails the job' 'The check to require is `feature-check`' \
+  "Both come from the pull request's base"; do
+  check "the setup file's showcase CI item says: $text" in_ci_item "$text"
+done
+check "the setup file keeps the mutation run deferred after D137" grep -qF 'again in D137' "$SETUP"
+check "idea 8 marks its gate half taken up by D137" idea_8_says 'Taken up, the gate half: D137'
+check "idea 8 says its mutation half still waits" idea_8_says 'The mutation half still waits'
+check "docs/decisions.md records D137, amending D116" \
+  grep -qE '^\| D137 \|.*templates/feature-check\.yml.*Amends D116' "$ROOT/docs/decisions.md"
+
 finish

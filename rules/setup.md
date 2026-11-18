@@ -45,7 +45,7 @@ Repositories the owner does not own, and the owner's inactive repositories that 
   - Put `.ai-workflow/check-features.sh --base origin/main` in the gate, which runs before a push to `main` or the merge of a pull request, never on a push to another branch (D114, D128).
   - The project then needs no path to an ai-workflow clone, for collaborators or a future CI job (D101). Rerun `--gate` to update the copies when the scripts change.
 - The feature checks need each locked commit and `origin/main` in the clone, so a clone or CI job that runs the gate needs full history (`actions/checkout` with `fetch-depth: 0`) and, in a repository that squash-merges, the pull-request refs (D78, below); otherwise they die with "unknown commit".
-- Scheduled mutation testing in CI (D75) is deferred until the first project with feature files sets up its CI (D100, confirmed by the owner in D116): that project writes the workflow, with D39's triggers for a private repository (by hand and on a schedule), and records it. Until then mutation testing runs only in the hardening step.
+- Scheduled mutation testing in CI (D75) is deferred until the first project with feature files sets up its CI (D100, confirmed by the owner in D116 and again in D137, which built only the gate's job): that project writes the mutation workflow, with D39's triggers for a private repository (by hand and on a schedule), and records it. Until then mutation testing runs only in the hardening step.
 
 ## CI and repository settings
 
@@ -63,10 +63,12 @@ Repositories the owner does not own, and the owner's inactive repositories that 
 
 - A showcase project with feature files adds a CI job as part of its setup, before its first feature pull request merges (D129):
   - A merge on GitHub runs no local hook. Without the job, nothing enforces the feature checks and the walkthrough check before a showcase project's merge.
-  - The job runs on pull requests, on the pull request's head. It runs `.ai-workflow/check-features.sh --base origin/main` and the walkthrough check, `bash .githooks/check-walkthrough HEAD`.
+  - The job runs on pull requests, on the pull request's head. It runs `.ai-workflow/check-features.sh --base origin/main` and the walkthrough check, `check-walkthrough HEAD`. Both come from the pull request's base, so a pull request cannot weaken its own check.
   - It needs full history and the pull-request refs (above). It is a required check in the ruleset on `main`.
   - It needs the hooks committed in `.githooks/`: the default mode of `hooks/install.sh`, or `--copy-only` under husky. A `--git-hooks` install commits none.
-  - The project writes the job for its own stack (toolchain, test runner, JUnit reports) and records it as a row in its `docs/decisions.md`.
+  - The project copies `templates/feature-check.yml` to `.github/workflows/` and fills in its toolchain step, the one step that depends on the stack (D137). Until then that step fails the job.
+  - The toolchain step installs the toolchain and the dependencies, into paths a committed `.gitignore` ignores. The checks run the tests in the working tree, where the config's `setup` never runs.
+  - The project records the job as a row in its `docs/decisions.md`. The check to require is `feature-check`, the job's name.
   - Public repositories get required checks and Actions minutes free on GitHub Free.
   - A private showcase repository writes no job: its Actions minutes are scarce (D39), and GitHub Free cannot require the check there. The coordinator runs both checks by hand before each merge, and the project's `AGENTS.md` says so.
   - Until the job exists, the coordinator runs both checks by hand before each merge (the `verifying-features` skill, step 12).

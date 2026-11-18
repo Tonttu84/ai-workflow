@@ -63,5 +63,6 @@ Improvements to the workflow left for later on purpose. Each entry says where it
 - Date: 2026-11-17
 - Source: D100, confirmed by the owner in D116; the second docs review (no CI template runs `check-features.sh`); D129, whose required CI job in a showcase project with feature files is the gate half of this idea.
 - What: a workflow template that runs `.ai-workflow/check-features.sh --base origin/main` with full history, and the scheduled diff-scoped mutation run of D75.
-- Why not now: a mutation run depends on the stack, and private repositories' Actions minutes are scarce (D39); a template written before a project needs it would be a guess.
-- Revisit when: the first project with feature files sets up its CI (recheck 2027-02-16); that project writes the workflow and it becomes the template. The first candidate is the first showcase project with feature files, which writes its CI job at setup (D129).
+- Taken up, the gate half: D137 (2026-11-18), as `templates/feature-check.yml`. The mutation half still waits.
+- Why not now: for the mutation half, a mutation run depends on the stack, and private repositories' Actions minutes are scarce (D39); a template written before a project needs it would be a guess.
+- Revisit when: the first project with feature files sets up its CI (recheck 2027-02-16); that project writes the mutation workflow and it becomes the template. The first candidate is the first showcase project with feature files, which sets up the gate's CI job at setup (D129).
