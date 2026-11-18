@@ -38,6 +38,9 @@
 # read-only token and no secrets. Never use its _target variant, which
 # runs with write access in the base repository's context: this job runs
 # the pull request's code.
+#
+# Add no condition (if:) to the job or its steps, and never let a failing
+# step pass: for a required check, a skipped job counts as a success.
 name: feature-check
 
 on:

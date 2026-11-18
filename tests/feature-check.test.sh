@@ -137,7 +137,8 @@ refute "the header does not claim a change cannot weaken its own check" \
 # shellcheck disable=SC2016
 for text in D129 D137 D133 'writes no job' 'refs/pull/' '.githooks/' 'install.sh --gate' 'required' \
   'cannot switch them off' 'this workflow file, feature-checks.conf, the tests' 'D59' \
-  'in both places below: `branches: [main]` and `--base origin/main`'; do
+  'in both places below: `branches: [main]` and `--base origin/main`' \
+  'a skipped job counts as a success'; do
   check "the header names $text" grep -qF -- "$text" <(header)
 done
 
