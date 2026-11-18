@@ -459,10 +459,25 @@ if [ "$ok" -ne 0 ]; then
   exit 1
 fi
 echo "pre-push: the gate passed in $took s." >&2
-if [ -n "$records" ] && mkdir -p "${records%/*}" &&
-  { if [ -f "$records" ]; then cat "$records"; fi
-    printf '%s %s\n' "$head" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"; } | tail -n 20 > "$records.new" &&
-  mv -f "$records.new" "$records"; then
+# record_pass: appends this commit's pass to the record, keeping the
+# last 20. awk ends every line it copies with a newline, so a record
+# edited by hand without one does not swallow the new line. It writes
+# through a temp file of its own, so two passes that end at once do not
+# share one; the later rename wins, and a lost line only means the gate
+# runs again.
+record_pass() {
+  local tmp
+  [ -n "$records" ] && mkdir -p "${records%/*}" || return 1
+  tmp=$(mktemp "$records.XXXXXX") || return 1
+  if { if [ -f "$records" ]; then awk '{ print }' "$records"; fi
+    printf '%s %s\n' "$head" "$(date -u +%Y-%m-%dT%H:%M:%SZ)"; } | tail -n 20 > "$tmp" &&
+    mv -f "$tmp" "$records"; then
+    return 0
+  fi
+  rm -f "$tmp"
+  return 1
+}
+if record_pass; then
   echo "pre-push: the pass is recorded for $head. If the push now fails because the remote dropped the idle connection, push again: the gate will not run twice for this commit." >&2
 else
   echo "pre-push: warning: could not record the gate's pass (in the common git dir: ${records:-not found}); a second push of this commit runs the gate again." >&2
