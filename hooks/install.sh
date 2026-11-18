@@ -3,6 +3,10 @@
 # project, with check-commits, which pre-push and the CI commit check
 # both use to check the messages of a range of commits, and
 # check-walkthrough, which pre-push runs in a project with feature files.
+# A push to main or the default branch also runs the project's gate:
+# the command of gate.conf, committed at the top of the repository
+# (templates/gate.conf; hooks/pre-push explains it). It refuses the push
+# without one, so the installer reminds you when the project has none.
 #
 # Usage: install.sh [--git-hooks | --copy-only] [--gate] [--force]
 #                   [project-dir]
@@ -36,8 +40,9 @@
 #                .ai-workflow/: the project gate and every clone then
 #                run .ai-workflow/check-features.sh with no path to an
 #                ai-workflow clone (and so can the CI job of
-#                templates/feature-check.yml). Rerun it to update them;
-#                it replaces the copies. Works with every mode.
+#                templates/feature-check.yml). Put that command in
+#                gate.conf's command. Rerun it to update them; it
+#                replaces the copies. Works with every mode.
 #
 # Node projects may use commitlint and husky instead of this hook, with
 # templates/commitlint.config.mjs from the same repository.
@@ -217,7 +222,7 @@ install_gate() {
     exit 1
   fi
   echo "Copied the gate scripts to $dest and staged them (the scripts as 100755). Commit .ai-workflow/."
-  echo "The gate runs, before a push to main or the merge of a pull request: .ai-workflow/check-features.sh --base origin/main, with feature-checks.conf."
+  echo "The gate runs, before a push to main or the merge of a pull request: .ai-workflow/check-features.sh --base origin/main, with feature-checks.conf; put it in gate.conf's command."
 }
 
 if [ "$mode" = hookspath ]; then
@@ -276,3 +281,11 @@ else
 fi
 
 if [ "$gate" -eq 1 ]; then install_gate; fi
+
+# The pre-push hook refuses a push to main without a committed gate.conf.
+if [ ! -f "$top/gate.conf" ]; then
+  echo "Reminder: a push to main or the default branch runs the project's gate, and is refused until"
+  echo "  gate.conf at the top of the repository declares it and is committed, for example:"
+  echo "    command = make test lint"
+  echo "  (templates/gate.conf in the ai-workflow clone explains its keys)."
+fi
