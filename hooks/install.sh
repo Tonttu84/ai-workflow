@@ -28,8 +28,10 @@
 #                and add the LF rule, as the default mode does, but leave
 #                core.hooksPath alone: for husky projects, whose
 #                .husky/pre-push calls .githooks/pre-push (see README).
-#   --force      replace a different commit-msg or hooks path, or switch
-#                off the hooks in .git/hooks. A pre-push that is not ours
+#   --force      replace a commit-msg that is not ours, or another hooks
+#                path, or switch off the hooks in .git/hooks. An older
+#                commit-msg of ours, known by its Source line, is
+#                replaced without it. A pre-push that is not ours
 #                (Git LFS has one) is never replaced, even with --force:
 #                it is kept as pre-push.local, and ours runs it first.
 #   --gate       also copy the push-gate scripts to <project>/.ai-workflow/
@@ -86,14 +88,17 @@ ai_workflow_hook() {
   grep -q '^# Source: https://github.com/Tonttu84/ai-workflow' "$1" 2> /dev/null
 }
 
-# install_hooks <directory>: copies every hook there. A different
-# commit-msg is replaced only with --force. A pre-push that is not ours
-# (Git LFS installs one) is never replaced: it is kept as pre-push.local
-# and ours runs it first. Every refusal comes before anything changes.
+# install_hooks <directory>: copies every hook there. A commit-msg that is
+# not ours is replaced only with --force; an older one of ours, known by
+# its Source line, is replaced as pre-push is. A pre-push that is not
+# ours (Git LFS installs one) is never replaced: it is kept as
+# pre-push.local and ours runs it first. Every refusal comes before
+# anything changes.
 install_hooks() {
   local chain=0
-  if [ -e "$1/commit-msg" ] && ! cmp -s "$here/commit-msg" "$1/commit-msg" && [ "$force" -eq 0 ]; then
-    echo "install.sh: $1/commit-msg exists and differs; rerun with --force to replace it" >&2
+  if [ -e "$1/commit-msg" ] && ! cmp -s "$here/commit-msg" "$1/commit-msg" &&
+    ! ai_workflow_hook "$1/commit-msg" && [ "$force" -eq 0 ]; then
+    echo "install.sh: $1/commit-msg exists and is not ours; rerun with --force to replace it" >&2
     exit 1
   fi
   if [ -e "$1/pre-push" ] && ! ai_workflow_hook "$1/pre-push"; then
