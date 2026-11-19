@@ -115,7 +115,6 @@ while read -r _ name; do
     [ "${files[$i]}" = "$name" ] && order+=("$i")
   done
 done < <(wc -c "${files[@]}" | sed '$d' | sort -rn)
-[ "$total" -gt 1 ] || order=(0)
 if [ "${#order[@]}" -ne "$total" ]; then # a name wc could not give back
   order=()
   for ((i = 0; i < total; i++)); do order+=("$i"); done
