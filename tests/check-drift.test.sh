@@ -383,6 +383,8 @@ check "the copy is as it was" cmp -s "$TMP/wf.before" "$P/$WF"
 refute "it refuses to record a copy backwards" \
   q bash "$OLDC/scripts/copy-template.sh" --record "$P" templates/commit-check.yml "$WF"
 refute "or the notes" q bash "$OLDC/scripts/copy-template.sh" --notes-followed "$P"
+bash "$OLDC/scripts/copy-template.sh" --notes-followed "$P" > "$TMP/out" 2>&1
+check "the helper's refusal says the clone is older than the record" says 'older than the record'
 check "the record is as it was" cmp -s "$TMP/record.before" "$RECORD"
 # install.sh refuses before it copies a hook (re-review, finding 2): from
 # the clone's first commit, whose check-commits is older than the project's
@@ -703,6 +705,9 @@ check "and re-recording with --force" says '--force'
 refute "install.sh refuses over it" q bash "$SQ/hooks/install.sh" "$Q"
 check "and changes nothing" test -z "$(git -C "$Q" status --porcelain)"
 refute "--notes-followed refuses" q bash "$SQ/scripts/copy-template.sh" --notes-followed "$Q"
+bash "$SQ/scripts/copy-template.sh" --notes-followed "$Q" > "$TMP/out" 2>&1
+check "the helper's refusal names a squashed or rebased branch" says 'squashed or rebased'
+check "and --force" says '--force'
 check "--notes-followed --force re-records" q bash "$SQ/scripts/copy-template.sh" --notes-followed --force "$Q"
 check "at the clone's HEAD" grep -qxF "notes $(git -C "$SQ" rev-parse HEAD)" "$Q/.ai-workflow-copies"
 refute "--record refuses" q bash "$SQ/scripts/copy-template.sh" --record "$Q" hooks/pre-push .githooks/pre-push
