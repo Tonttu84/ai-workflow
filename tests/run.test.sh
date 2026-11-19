@@ -2,7 +2,8 @@
 # Tests for tests/run.sh, the runner itself: a copy of it runs fixture
 # test files in a throwaway folder. A failing, killed, lost or missing
 # file fails the run, the output keeps the files' order, TEST_JOBS=1 runs
-# one file at a time, and more jobs run files at the same time.
+# one file at a time, more jobs run files at the same time, and
+# TEST_TIMES=1 adds each file's time.
 set -u
 # shellcheck source=tests/lib.sh
 . "$(dirname "$0")/lib.sh"
@@ -142,6 +143,21 @@ for bad in 0 -1 x 1.5 ' 2' 007; do
 done
 runs TEST_JOBS=
 check "an empty TEST_JOBS is the default" status 0
+
+# --- TEST_TIMES=1 adds each file's time on stderr; the log is unchanged
+fixtures
+fixture a 'echo a ran'
+fixture b 'sleep 2; echo b ran'
+runs TEST_JOBS=2
+cp "$TMP/out" "$TMP/out.plain"
+check "without TEST_TIMES no time is printed" test ! -s "$TMP/err"
+runs TEST_JOBS=2 TEST_TIMES=1
+check "TEST_TIMES=1 still passes" status 0
+check "it gives each file's time" \
+  test "$(grep -c '^run\.sh: tests/[ab]\.test\.sh took [0-9][0-9]* s$' "$TMP/err")" -eq 2
+check "the slow file took at least its sleep" \
+  grep -qE '^run\.sh: tests/b\.test\.sh took ([2-9]|[1-9][0-9]+) s$' "$TMP/err"
+check "and the log on stdout is the same" cmp -s "$TMP/out.plain" "$TMP/out"
 
 # --- no test files is not a pass
 fixtures
