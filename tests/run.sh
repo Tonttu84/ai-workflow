@@ -59,9 +59,10 @@ pause() { # pause: until a file ends, at most a second or so
 
 # Each file runs in the foreground of a subshell, so it gets signals as
 # it did when the runner ran it itself; its PID goes to $out/<n>.pid. The
-# subshell then writes the file's exit status to $out/<n>.status. A
-# subshell killed before that leaves no status, and the file counts as
-# failed.
+# subshell then writes the file's exit status to $out/<n>.status, whole
+# or not at all (written aside and renamed), so a status file that exists
+# can be read at once. A subshell killed before that leaves no status,
+# and the file counts as failed.
 pids=()
 began=() # $SECONDS when each file started
 ended=() # and when the runner first saw it finished
@@ -71,7 +72,7 @@ start() { # start <n>
     # shellcheck disable=SC2016
     bash -c 'echo "$$" > "$0"; exec bash "$1"' "$out/$1.pid" "${files[$1]}" \
       > "$out/$1.log" 2>&1 < /dev/null 9>&-
-    echo "$?" > "$out/$1.status"
+    echo "$?" > "$out/$1.part" && mv -f "$out/$1.part" "$out/$1.status"
     [ -z "$fifo" ] || echo "$1" >&9
   ) &
   pids[$1]=$!
@@ -91,8 +92,6 @@ failed=()
 # report <n>: prints the file's output and notes a failure
 report() {
   local t=${files[$1]} rc=''
-  # Once the subshell has exited, its status file is whole.
-  wait "${pids[$1]}" 2> /dev/null
   [ -f "$out/$1.log" ] && cat "$out/$1.log"
   [ "${TEST_TIMES:-}" != 1 ] || echo "run.sh: $t took $((ended[$1] - began[$1])) s" >&2
   [ -f "$out/$1.status" ] && read -r rc < "$out/$1.status"
