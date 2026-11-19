@@ -193,6 +193,44 @@ refute "a missing template is refused" q bash "$COPY" templates/no-such.yml x "$
 refute "--record of a file that is not there is refused" q bash "$COPY" --record "$P" templates/gate.conf missing.conf
 commit_all "$P" "ci: add dependabot"
 
+# A copy checked out with CRLF endings (core.autocrlf=true, as Git for
+# Windows sets it) merges an upstream change as cleanly as an LF one and
+# keeps its endings; without that every line conflicts.
+CR="$TMP/crlf"
+FC=.github/workflows/feature-check.yml
+new_project "$CR"
+q bash "$INSTALL" "$CR"
+q bash "$COPY" templates/feature-check.yml "$FC" "$CR"
+q bash "$COPY" templates/gate.conf gate.conf "$CR"
+commit_all "$CR" "ci: add the feature check"
+git -C "$CR" config core.autocrlf true
+rm "$CR/$FC" && git -C "$CR" checkout -q -- "$FC"
+# all_crlf <file>: every line ends in CR LF (counted, since Windows grep
+# may drop CRs)
+all_crlf() { test "$(tr -d '\r' < "$1" | wc -c)" -eq "$(($(wc -c < "$1") - $(wc -l < "$1")))"; }
+refute "all_crlf: an LF file is not" all_crlf "$CLONE/templates/feature-check.yml"
+check "the checkout has CRLF endings" all_crlf "$CR/$FC"
+{ printf '# CRLF-LOCAL\r\n'; cat "$CR/$FC"; } > "$TMP/edited" && cp "$TMP/edited" "$CR/$FC"
+commit_all "$CR" "ci: edit the feature check"
+printf '# CRLF-UPSTREAM\n' >> "$CLONE/templates/feature-check.yml"
+upstream "feat: change the feature-check template"
+check "a CRLF copy merges an upstream change cleanly" q bash "$COPY" templates/feature-check.yml "$FC" "$CR"
+refute "with no conflict markers" grep -q '^<<<<<<<' "$CR/$FC"
+check "it keeps the local edit" grep -q '^# CRLF-LOCAL' "$CR/$FC"
+check "and takes the change" grep -q '^# CRLF-UPSTREAM' "$CR/$FC"
+check "with CRLF endings throughout" all_crlf "$CR/$FC"
+commit_all "$CR" "ci: take the upstream change"
+check "and the check finds no drift then" status_is 0 "$CR"
+# A CRLF checkout of the template as it is counts as the same copy.
+G2="$TMP/crlf-same"
+new_project "$G2"
+q bash "$INSTALL" "$G2"
+mkdir -p "$G2/.github/workflows"
+awk '{ print $0 "\r" }' "$CLONE/templates/feature-check.yml" > "$G2/$FC"
+check "an unrecorded CRLF copy of the template as it is gets recorded" \
+  q bash "$COPY" templates/feature-check.yml "$FC" "$G2"
+check "unchanged" all_crlf "$G2/$FC"
+
 # --- 5. a project migrated before the record existed: the check guesses
 # the closest upstream version of each template, and says so
 O="$TMP/old"
