@@ -17,10 +17,11 @@ fixtures() {
 }
 # fixture <name> <body>: a test file in the fixture folder
 fixture() { printf '%s\n' "$2" > "$TMP/fx/tests/$1.test.sh"; }
-# runs [variable=value...]: runs the copy with those variables set;
+# runs [variable=value...]: runs the copy with those variables set and
+# without the TEST_JOBS and TEST_TIMES of the run that runs this file;
 # stdout in $TMP/out, stderr in $TMP/err, the exit status in $TMP/status
 runs() {
-  env "$@" bash "$TMP/fx/tests/run.sh" > "$TMP/out" 2> "$TMP/err"
+  env -u TEST_JOBS -u TEST_TIMES "$@" bash "$TMP/fx/tests/run.sh" > "$TMP/out" 2> "$TMP/err"
   echo "$?" > "$TMP/status"
 }
 status() { [ "$(cat "$TMP/status")" = "$1" ]; }
