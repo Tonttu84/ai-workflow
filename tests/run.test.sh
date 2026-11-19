@@ -151,6 +151,82 @@ runs TEST_JOBS=3 PATH="$TMP/nofifo:$PATH"
 check "without mkfifo a failing file fails the run" status 1
 check "and is named" said 'failed: tests/b.test.sh'
 
+# The FIFO makes the runner wake as soon as a file ends; polling wakes
+# once a second. Twelve quick files one at a time take well under half
+# as long with it as without it.
+fixtures
+for f in a b c d e f g h i j k l; do fixture "$f" "echo $f"; done
+started=$SECONDS
+runs TEST_JOBS=1
+with_fifo=$((SECONDS - started))
+check "twelve quick files pass (FIFO)" status 0
+started=$SECONDS
+runs TEST_JOBS=1 PATH="$TMP/nofifo:$PATH"
+without_fifo=$((SECONDS - started))
+check "twelve quick files pass (no FIFO)" status 0
+check "with the FIFO the run is much faster (${with_fifo}s against ${without_fifo}s)" \
+  test $((with_fifo * 2)) -lt "$without_fifo"
+
+# The test files do not get the runner's FIFO (fd 9).
+fixtures
+fixture a 'if (: >&9) 2> /dev/null; then echo "fd 9 is open"; exit 1; fi'
+runs TEST_JOBS=1
+check "a test file does not inherit the FIFO" status 0
+refute "it says so" said 'fd 9 is open'
+
+# --- stopping the runner (TERM or INT) stops its files, names the ones
+# that did not finish or start, and shows the last lines of their output
+fixtures
+fixture a 'echo a ran'
+fixture d 'echo d ran'
+for f in b c; do
+  # the long files are the biggest, so with two jobs they start first
+  fixture "$f" "here=\"\$(dirname \"\$0\")/..\"
+echo \"\$\$ \$PPID\" > \"\$here/$f.pids\"
+echo '$f line 1'
+echo '$f line 2' >&2
+: > \"\$here/$f.started\"
+sleep 30
+echo '$f never gets here'"
+done
+# gone <file>: the file's process and what runs it are no longer alive,
+# within 5 s
+gone() {
+  local file wrapper n=0
+  read -r file wrapper < "$TMP/fx/$1.pids" || return 1
+  while { kill -0 "$file" || kill -0 "$wrapper"; } 2> /dev/null && [ "$n" -lt 50 ]; do
+    sleep 0.1
+    n=$((n + 1))
+  done
+  ! { kill -0 "$file" || kill -0 "$wrapper"; } 2> /dev/null
+}
+for sig in TERM INT; do
+  rm -f "$TMP/fx/"*.started "$TMP/fx/"*.pids
+  launch TEST_JOBS=2
+  n=0
+  while { [ ! -e "$TMP/fx/b.started" ] || [ ! -e "$TMP/fx/c.started" ]; } && [ "$n" -lt 600 ]; do
+    sleep 0.1
+    n=$((n + 1))
+  done
+  check "both long files started ($sig)" test -e "$TMP/fx/b.started" -a -e "$TMP/fx/c.started"
+  kill -"$sig" "$(cat "$TMP/runner.pid")"
+  await
+  want=130
+  [ "$sig" = INT ] || want=143
+  check "the runner exits $want on $sig" status "$want"
+  refute "it does not say all tests passed ($sig)" all_passed
+  check "it says some tests failed ($sig)" said 'some tests failed'
+  for f in b c; do
+    check "$f is named as not finished ($sig)" said "tests/$f.test.sh did not finish"
+    check "with its last lines ($f, $sig)" said "$f line 2"
+    check "its process is stopped ($f, $sig)" gone "$f"
+  done
+  for f in a d; do
+    check "$f is named as not started ($sig)" said "tests/$f.test.sh did not start"
+  done
+  refute "it did not wait for the long files ($sig)" said 'never gets here'
+done
+
 # --- TEST_JOBS=1 runs one file at a time. Each file holds a lock folder
 # while it runs; finding it taken means two files ran at the same time.
 fixtures
