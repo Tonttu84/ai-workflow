@@ -151,21 +151,30 @@ runs TEST_JOBS=3 PATH="$TMP/nofifo:$PATH"
 check "without mkfifo a failing file fails the run" status 1
 check "and is named" said 'failed: tests/b.test.sh'
 
-# The FIFO makes the runner wake as soon as a file ends; polling wakes
-# once a second. Twelve quick files one at a time take well under half
-# as long with it as without it.
+# With the FIFO the runner waits with a builtin and starts no sleep;
+# without it, it polls with sleep. A sleep on PATH that logs each call
+# counts them. The files start none, and the first one counts for a
+# while, so the runner always has to wait for it.
 fixtures
-for f in a b c d e f g h i j k l; do fixture "$f" "echo $f"; done
-started=$SECONDS
-runs TEST_JOBS=1
-with_fifo=$((SECONDS - started))
-check "twelve quick files pass (FIFO)" status 0
-started=$SECONDS
-runs TEST_JOBS=1 PATH="$TMP/nofifo:$PATH"
-without_fifo=$((SECONDS - started))
-check "twelve quick files pass (no FIFO)" status 0
-check "with the FIFO the run is much faster (${with_fifo}s against ${without_fifo}s)" \
-  test $((with_fifo * 2)) -lt "$without_fifo"
+# SC2016: the fixture's shell expands $i.
+# shellcheck disable=SC2016
+fixture a 'i=0; while [ "$i" -lt 50000 ]; do i=$((i + 1)); done; echo a'
+fixture b 'echo b'
+mkdir -p "$TMP/sleeps"
+printf '#!/bin/sh\necho "$*" >> "%s"\nexec "%s" "$@"\n' "$TMP/sleeps.log" "$(command -v sleep)" \
+  > "$TMP/sleeps/sleep"
+chmod +x "$TMP/sleeps/sleep"
+sleeps() { # the number of sleeps logged
+  if [ -f "$TMP/sleeps.log" ]; then wc -l < "$TMP/sleeps.log" | tr -d ' '; else echo 0; fi
+}
+rm -f "$TMP/sleeps.log"
+runs TEST_JOBS=1 PATH="$TMP/sleeps:$PATH"
+check "the files pass (FIFO)" status 0
+check "with a FIFO the runner starts no sleep ($(sleeps))" test "$(sleeps)" -eq 0
+rm -f "$TMP/sleeps.log"
+runs TEST_JOBS=1 PATH="$TMP/sleeps:$TMP/nofifo:$PATH"
+check "the files pass (no FIFO)" status 0
+check "without one it polls with sleep ($(sleeps))" test "$(sleeps)" -gt 0
 
 # The test files do not get the runner's FIFO (fd 9).
 fixtures
