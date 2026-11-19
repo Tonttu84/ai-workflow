@@ -18,12 +18,46 @@ fixtures() {
 }
 # fixture <name> <body>: a test file in the fixture folder
 fixture() { printf '%s\n' "$2" > "$TMP/fx/tests/$1.test.sh"; }
-# runs [variable=value...]: runs the copy with those variables set and
-# without the TEST_JOBS and TEST_TIMES of the run that runs this file;
-# stdout in $TMP/out, stderr in $TMP/err, the exit status in $TMP/status
+# launch [variable=value...]: starts the copy in the background with
+# those variables set and without the TEST_JOBS and TEST_TIMES of the run
+# that runs this file; stdout in $TMP/out, stderr in $TMP/err, its PID in
+# $TMP/runner.pid, and its exit status in $TMP/status once it ends
+launch() {
+  rm -f "$TMP/status" "$TMP/runner.pid"
+  (
+    # SC2016: the inner shell expands $$, $0 and $@.
+    # shellcheck disable=SC2016
+    bash -c 'echo "$$" > "$0"; exec "$@"' "$TMP/runner.pid" \
+      env -u TEST_JOBS -u TEST_TIMES "$@" bash "$TMP/fx/tests/run.sh" > "$TMP/out" 2> "$TMP/err"
+    echo "$?" > "$TMP/status"
+  ) &
+  launched=$!
+}
+# await: waits for the launched run, at most $RUN_LIMIT seconds. A run
+# still going then is stopped (TERM, KILL 5 s later), and this file fails
+# and ends there, so a hanging runner cannot hang it.
+RUN_LIMIT=120
+await() {
+  local n=0
+  while [ ! -e "$TMP/status" ] && [ "$n" -lt $((RUN_LIMIT * 10)) ]; do
+    sleep 0.1
+    n=$((n + 1))
+  done
+  if [ ! -e "$TMP/status" ]; then
+    kill -TERM "$(cat "$TMP/runner.pid")" 2> /dev/null
+    n=0
+    while [ ! -e "$TMP/status" ] && [ "$n" -lt 50 ]; do sleep 0.1; n=$((n + 1)); done
+    kill -KILL "$(cat "$TMP/runner.pid")" "$launched" 2> /dev/null
+    fail "the runner finished within $RUN_LIMIT s"
+    finish
+    exit 1
+  fi
+  wait "$launched" # the status file is whole once the subshell has exited
+}
+# runs [variable=value...]: launches the copy and waits for it
 runs() {
-  env -u TEST_JOBS -u TEST_TIMES "$@" bash "$TMP/fx/tests/run.sh" > "$TMP/out" 2> "$TMP/err"
-  echo "$?" > "$TMP/status"
+  launch "$@"
+  await
 }
 status() { [ "$(cat "$TMP/status")" = "$1" ]; }
 said() { grep -qF -- "$1" "$TMP/out" "$TMP/err"; }
