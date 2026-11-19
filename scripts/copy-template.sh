@@ -168,18 +168,25 @@ notes_followed() {
 }
 
 # merge_into <target> <template> <base> <head> <dest>: the template's
-# change from base to head, merged into the copy with git merge-file
+# change from base to head, merged into the copy with git merge-file. A
+# copy checked out with CRLF endings (core.autocrlf=true) is merged
+# without them and gets them back: else every line would conflict.
 merge_into() {
-  local target=$1 t=$2 base=$3 head=$4 dest=$5 old status
+  local target=$1 t=$2 base=$3 head=$4 dest=$5 old cur status crlf=0
   git -C "$clone" cat-file -e "$base^{commit}" 2> /dev/null || die "commit $base is not in the ai-workflow clone"
-  old=$(mktemp) || die "cannot make a scratch file"
+  old=$(mktemp) && cur=$(mktemp) || die "cannot make a scratch file"
   if ! git -C "$clone" show "$base:$t" > "$old" 2> /dev/null; then
-    rm -f "$old"
+    rm -f "$old" "$cur"
     die "$t did not exist at $base; use --force to replace $dest"
   fi
-  git merge-file -L "$dest" -L "$t at ${base:0:7}" -L "$t at ${head:0:7}" "$target" "$old" "$clone/$t"
+  tr -d '\r' < "$target" > "$cur"
+  [ "$(wc -c < "$cur")" -eq "$(wc -c < "$target")" ] || crlf=1
+  git merge-file -L "$dest" -L "$t at ${base:0:7}" -L "$t at ${head:0:7}" "$cur" "$old" "$clone/$t"
   status=$?
-  rm -f "$old"
+  if [ "$status" -lt 128 ]; then
+    if [ "$crlf" -eq 1 ]; then awk '{ print $0 "\r" }' "$cur" > "$target"; else cat "$cur" > "$target"; fi
+  fi
+  rm -f "$old" "$cur"
   [ "$status" -eq 0 ] && return 0
   if [ "$status" -gt 0 ] && [ "$status" -lt 128 ]; then
     echo "copy-template.sh: $status conflict(s) merging $t into $dest; the markers are in it." >&2
@@ -206,8 +213,8 @@ copy_template() {
   if [ ! -e "$target" ] || [ "$force" -eq 1 ]; then
     { mkdir -p "$(dirname "$target")" && cp "$clone/$t" "$target"; } || die "cannot write $target"
     what="Copied $t to"
-  elif cmp -s "$clone/$t" "$target"; then
-    what="$t is already in"
+  elif tr -d '\r' < "$target" | cmp -s "$clone/$t" -; then
+    what="$t is already in" # the same lines, CRLF endings or not
   else
     base=${base_opt:-$(recorded_commit "$top" "$dest")}
     [ -n "$base" ] || die "$dest exists, and $RECORD names no commit it came from: pass --base <commit> (check-drift.sh names the closest version) or --force to replace it"
