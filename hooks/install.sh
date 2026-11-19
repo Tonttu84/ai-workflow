@@ -23,7 +23,8 @@
 #                lefthook, Git LFS), since git would stop running them,
 #                and warns when it overrides a global core.hooksPath.
 #   --git-hooks  copy the hooks into the clone's own hooks directory
-#                (.git/hooks) instead. Nothing to commit; per clone only.
+#                (.git/hooks) instead. Per clone only: nothing to commit
+#                but the record (below).
 #   --copy-only  copy the hooks to .githooks/, stage them as executable
 #                and add the LF rule, as the default mode does, but leave
 #                core.hooksPath alone: for husky projects, whose
@@ -45,6 +46,12 @@
 #                templates/feature-check.yml). Put that command in
 #                gate.conf's command. Rerun it to update them; it
 #                replaces the copies. Works with every mode.
+#
+# Every mode records what it copied, with this clone's commit, in the
+# project's .ai-workflow-copies and stages it; commit it.
+# scripts/check-drift.sh compares the project with the clone from it
+# (D153). A first install, into a project with no record and no hook of
+# ours, also records the upgrade notes (docs/upgrading.md) as followed.
 #
 # Node projects may use commitlint and husky instead of this hook, with
 # templates/commitlint.config.mjs from the same repository.
@@ -230,6 +237,42 @@ install_gate() {
   echo "The gate runs, before a push to main or the merge of a pull request: .ai-workflow/check-features.sh --base origin/main, with feature-checks.conf; put it in gate.conf's command."
 }
 
+# record_install: lists what this run copied, with this clone's commit,
+# in the project's .ai-workflow-copies and stages it (copy-template.sh
+# --record); check-drift.sh reads it. A first install also records the
+# upgrade notes as followed (--notes-followed).
+record_install() {
+  local helper="$here/../scripts/copy-template.sh" dest=.githooks name
+  local -a pairs
+  pairs=()
+  [ "$mode" != githooks ] || dest=.git/hooks
+  for name in $HOOKS; do pairs+=("hooks/$name" "$dest/$name"); done
+  if [ "$gate" -eq 1 ]; then
+    for name in $GATE; do pairs+=("scripts/$name" ".ai-workflow/$name"); done
+  fi
+  if ! bash "$helper" --record "$top" "${pairs[@]}" > /dev/null ||
+    { [ "$first_install" -eq 1 ] && ! bash "$helper" --notes-followed "$top" > /dev/null; }; then
+    echo "install.sh: could not record the install in $top/$RECORD;" >&2
+    echo "  fix the cause and rerun install.sh (safe to repeat)" >&2
+    exit 1
+  fi
+  echo "Recorded the install in $top/$RECORD and staged it. Commit it."
+}
+
+# A first install: no record and no hook of ours in the project yet. It
+# sets the project up under the rules as they are now, so the upgrade
+# notes so far are followed. A project migrated before the record
+# existed has hooks of ours: its notes stay unknown until
+# copy-template.sh --notes-followed records them.
+RECORD=.ai-workflow-copies
+first_install=1
+[ ! -e "$top/$RECORD" ] || first_install=0
+for name in $HOOKS; do
+  if ai_workflow_hook "$top/.githooks/$name" || ai_workflow_hook "$(hooks_dir)/$name"; then
+    first_install=0
+  fi
+done
+
 if [ "$mode" = hookspath ]; then
   current=$(git -C "$top" config --local --get core.hooksPath || true)
   effective=$(git -C "$top" config --get core.hooksPath || true)
@@ -286,6 +329,7 @@ else
 fi
 
 if [ "$gate" -eq 1 ]; then install_gate; fi
+record_install
 
 # The pre-push hook refuses a push to main without a committed gate.conf.
 if [ ! -f "$top/gate.conf" ]; then
