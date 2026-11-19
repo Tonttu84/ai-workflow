@@ -103,6 +103,19 @@ for jobs in 1 3; do
 done
 check "the output is the same with one job and with three" cmp -s "$TMP/out.1" "$TMP/out.3"
 
+# Without a FIFO to wait on (mkfifo fails), the runner polls instead:
+# the same output, and a failing file still fails the run.
+mkdir -p "$TMP/nofifo"
+printf '#!/bin/sh\nexit 1\n' > "$TMP/nofifo/mkfifo"
+chmod +x "$TMP/nofifo/mkfifo"
+runs TEST_JOBS=3 PATH="$TMP/nofifo:$PATH"
+check "without mkfifo the files pass" status 0
+check "and the output is the same" cmp -s "$TMP/out.1" "$TMP/out"
+fixture b 'echo b out; exit 1'
+runs TEST_JOBS=3 PATH="$TMP/nofifo:$PATH"
+check "without mkfifo a failing file fails the run" status 1
+check "and is named" said 'failed: tests/b.test.sh'
+
 # --- TEST_JOBS=1 runs one file at a time. Each file holds a lock folder
 # while it runs; finding it taken means two files ran at the same time.
 fixtures
