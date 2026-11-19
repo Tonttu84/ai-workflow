@@ -371,6 +371,13 @@ refute "a gate past its deadline refuses the push" gpush origin main
 check "it is stopped at the deadline, not after the sleep" test $((SECONDS - started)) -lt 25
 check "it says the deadline passed" said 'past its deadline'
 alive() { local p; while read -r p; do kill -0 "$p" 2> /dev/null && return 0; done < "$pids"; return 1; }
+# settle <tenths>: waits until none of the gate's processes is alive, at
+# most that many tenths of a second; a dead process cannot come back, so
+# this ends a fixed wait early without changing what the check sees
+settle() {
+  local n=0
+  while alive && [ "$n" -lt "$1" ]; do sleep 0.1; n=$((n + 1)); done
+}
 check "the gate wrote its process IDs" test -s "$pids"
 refute "and leaves no process running" alive
 # A gate that ignores TERM, and its child, get KILL 10 seconds later.
@@ -397,7 +404,7 @@ interrupt() {
   kill -TERM "$(cat "$hookpid")" 2> /dev/null
   refute "$1: a push whose hook is stopped fails" wait "$pushing"
   check "$1: it stops within seconds, not after the sleep" test $((SECONDS - started)) -lt 20
-  sleep 1
+  settle 10
   refute "$1: and the gate's process group is gone" alive
 }
 # shellcheck disable=SC2016
@@ -415,7 +422,9 @@ interrupt "a gate that ignores TERM"
 # shellcheck disable=SC2016
 gcommit "feat: a gate that leaves a job behind" "command = sleep 30 & echo \$! > '$pids'; (sleep 3; echo late >> file) & echo \$! >> '$pids'; echo ran >> '$ran'"
 check "a gate that leaves background jobs goes through" gpush origin main
-sleep 5
+# Its job would write 3 s after it started: wait long enough to see that,
+# unless every job is already gone.
+settle 50
 refute "its background jobs are stopped" alive
 check "and did not write to the tree after the check" test -z "$(git -C "$grepo" status --porcelain)"
 
