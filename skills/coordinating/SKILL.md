@@ -18,6 +18,10 @@ You are the coordinator: the session that talks with the owner. This adds to the
 - Quality and reliability come before token cost; economics matters only as a secondary concern.
 - Never keep the number of agents down for its own sake. Split a step off to its own agent when an independent viewpoint or a narrower focus improves quality; merge two steps only when their inputs and viewpoint are truly the same.
 
+## Drift from ai-workflow
+
+- Before planning work in a migrated project, run `bash <clone>/scripts/check-drift.sh <project>` unless the session already started with its report (the `SessionStart` hook, D154). Bring the project up to date as a change of its own ("Upgrading a migrated project" in `rules/setup.md`), or tell the owner why not.
+
 ## Delegation
 
 - You plan, grill, write briefs, review and merge. Delegate all coding except trivial edits (a typo, a one-line config change), so you stay free to talk with the owner. This is the owner's preference: deviate only with a reason you tell the owner.

@@ -62,7 +62,7 @@ hooks/
   pre-push                    checks every commit being pushed, as CI does, and runs the gate before a push to main
   check-commits               the range check pre-push and CI share
   check-walkthrough           refuses a push while a finished feature lacks an owner walkthrough
-  install.sh                  installs the hooks into a project; --gate also copies the gate scripts
+  install.sh                  installs the hooks into a project and records them; --gate also copies the gate scripts
 skills/                       see skills/README.md
   coordinating/               the coordinator's procedure (local)
   researching/                when and how to research (local)
@@ -74,6 +74,8 @@ scripts/
   apply-skill-overlay.sh      applies one overlay (used by sync-skills.sh)
   install-skills.sh           copies the skills to ~/.claude/skills
   decisions-due.sh            lists the decision rows due for a recheck
+  check-drift.sh              reports how a migrated project differs from this clone (D153, D154)
+  copy-template.sh            copies or merges a template into a project and records it
   check-features.sh           runs every feature check of the push gate from feature-checks.conf
   check-locked-tests.sh       the locked tests are unchanged
   check-red-green.sh          the locked tests fail before the feature and pass after it
@@ -86,6 +88,7 @@ scripts/
 tests/                        shell tests for the hooks, the scripts and the docs (./tests/run.sh)
 escalation-log.md             why some tasks needed a stronger model: a learning journal
 docs/decisions.md             the decisions behind this repo
+docs/upgrading.md             dated one-time steps for projects migrated before a change
 docs/research/                research reports on tools and practices, kept generic
 docs/ideas.md                 improvements deliberately left for later, and what would bring each back
 ```
@@ -129,6 +132,7 @@ In the user-level `~/.claude/settings.json`:
 
 - Set the environment variable `CLAUDE_CODE_SUBAGENT_MODEL` to `claude-opus-5-5` (under the `env` key). Subagents then default to Opus 5.5. It is only a default: a model the coordinator passes for an escalation still wins, so do not also set `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`.
 - Add `Agent(fork)` to `permissions.deny`. A fork inherits the whole conversation and runs on the coordinator's model; the rules want fresh subagents with a written brief.
+- Add the drift check's `SessionStart` hook (Updating, below), so that each session in a migrated project starts with a report of its drift from this clone (D154).
 - Do not pin a session `model` (D9). The coordinator runs a stronger model or effort than its subagents (D85): pick it when starting the coordinating session, for example with `/model`.
 
 Passing `effort` on a subagent call needs Claude Code v2.1.292 or later.
@@ -162,7 +166,9 @@ Before a push to `main` or the recorded default branch (with none recorded, `mas
 
 Such a project also installs with `--gate`, which copies the push-gate scripts (`scripts/check-features.sh`, the checks it runs, `scripts/feature-tables.awk`, `scripts/junit-cases.awk` and `scripts/stryker-mutate-ranges.sh`) into the project's `.ai-workflow/`, stages them (the scripts as `100755`) and gives them the LF rule. Commit `.ai-workflow/`, and put `.ai-workflow/check-features.sh --base origin/main` in `gate.conf`'s `command`: the gate and every clone then run it with no path to an ai-workflow clone, which would differ between machines and leak a private path into a public repository. A CI job runs it the same way. A merge on GitHub runs no local hook, so a public showcase project with feature files copies [`templates/feature-check.yml`](templates/feature-check.yml) to `.github/workflows/`, fills in its one step that depends on the stack (the toolchain and the dependencies), and makes its `feature-check` job a required check before its first feature pull request merges (D129, D137). On each pull request the job checks out the head with full history and the pull-request refs, then runs the feature checks and the walkthrough check with the check scripts from the pull request's base, so editing them in the pull request does not switch them off. The workflow file, `feature-checks.conf`, the tests and the feature files come from the pull request; D59 accepts that, since these checks do not guard against tampering. Until the job exists, the coordinator runs both checks by hand before each merge. A private showcase repository writes no job, since its Actions minutes are scarce, and the coordinator always runs both checks by hand. The wrapper reads the project's commands from a committed `feature-checks.conf` (`check-features.sh --help` lists its keys). Run `install.sh --gate` again to update the copies.
 
-Setting `core.hooksPath` makes git ignore every hook in `.git/hooks`, so the default mode refuses when that folder already holds hooks (pre-commit, husky, lefthook, Git LFS): use `--git-hooks`, move them into `.githooks/`, or pass `--force` to switch them off. It warns when it overrides a global `core.hooksPath`. Both modes refuse to replace a different `commit-msg` without `--force`. A `pre-push` that is not ours, such as Git LFS's, is never replaced, not even with `--force`: the installer keeps it as `pre-push.local`, and our `pre-push` runs it first with the same arguments and input, so LFS objects still go up. In the default mode, move an LFS project's hooks from `.git/hooks` into `.githooks/` before installing (`--force` would switch them off); `--git-hooks` chains in place.
+Setting `core.hooksPath` makes git ignore every hook in `.git/hooks`, so the default mode refuses when that folder already holds hooks (pre-commit, husky, lefthook, Git LFS): use `--git-hooks`, move them into `.githooks/`, or pass `--force` to switch them off. It warns when it overrides a global `core.hooksPath`. Both modes refuse to replace a `commit-msg` that is not ours without `--force`; an older one of ours, known by its `# Source:` line, is replaced, as `pre-push` is. A `pre-push` that is not ours, such as Git LFS's, is never replaced, not even with `--force`: the installer keeps it as `pre-push.local`, and our `pre-push` runs it first with the same arguments and input, so LFS objects still go up. In the default mode, move an LFS project's hooks from `.git/hooks` into `.githooks/` before installing (`--force` would switch them off); `--git-hooks` chains in place.
+
+Every mode records what it copied, with the clone's commit, in `.ai-workflow-copies` at the top of the project, and stages it: commit it, with `--git-hooks` too. The drift check reads it (Updating, below).
 
 Node projects may use [commitlint](https://commitlint.js.org) and husky instead, with [`templates/commitlint.config.mjs`](templates/commitlint.config.mjs). It extends `@commitlint/config-conventional` so that it accepts and rejects the same messages as the hook; its header lists the few differences.
 
@@ -207,16 +213,38 @@ The coordinating agent follows [`rules/setup.md`](rules/setup.md), which the rul
 - A new project starts with a grill and a `docs/kickoff.md` written before any code, then the project's `AGENTS.md`, `docs/decisions.md` and `docs/escapes.md`, the hooks, CI, the repository settings, Dependabot and the function limits.
 - An existing project is moved from a fresh `git fetch`, with the identity its history already uses, keeping its own rules until the owner decides on each; its committed test secrets move to the private repository and are rotated.
 - A data or ML project also follows `templates/data-science.md`.
+- A project migrated earlier is brought up to date with the drift check and the upgrade notes (Updating, below).
 
 ## Updating
 
 - Rules: edit in this repo, commit under its own hook, push, and `git pull` on other machines. A new session picks up the change. Keep `rules/working-agreements.md` to what every agent needs; the coordinator's procedure goes in a local skill, setup steps in `rules/setup.md`.
 - Skills: the local skills are edited here like any file; the grill skills come from upstream with `./scripts/sync-skills.sh`, then review `git diff skills/` and run the tests. Commit, then `./scripts/install-skills.sh` on every machine. See [`skills/README.md`](skills/README.md).
 - Escalations: the coordinating agent appends entries to `escalation-log.md`, commits that file alone and pushes it.
+- Projects: a migrated project keeps copies of the hooks, the gate scripts and some templates, and a change here can also ask it for a one-time step (D153). `scripts/check-drift.sh <project>` reports, without fetching or writing: the hooks and gate scripts that differ from this clone, with the `install.sh` command that replaces them; the templates changed here since the project copied them, with only the template's own change; a missing `gate.conf` or D151 ignore; and the [upgrade notes](docs/upgrading.md) added since the project last followed them. It exits 1 on drift. Templates are copied with `scripts/copy-template.sh <template> <dest> <project>`, which records the clone's commit in the project's `.ai-workflow-copies` and, on an existing copy, merges the template's change and keeps the project's edits. For a copy made before the record existed, the check guesses the closest version of the template and says so. [`rules/setup.md`](rules/setup.md) has the steps ("Upgrading a migrated project").
+
+The check runs at the start of every Claude Code session from a `SessionStart` hook in the user-level `~/.claude/settings.json` (D154). This repository does not install it; the coordinator adds it to the user settings. With `--session` the check reads the hook's input, checks the folder the session runs in, and prints a short report only when a migrated project has drifted, which the agent sees; it always exits 0 and stops itself after 8 seconds (`CHECK_DRIFT_DEADLINE`). Where the hook is not installed, the `coordinating` skill has the coordinator run the check before planning work. The hook, with the path of your clone (an absolute path with forward slashes on Windows):
+
+```json
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ~/code/ai-workflow/scripts/check-drift.sh --session",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
+```
 
 ## Tests
 
-`make test` (or `./tests/run.sh`) runs the shell tests: a table of good and bad commit messages for the hook plus real `git commit` runs through it, both install modes end to end, the walkthrough check on throwaway repositories and through real pushes, the feature-check and decision scripts on throwaway repositories, the skill sync, overlay and install scripts against a local fake upstream (a sync leaves the local skills alone, and the install copies them), the templates that must match the hook and the shape of their tables, and the docs: the rules file's 2,000-word cap (D89), its triggers for the local skills and `rules/setup.md`, the rules a subagent needs staying in it, and every template, hook, script, rules or skills path that the rules, the setup file, the skills, the templates and this readme name. `make lint` runs [ShellCheck](https://www.shellcheck.net), which must be installed: the gate refuses a push to `main` without it (D142). On Windows its default output stops at the first line the console's code page cannot print, such as one with an em dash, and drops the rest of that file's findings, even when the output goes to a file; list them all with `shellcheck -x -f gcc <files>`. `make lint` still exits non-zero either way. CI runs both on pushes to `main` and on pull requests.
+`make test` (or `./tests/run.sh`) runs the shell tests: a table of good and bad commit messages for the hook plus real `git commit` runs through it, both install modes end to end, the walkthrough check on throwaway repositories and through real pushes, the feature-check and decision scripts on throwaway repositories, the drift check, its session mode and the template helper against a throwaway copy of this clone, the skill sync, overlay and install scripts against a local fake upstream (a sync leaves the local skills alone, and the install copies them), the templates that must match the hook and the shape of their tables, and the docs: the rules file's 2,000-word cap (D89), its triggers for the local skills and `rules/setup.md`, the rules a subagent needs staying in it, and every template, hook, script, rules or skills path that the rules, the setup file, the skills, the templates and this readme name. `make lint` runs [ShellCheck](https://www.shellcheck.net), which must be installed: the gate refuses a push to `main` without it (D142). On Windows its default output stops at the first line the console's code page cannot print, such as one with an em dash, and drops the rest of that file's findings, even when the output goes to a file; list them all with `shellcheck -x -f gcc <files>`. `make lint` still exits non-zero either way. CI runs both on pushes to `main` and on pull requests.
 
 ## Licence
 
