@@ -8,8 +8,8 @@
 # which nothing else does (D156).
 #
 # Usage: copy-template.sh [--force | --base <commit>] <template> <dest> [project-dir]
-#        copy-template.sh --record <project-dir> <path> <dest> [<path> <dest>...]
-#        copy-template.sh --notes-followed [project-dir]
+#        copy-template.sh --record [--force] [--dry-run] <project-dir> <path> <dest> [<path> <dest>...]
+#        copy-template.sh --notes-followed [--force] [project-dir]
 #
 #   <template>   a file in this clone's templates/, such as
 #                templates/commit-check.yml (or commit-check.yml)
@@ -37,13 +37,18 @@
 #   --notes-followed  records that the project has followed the upgrade
 #                     notes (docs/upgrading.md) up to the clone's commit;
 #                     check-drift.sh then lists only notes added after it
+#   --dry-run         with --record: only checks that it could record,
+#                     before hooks/install.sh copies anything
 #
 # It refuses to work from a clone older than the record (a commit the
 # record names, or --base, that is not in the history of the clone's
 # HEAD), which would take changes back out of a copy, and to rewrite a
-# record with a line that is not valid. The record, and a copied or
-# merged <dest>, are staged (git update-index --add): commit them. The
-# record names no path outside the project.
+# record with a line that is not valid. A record commit on no branch of
+# the clone came from an ai-workflow branch that was squashed or rebased:
+# compare the copy by hand, then --force (on a copy, --record or
+# --notes-followed) records it at the clone's HEAD anyway (D168). The
+# record, and a copied or merged <dest>, are staged (git update-index
+# --add): commit them. The record names no path outside the project.
 #
 # Exit status: 0 done, 1 refused, a merge conflict or a git failure,
 # 2 bad usage.
@@ -81,10 +86,13 @@ valid_source() {
   case $1 in hooks/* | scripts/* | templates/*) return 0 ;; esac
   return 1
 }
-# safe_dest <dest>: a path in the project a template may be copied to
+# safe_dest <dest>: a path in the project a template may be copied to:
+# not into .git, in any case (Windows takes .GIT for .git)
 safe_dest() {
+  local lower
   valid_path "$1" || return 1
-  case $1 in .git | .git/*) return 1 ;; esac
+  lower=$(printf '%s' "$1" | LC_ALL=C tr '[:upper:]' '[:lower:]')
+  case $lower in .git | .git/*) return 1 ;; esac
 }
 
 # project_top <dir>: the top of the git repository holding the folder
@@ -139,15 +147,24 @@ recorded_commit() {
   printf '%s' "$rec_entries" | DEST="$1" awk '$3 == ENVIRON["DEST"] { c = $1 } END { print c }'
 }
 # forward <commit> <what>: refuses unless the commit is in the history of
-# the clone's HEAD: working from a clone older than the record would take
-# changes back out of a copy
+# the clone's HEAD, or --force says to record over it: working from a
+# clone older than the record would take changes back out of a copy. A
+# commit on no branch of the clone came from an ai-workflow branch that
+# was squashed or rebased, which no pull brings back (D168).
 forward() {
+  local branches
+  [ "$force" -eq 0 ] || return 0
   git -C "$clone" merge-base --is-ancestor --end-of-options "$1" HEAD 2> /dev/null
   case $? in
-    0) ;;
-    1) die "the ai-workflow clone is older than the record: $2 names ${1:0:7}, which is not in the history of its HEAD; pull the clone" ;;
-    *) die "$2 names ${1:0:7}, which is not a commit of the ai-workflow clone (git merge-base failed); pull the clone" ;;
+    0) return 0 ;;
+    1) ;;
+    *) die "$2 names ${1:0:7}, which the ai-workflow clone does not have: pull the clone. If it still lacks it, the record came from an ai-workflow branch that was squashed or rebased: compare the copy by hand, then rerun with --force" ;;
   esac
+  branches=$(git -C "$clone" for-each-ref --format=x --contains="$1" refs/heads refs/remotes 2> /dev/null) ||
+    die "could not check $2: git for-each-ref failed"
+  [ -n "$branches" ] ||
+    die "$2 names ${1:0:7}, which is on no branch of the ai-workflow clone: it came from a branch that was squashed or rebased. Compare the copy by hand, then rerun with --force"
+  die "the ai-workflow clone is older than the record, or on another branch: $2 names ${1:0:7}, which is not in the history of its HEAD; pull the clone or check out its default branch"
 }
 
 # update_record <top> <notes commit or -> <commit> [<path> <dest>]...:
@@ -188,21 +205,29 @@ update_record() {
 }
 
 # check_copy <top> <path> <dest>: a file of the clone, and a copy of it
-# in the project, that --record may list, not over a line the clone is
-# older than
+# in the project (unless $dry_run), that --record may list, not over a
+# line the clone is older than
 check_copy() {
   local c
   valid_source "$2" || bad "not a path of hooks/, scripts/ or templates/ in the clone: $2"
   [ -f "$clone/$2" ] || die "$2 is not a file in the ai-workflow clone"
   case $3 in .git/hooks/?*) valid_path "$3" ;; *) safe_dest "$3" ;; esac || bad "not a plain path inside the project: $3"
-  [ -f "$(where "$1" "$3")" ] || die "$3 is not in the project; copy it first"
+  [ "$dry_run" -eq 1 ] || [ -f "$(where "$1" "$3")" ] || die "$3 is not in the project; copy it first"
   c=$(recorded_commit "$3")
   [ -z "$c" ] || forward "$c" "the record's line for $3"
 }
 
-# record_files <project-dir> <path> <dest>...: --record
+# record_files [--force] [--dry-run] <project-dir> <path> <dest>...: --record
 record_files() {
   local top head pairs
+  while :; do
+    case ${1-} in
+      --force) force=1 ;;
+      --dry-run) dry_run=1 ;;
+      *) break ;;
+    esac
+    shift
+  done
   [ "$#" -ge 3 ] && [ $(($# % 2)) -eq 1 ] || usage
   top=$(project_top "$1") || exit 2
   shift
@@ -213,13 +238,18 @@ record_files() {
     check_copy "$top" "$1" "$2"
     shift 2
   done
+  [ "$dry_run" -eq 0 ] || return 0
   update_record "$top" - "$head" "${pairs[@]}"
   echo "Recorded $((${#pairs[@]} / 2)) file(s) at ${head:0:7} in $top/$RECORD and staged it. Commit it."
 }
 
-# notes_followed [project-dir]: --notes-followed
+# notes_followed [--force] [project-dir]: --notes-followed
 notes_followed() {
   local top head
+  if [ "${1-}" = --force ]; then
+    force=1
+    shift
+  fi
   [ "$#" -le 1 ] || usage
   top=$(project_top "${1:-.}") || exit 2
   head=$(clone_head) || exit 1
@@ -293,6 +323,7 @@ copy_template() {
 }
 
 force=0
+dry_run=0
 base_opt=
 case ${1-} in
   -h | --help) awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; exit 0 ;;

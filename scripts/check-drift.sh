@@ -127,6 +127,14 @@ the_clone() {
   local a b
   a=$(common_dir "$1") && b=$(common_dir "$clone") && [ "$a" = "$b" ]
 }
+# ai_workflow_repo <top>: the repository is an ai-workflow clone of its
+# own, by what its top holds: hooks/install.sh and scripts/check-drift.sh,
+# with hooks/commit-msg and hooks/pre-push carrying our Source line. A
+# project installs our hooks in .githooks/, never in hooks/ (D169).
+ai_workflow_repo() {
+  [ -f "$1/hooks/install.sh" ] && [ -f "$1/scripts/check-drift.sh" ] &&
+    ours "$1/hooks/commit-msg" && ours "$1/hooks/pre-push"
+}
 
 # Each check adds its findings to the full report and the short one;
 # a git call that fails, and the clone's own state, have lists of their
@@ -231,10 +239,12 @@ check_clone() {
   fi
 }
 
-# check_record_commits: each commit the record names is in the clone's
-# history; $usable lists those that are
+# check_record_commits: each commit the record names is in the history
+# of the clone's HEAD; $usable lists those that are. One on no branch of
+# the clone came from an ai-workflow branch that was squashed or rebased,
+# which no pull brings back (D168).
 check_record_commits() {
-  local c reachable missing=0 older=0 status
+  local c reachable missing=0 older=0 squashed=0 status branches
   usable=' '
   [ "$has_record" -eq 1 ] || return 0
   if ! reachable=$(git -C "$clone" rev-list HEAD 2> /dev/null); then
@@ -249,20 +259,30 @@ check_record_commits() {
     git -C "$clone" cat-file -e --end-of-options "$c" 2> /dev/null
     status=$?
     case $status in
-      0) older=1 ;;
-      1) missing=1 ;;
-      *) could_not "the record's commit ${c:0:7}" cat-file ;;
+      0) ;;
+      1) missing=1; continue ;;
+      *) could_not "the record's commit ${c:0:7}" cat-file; continue ;;
     esac
+    if ! branches=$(git -C "$clone" for-each-ref --format=x --contains="$c" refs/heads refs/remotes 2> /dev/null); then
+      could_not "the record's commit ${c:0:7}" for-each-ref
+    elif [ -n "$branches" ]; then
+      older=1
+    else
+      squashed=1
+    fi
   done
   [ "$missing" -eq 0 ] ||
-    clone_line "The clone is older than the record: the record names commits this clone does not have. Pull the clone."
+    clone_line "The clone is older than the record: the record names commits this clone does not have. Pull the clone. If that does not help, they came from an ai-workflow branch that was squashed or rebased: compare the copies by hand, then re-record them with --force."
   [ "$older" -eq 0 ] ||
-    clone_line "The clone is older than the record, or on another branch: the record names commits that are not in its history. Pull the clone."
+    clone_line "The clone is older than the record, or on another branch: the record names commits that are not in the history of its HEAD. Pull the clone, or check out its default branch."
+  [ "$squashed" -eq 0 ] ||
+    clone_line "The record names commits that are on no branch of the clone: they came from an ai-workflow branch that was squashed or rebased, so no pull brings them. Compare the copies by hand, then re-record them with --force: hooks/install.sh --force, scripts/copy-template.sh --force <template> <dest>, --record --force or --notes-followed --force."
 }
 
 # compare_dir <dir> <shown as> <source dir> <names>: adds to $found the
 # copies there that are missing or differ from the clone's, byte for
-# byte: one git hash-object for them all (a cmp each is slow on Windows)
+# byte: one git hash-object for them all (a cmp each is slow on Windows),
+# which must answer with one hash a file
 compare_dir() {
   local name hashes line ours_hash i=0
   local -a files names
@@ -276,7 +296,8 @@ compare_dir() {
     fi
   done
   [ "${#names[@]}" -gt 0 ] || return 0
-  if ! hashes=$(git -C "$clone" hash-object --no-filters -- "${files[@]}" 2> /dev/null); then
+  if ! hashes=$(git -C "$clone" hash-object --no-filters -- "${files[@]}" 2> /dev/null) ||
+    [ "$(printf '%s\n' "$hashes" | grep -c .)" -ne "${#files[@]}" ]; then
     could_not "the copies in $2" hash-object
     return
   fi
@@ -290,65 +311,92 @@ compare_dir() {
   done <<< "$hashes"
 }
 
-# check_copies: the hooks and the gate scripts, with the command that
-# replaces them, and hooks that are not active
-check_copies() {
-  local gh="$top/.githooks" eff shown in_githooks=0 in_gitdir=0 gate=0 reinstall_flags='' hp name line joined=''
-  local -a found
-  found=()
+# locate_copies: where the project keeps copies of ours: $in_githooks
+# (.githooks/), $in_gitdir (the folder git runs hooks from, $eff, when
+# that is another), $in_gate (.ai-workflow/)
+locate_copies() {
+  local name
+  in_githooks=0 in_gitdir=0 in_gate=0
   if ! eff=$(hooks_dir "$top"); then
     could_not "where the project's hooks run" rev-parse
     eff=
   fi
-  if has_ours "$gh" || record_has .githooks/; then in_githooks=1; fi
-  if [ -n "$eff" ] && ! same_dir "$eff" "$gh" && { has_ours "$eff" || record_has .git/hooks/; }; then
+  if has_ours "$top/.githooks" || record_has .githooks/; then in_githooks=1; fi
+  if [ -n "$eff" ] && ! same_dir "$eff" "$top/.githooks" && { has_ours "$eff" || record_has .git/hooks/; }; then
     in_gitdir=1
   fi
-  for name in $GATE; do [ -f "$top/.ai-workflow/$name" ] && gate=1; done
-  record_has .ai-workflow/ && gate=1
-  [ "$in_githooks" -eq 0 ] || compare_dir "$gh" .githooks "$clone/hooks" "$HOOKS"
+  for name in $GATE; do [ -f "$top/.ai-workflow/$name" ] && in_gate=1; done
+  record_has .ai-workflow/ && in_gate=1
+}
+
+# check_hooks_active: hooks in .githooks/ run only when the project's own
+# core.hooksPath names them; a global or system value does not count,
+# since it is not the project's setting and runs other hooks (D167)
+check_hooks_active() {
+  local hp
+  [ "$in_githooks" -eq 1 ] && [ "$in_gitdir" -eq 0 ] || return 0
+  hp=$(git -C "$top" config --local --get core.hooksPath 2> /dev/null)
+  case $? in
+    0 | 1) ;;
+    *) could_not "core.hooksPath" config; return ;;
+  esac
+  [ -z "$hp" ] || return 0
+  drift=1
+  say "The hooks in .githooks/ are not active in this clone: its core.hooksPath is not set, so no"
+  say "commit check and no gate run. Run: git -C $(quote "$top") config core.hooksPath .githooks"
+  say ""
+  tell "- The hooks in .githooks/ are not active: git -C $(quote "$top") config core.hooksPath .githooks"
+}
+
+# reinstall_flags: the install.sh options that put the copies back in the
+# mode the project uses
+reinstall_flags() {
+  local hp flags=''
+  hp=$(git -C "$top" config --get core.hooksPath 2> /dev/null) || hp=
+  case $hp in '' | /* | [A-Za-z]:*) ;; *) hp="$top/$hp" ;; esac
+  if [ "$in_gitdir" -eq 1 ] && [ "$in_githooks" -eq 0 ]; then
+    flags=--git-hooks
+  elif [ -n "$hp" ] && ! same_dir "$hp" "$top/.githooks"; then
+    flags=--copy-only
+  fi
+  [ "$in_gate" -eq 0 ] || flags="${flags:+$flags }--gate"
+  printf '%s' "$flags"
+}
+
+# check_copies: the hooks and the gate scripts that differ from the
+# clone's, with the command that replaces them, and hooks that do not run
+check_copies() {
+  local shown hp line joined='' command
+  local -a found
+  found=()
+  locate_copies
+  [ "$in_githooks" -eq 0 ] || compare_dir "$top/.githooks" .githooks "$clone/hooks" "$HOOKS"
   if [ "$in_gitdir" -eq 1 ]; then
     case $eff in "$top"/*) shown=${eff#"$top"/} ;; *) shown=$eff ;; esac
     compare_dir "$eff" "$shown" "$clone/hooks" "$HOOKS"
   fi
   if [ "$in_githooks" -eq 0 ] && [ "$in_gitdir" -eq 0 ]; then found+=("no hooks of ours are installed"); fi
-  [ "$gate" -eq 0 ] || compare_dir "$top/.ai-workflow" .ai-workflow "$clone/scripts" "$GATE"
-  hp=$(git -C "$top" config --get core.hooksPath 2> /dev/null)
-  case $? in
-    0 | 1) ;;
-    *) could_not "core.hooksPath" config; return ;;
-  esac
-  if [ "$in_githooks" -eq 1 ] && [ "$in_gitdir" -eq 0 ] && [ -z "$hp" ]; then
-    drift=1
-    say "The hooks in .githooks/ are not active in this clone: core.hooksPath is not set, so no commit"
-    say "check and no gate run. Run: git -C $(quote "$top") config core.hooksPath .githooks"
-    say ""
-    tell "- The hooks in .githooks/ are not active: git -C $(quote "$top") config core.hooksPath .githooks"
-  fi
+  [ "$in_gate" -eq 0 ] || compare_dir "$top/.ai-workflow" .ai-workflow "$clone/scripts" "$GATE"
+  check_hooks_active
   [ "${#found[@]}" -gt 0 ] || return 0
   drift=1
-  case $hp in '' | /* | [A-Za-z]:*) ;; *) hp="$top/$hp" ;; esac
-  if [ "$in_gitdir" -eq 1 ] && [ "$in_githooks" -eq 0 ]; then
-    reinstall_flags=--git-hooks
-  elif [ -n "$hp" ] && ! same_dir "$hp" "$gh"; then
-    reinstall_flags=--copy-only
-  fi
-  [ "$gate" -eq 0 ] || reinstall_flags="${reinstall_flags:+$reinstall_flags }--gate"
+  command="bash $(quote "$clone/hooks/install.sh") $(reinstall_flags)"
+  command="${command% } $(quote "$top")"
   say "Hooks and gate scripts that differ from the clone's (exact copies):"
   for line in "${found[@]}"; do
     say "  $line"
     joined="${joined:+$joined; }$line"
   done
   hp=$(git -C "$top" config --local --get core.hooksPath 2> /dev/null) || hp=
-  if [ -n "$hp" ] && [ "$hp" != .githooks ] && same_dir "$hp" "$gh"; then
+  if [ -n "$hp" ] && [ "$hp" != .githooks ] && same_dir "$hp" "$top/.githooks"; then
     say "  First: git -C $(quote "$top") config core.hooksPath .githooks (install.sh takes only that"
     say "  value, and this one names the same folder)."
     tell "- First: git -C $(quote "$top") config core.hooksPath .githooks"
   fi
-  say "  Reinstall: bash $(quote "$clone/hooks/install.sh") ${reinstall_flags:+$reinstall_flags }$(quote "$top")"
+  say "  Reinstall: $command"
   say ""
   tell "- Hooks or gate scripts differ from the clone: $joined."
-  tell "  Reinstall: bash $(quote "$clone/hooks/install.sh") ${reinstall_flags:+$reinstall_flags }$(quote "$top")"
+  tell "  Reinstall: $command"
 }
 
 # guess <template> <copy> <commits>: "<commit> <distance>" of the
@@ -679,6 +727,7 @@ cwd_of() {
 session_worker() {
   top=$(git -C "$1" rev-parse --show-toplevel 2> /dev/null) || return 0
   the_clone "$top" && return 0
+  ai_workflow_repo "$top" && return 0
   migrated "$top" || return 0
   printf 'top %s\n' "$top"
   brief_only=1
@@ -761,6 +810,7 @@ fi
 [ -n "$HOOKS" ] && [ -n "$GATE" ] || die "cannot read the HOOKS and GATE lists of $clone/hooks/install.sh"
 top=$(git -C "${dir:-.}" rev-parse --show-toplevel 2> /dev/null) || die "${dir:-.} is not in a git repository"
 the_clone "$top" && die "$top is the ai-workflow clone, or a worktree of it: it compares projects with itself, so there is nothing to check"
+ai_workflow_repo "$top" && die "$top is an ai-workflow repository, another clone of this one: the drift check compares projects, not clones"
 migrated "$top" || die "$top is not a migrated project: no AGENTS.md that names Tonttu84/ai-workflow, no hook of ours, no $RECORD"
 git -C "$clone" rev-parse -q --verify HEAD > /dev/null 2>&1 || die "the ai-workflow clone at $clone is not a git repository"
 collect
