@@ -502,6 +502,12 @@ for line in "--output=$VICTIM templates/gate.conf gate.conf" "notes --output=$VI
 done
 cp "$TMP/record.ok" "$J/.ai-workflow-copies"
 check "with the record restored: no drift" status_is 0 "$J"
+# A valid SHA the clone has never seen: a clone older than the record.
+{ cat "$TMP/record.ok"; printf '%s templates/gate.conf gate.conf\n' "$(printf 'feedface%.0s' 1 2 3 4 5)"; } \
+  > "$J/.ai-workflow-copies"
+check "a record commit the clone does not have is drift" status_is 1 "$J"
+check "it says the clone does not have it" says 'does not have'
+cp "$TMP/record.ok" "$J/.ai-workflow-copies"
 bash "$COPY" --base abc1234 templates/gate.conf gate.conf "$J" > /dev/null 2>&1
 check "the helper's --base must be a full SHA: exit 2" test "$?" -eq 2
 bash "$COPY" --base "--output=$VICTIM" templates/gate.conf gate.conf "$J" > /dev/null 2>&1
