@@ -357,7 +357,7 @@ check "it says it stopped at its deadline" says 'deadline'
 check "and points to the full report" says 'check-drift.sh'
 
 # --- 9. the clone behind its remote-tracking branch, from local refs
-BEHIND="$TMP/behind"
+BEHIND="$TMP/lagging" # no "behind" in the path the report names
 git clone -q "$CLONE" "$BEHIND"
 printf 'more\n' > "$CLONE/extra.txt"
 upstream "docs: add a file upstream"
