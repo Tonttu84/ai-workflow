@@ -2,8 +2,9 @@
 # Tests for tests/run.sh, the runner itself: a copy of it runs fixture
 # test files in a throwaway folder. A failing, killed, lost or missing
 # file fails the run, the output keeps the files' order, TEST_JOBS=1 runs
-# one file at a time, more jobs run files at the same time, and
-# TEST_TIMES=1 adds each file's time.
+# one file at a time, more jobs run files at the same time, the default
+# leaves one core free, and TEST_TIMES=1 adds the job count and each
+# file's time.
 set -u
 # shellcheck source=tests/lib.sh
 . "$(dirname "$0")/lib.sh"
@@ -172,6 +173,27 @@ check "it gives each file's time" \
 check "the slow file took at least its sleep" \
   grep -qE '^run\.sh: tests/b\.test\.sh took ([2-9]|[1-9][0-9]+) s$' "$TMP/err"
 check "and the log on stdout is the same" cmp -s "$TMP/out.plain" "$TMP/out"
+
+# --- the default job count is the cores minus one, at least one, so the
+# machine keeps a core free; TEST_JOBS overrides it. A fake getconf on
+# PATH gives the core count.
+fixtures
+fixture a 'echo a ran'
+mkdir -p "$TMP/cores"
+# jobs_with <cores> [variable=value...]: the job count the runner reports
+jobs_with() {
+  local n=$1
+  shift
+  printf '#!/bin/sh\necho %s\n' "$n" > "$TMP/cores/getconf"
+  chmod +x "$TMP/cores/getconf"
+  runs TEST_TIMES=1 PATH="$TMP/cores:$PATH" "$@"
+  sed -n 's/^run\.sh: running \([0-9]*\) files at a time$/\1/p' "$TMP/err"
+}
+check "8 cores: 7 jobs" test "$(jobs_with 8)" = 7
+check "2 cores: 1 job" test "$(jobs_with 2)" = 1
+check "1 core: 1 job" test "$(jobs_with 1)" = 1
+check "TEST_JOBS overrides the cores" test "$(jobs_with 8 TEST_JOBS=8)" = 8
+check "and the run passes (cores)" status 0
 
 # --- no test files is not a pass
 fixtures
