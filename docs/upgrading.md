@@ -4,7 +4,7 @@ The one-time steps a project already migrated to these rules takes after a chang
 
 The check lists the entries added here after the commit in the `notes` line of the project's `.ai-workflow-copies`, and every entry, flagged as unknown, when the project has no such line. Once a project has followed them, record it: `bash <clone>/scripts/copy-template.sh --notes-followed <project>`, and commit the record.
 
-Each entry is a heading `## YYYY-MM-DD: <what>`, dated by the change, then three items: From (the commit or decision that brought it), Do (what an already-migrated project does) and Done when (how to tell). Entries go oldest first. Add an entry in the same commit as the change it is about: the check dates an entry by the commit that added its heading here, so an entry added later is listed again even for projects that followed the change, a false alarm rather than a step missed (D60).
+Each entry is a heading `## YYYY-MM-DD: <what>`, dated by the change, then three items: From (the commit or decision that brought it), Do (what an already-migrated project does) and Done when (how to tell). Entries go oldest first. Add an entry in the same commit as the change it is about: the check dates an entry by the commit that added its heading here, so an entry added later is listed again even for projects that followed the change, a false alarm rather than a step missed (D60). A step that changes gets a new entry: an edited Do line under an old heading is never listed again (D157). No install records the notes as followed; a new or migrated project records them at the end of its setup (D156).
 
 ## 2026-11-10: Hooks committed as executable, with LF endings
 

@@ -20,7 +20,7 @@ You are the coordinator: the session that talks with the owner. This adds to the
 
 ## Drift from ai-workflow
 
-- Before planning work in a migrated project, run `bash <clone>/scripts/check-drift.sh <project>` unless the session already started with its report (the `SessionStart` hook, D154). Bring the project up to date as a change of its own ("Upgrading a migrated project" in `rules/setup.md`), or tell the owner why not.
+- Before planning work in a migrated project, run `bash <clone>/scripts/check-drift.sh <project>` unless the drift check's `SessionStart` hook is installed (D154). Bring the project up to date as a change of its own ("Upgrading a migrated project" in `rules/setup.md`), or tell the owner why not.
 
 ## Delegation
 

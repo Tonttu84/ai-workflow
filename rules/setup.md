@@ -18,6 +18,7 @@ Repositories the owner does not own, and the owner's inactive repositories that 
 6. Turn on the function limits from `templates/function-limits.md` at the starting values, as warnings; make them errors once the first code settles.
 7. Test credentials: commit the variable names with empty values; the values live in the private repository under `<project>/credentials/`.
 8. A data or ML project: point `AGENTS.md` at `templates/data-science.md` by its GitHub URL and state the project's split, metric and baseline there.
+9. Record the upgrade notes as followed, since the project is set up under the rules as they are now: `scripts/copy-template.sh --notes-followed <project>`, and commit `.ai-workflow-copies`. No install does it (D156).
 
 ## Migrating an existing project
 
@@ -31,13 +32,14 @@ Repositories the owner does not own, and the owner's inactive repositories that 
 8. Set the function limits (`templates/function-limits.md`): turn the linter checks on as warnings (in a separate report-only config if the lint gate allows no warnings), measure the existing code, pick limits that flag only the worst few percent, record them in `docs/decisions.md`, then make them errors.
 9. Move committed test secrets into the private repository (`<secrets>/<project>/credentials/<file>`), leaving their variable names with empty values in the project, and rotate every moved value at its provider: git history keeps the old ones.
 10. A data or ML project: point `AGENTS.md` at `templates/data-science.md` by its GitHub URL (collaborators may not have the clone) and add the leakage tests it lists.
+11. Record the upgrade notes as followed, since the migration follows the rules as they are now: `scripts/copy-template.sh --notes-followed <project>`, and commit `.ai-workflow-copies`. No install does it (D156).
 
 ## Upgrading a migrated project
 
 A migrated project keeps copies of files from this repository, and some later changes here ask for a one-time step that no file shows (D153). The drift check finds both. It runs at the start of every Claude Code session from a `SessionStart` hook in the owner's user settings (the README shows it); where that hook is not installed, the coordinator runs it before planning work in the project (D154).
 
 1. Bring the clone up to date: `git -C <clone> pull`. The check never fetches, but it says when the clone is behind its remote-tracking branch, as of the last fetch.
-2. Run `bash <clone>/scripts/check-drift.sh <project>`. It writes nothing and exits 1 when it finds drift.
+2. Run `bash <clone>/scripts/check-drift.sh <project>`. It writes nothing and exits 1 when it finds drift. Fix first what it says about the clone (behind, no upstream, another branch, uncommitted changes, older than the record) and any check it could not run, since the rest compares with the clone.
 3. Follow its report, as a change of its own:
    - Hooks or gate scripts that differ: rerun `hooks/install.sh` with the options the report names.
    - A template changed upstream: run the template helper on the copy, as the report shows. It merges the template's change into the copy and keeps the project's edits. For a copy the report says it guessed, the command passes the guessed commit as `--base`. After a conflict, resolve the markers, then record the copy: `scripts/copy-template.sh --record <project> <template> <dest>`.
@@ -48,14 +50,15 @@ A migrated project keeps copies of files from this repository, and some later ch
 ## Copies of ai-workflow files
 
 - The hooks and the gate scripts are exact copies; `hooks/install.sh` replaces them.
-- The templates a project copies and then edits, `commit-check.yml`, `feature-check.yml`, `dependabot.yml` and `gate.conf`, are copied with the template helper: `scripts/copy-template.sh <template> <dest> <project>`, such as `scripts/copy-template.sh templates/gate.conf gate.conf /path/to/project`. On an existing copy it merges the template's changes since the copy and keeps the project's edits.
-- Both write `.ai-workflow-copies` at the top of the project: each copy with the clone's commit it came from, and the commit up to which the project has followed the upgrade notes. They stage it; commit it. The drift check reads it to tell a change upstream from the project's own edits (D153).
+- The templates a project copies and then edits, `commit-check.yml`, `feature-check.yml`, `dependabot.yml`, `gate.conf` and `commitlint.config.mjs`, are copied with the template helper: `scripts/copy-template.sh <template> <dest> <project>`, such as `scripts/copy-template.sh templates/gate.conf gate.conf /path/to/project`. On an existing copy it merges the template's changes since the copy and keeps the project's edits.
+- Both write `.ai-workflow-copies` at the top of the project: each copy with the clone's commit it came from. Only `scripts/copy-template.sh --notes-followed` adds the commit up to which the project has followed the upgrade notes (D156). They stage it; commit it. The drift check reads it to tell a change upstream from the project's own edits (D153), and reports a line in it that is not valid instead of using it (D164).
+- A fresh clone of a project installed in the default mode has its hooks off until `git config core.hooksPath .githooks` runs; the drift check says so.
 
 ## The hooks
 
 - Install with `hooks/install.sh /path/to/project`: it copies `commit-msg`, `pre-push` and their helpers to `.githooks/`, sets `core.hooksPath`, stages them as executable and adds the LF rule to `.gitattributes`. `--git-hooks` copies into `.git/hooks` instead. When it refuses (hooks already in `.git/hooks`, a `commit-msg` that is not ours), read the README's "The commit hook in each project" before reaching for `--force`.
 - A project that already uses husky keeps it: `install.sh --copy-only` and the README's husky recipe.
-- Node projects may use commitlint and husky with `templates/commitlint.config.mjs` instead of `commit-msg`.
+- Node projects may use commitlint and husky with `templates/commitlint.config.mjs`, copied with the template helper, instead of `commit-msg`.
 - The setup command runs `git config core.hooksPath .githooks`: a fresh clone has the hooks off until it does.
 - The gate: copy `templates/gate.conf` to the top of the repository with the template helper, set `command` to the project's whole local gate (tests, lint, types, build) and commit it. Before a push to `main` or the default branch, the pre-push hook runs that command at the top of the repository, after the message and walkthrough checks, and refuses the push when it fails, a missing tool included, when it passes its `timeout` (default 3600 seconds, at most 86400), when `gate.conf` is missing, or when the working tree, submodules included, is not the commit pushed, before the gate or after it (D142). So the gate must leave the tree alone: a check mode, not `--fix`, and its outputs ignored in a committed `.gitignore`. Its input is `/dev/null` and git's pager and credential prompt are off, but a step that opens the terminal itself, such as an ssh passphrase prompt, waits until the deadline, so nothing in it may prompt. With no default branch recorded, `master` is gated as well as `main`. A push to another branch never runs it (D128). There is no switch to skip it (only a pass recorded for the very commit pushed, below), so whoever pushes to `main`, an agent included, gives the push command a deadline longer than the gate's `timeout`. A pass is recorded for its commit in git's common dir, and a later push of that commit skips the gate (D152): a push that fails after the gate because the remote dropped the idle SSH connection only needs a second push. With a gate that takes minutes, run `git push --dry-run origin main` first (it runs the hook and the gate), then push. Over SSH the dry run may itself end with the dropped-connection error after it has recorded the pass; that is fine, the real push then skips the gate. Never write or edit the record by hand.
   - Only a committed `.gitignore` hides an untracked file from that check; `.git/info/exclude` and a global excludes file do not count (D151).
