@@ -298,9 +298,14 @@ reset_repo
 
 # A test that ignores SIGTERM (run directly, so nothing between timeout
 # and it dies of the signal) is killed with SIGKILL after the grace
-# period: timeout then exits 137, not 124, and that is a hang too.
+# period: timeout then exits 137, not 124, and that is a hang too. It
+# hangs while its folder exists, which is until the script has removed
+# the temporary worktree, so only after timeout has given up on it: on
+# Windows a KILL can be lost, and an endless loop then outlived the run
+# for days, its current folder in the removed worktree, where it can
+# make a removal fail with "Device or resource busy".
 # shellcheck disable=SC2016
-printf 'trap "" TERM\nhere=$(dirname "$0")\n[ -n "$(bash "$here/../src/greet.sh")" ] || while :; do sleep 1; done\n' \
+printf 'trap "" TERM\nhere=$(dirname "$0")\n[ -n "$(bash "$here/../src/greet.sh")" ] || while [ -d "$here" ]; do sleep 1; done\n' \
   > "$repo/e2e/stubborn.test.sh"
 check "a test that ignores SIGTERM and hangs on the base fails the check" \
   status_is 1 --timeout 1 "$before" 'bash {path}' e2e/stubborn.test.sh
