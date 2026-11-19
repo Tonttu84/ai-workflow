@@ -196,6 +196,8 @@ refute "an unrecorded copy that differs is refused" \
 check "it is left as it was" grep -qx 'version: 2' "$P/.github/dependabot.yml"
 check "--force replaces it" q bash "$COPY" --force templates/dependabot.yml .github/dependabot.yml "$P"
 check "with the template" cmp -s "$CLONE/templates/dependabot.yml" "$P/.github/dependabot.yml"
+refute "a path into .git in another case is refused" q bash "$COPY" templates/gate.conf .GIT/x "$P"
+check "and nothing is written into .git" test ! -e "$P/.git/x"
 refute "a path outside the project is refused" q bash "$COPY" templates/gate.conf ../outside.conf "$P"
 check "and nothing is written there" test ! -e "$TMP/outside.conf"
 refute "an absolute path is refused" q bash "$COPY" templates/gate.conf "$TMP/abs.conf" "$P"
@@ -283,6 +285,8 @@ commit_all "$G" "chore: install the hooks"
 check "6. a missing gate.conf is drift" status_is 1 "$G"
 check "it says gate.conf is missing" says 'gate.conf is missing'
 q bash "$COPY" templates/gate.conf gate.conf "$G"
+check "a gate.conf staged but not committed is drift" status_is 1 "$G"
+check "it says it is not committed" says 'gate.conf is not committed'
 git -C "$G" rm -q --cached gate.conf
 check "an uncommitted gate.conf is drift" status_is 1 "$G"
 check "it says gate.conf is not committed" says 'gate.conf is not committed'
@@ -380,6 +384,15 @@ refute "it refuses to record a copy backwards" \
   q bash "$OLDC/scripts/copy-template.sh" --record "$P" templates/commit-check.yml "$WF"
 refute "or the notes" q bash "$OLDC/scripts/copy-template.sh" --notes-followed "$P"
 check "the record is as it was" cmp -s "$TMP/record.before" "$RECORD"
+# install.sh refuses before it copies a hook (re-review, finding 2): from
+# the clone's first commit, whose check-commits is older than the project's
+ROOTC="$TMP/aiwf-first"
+git clone -q "$CLONE" "$ROOTC"
+git -C "$ROOTC" reset -q --hard "$(git -C "$CLONE" rev-list --max-parents=0 HEAD)"
+check "the first commit's hooks differ from the project's" \
+  test -n "$(diff "$ROOTC/hooks/check-commits" "$P/.githooks/check-commits")"
+refute "install.sh from a clone older than the record refuses" q bash "$ROOTC/hooks/install.sh" "$P"
+check "before it changes anything" test -z "$(git -C "$P" status --porcelain)"
 
 # --- 8. --session: the hook's JSON on stdin, silence where there is
 # nothing to say, always exit 0, a short report, an internal deadline
@@ -541,6 +554,8 @@ printf '%s\n' '#!/usr/bin/env bash' 'skip=0 sub=' \
   '  case $a in -C | -c) skip=1 ;; -*) ;; *) sub=$a; break ;; esac' \
   'done' \
   'if [ "$sub" = "$FAIL_GIT" ]; then echo "fatal: $sub failed on purpose" >&2; exit 128; fi' \
+  'if [ "$sub" = "$KILL_GIT" ]; then kill -TERM 0; fi' \
+  "if [ \"\$sub\" = \"\$SHORT_GIT\" ]; then \"$(command -v git)\" \"\$@\" | head -n 1; exit 0; fi" \
   "exec \"$(command -v git)\" \"\$@\"" > "$TMP/failbin/git"
 chmod +x "$TMP/failbin/git"
 # failing <subcommand> <project>: the check with that git subcommand failing
@@ -557,6 +572,15 @@ check "it says git blame failed" says 'git blame failed'
 json_for "$F" | FAIL_GIT=check-ignore PATH="$TMP/failbin:$PATH" bash "$DRIFT" --session > "$TMP/out" 2>&1
 check "--session with a failing git exits 0" test "$?" -eq 0
 check "and says what failed" says 'git check-ignore failed'
+# A short answer from git hash-object is a failure too (re-review, nit).
+SHORT_GIT=hash-object PATH="$TMP/failbin:$PATH" bash "$DRIFT" "$F" > "$TMP/out" 2>&1
+check "a short answer from git hash-object is drift" test "$?" -eq 1
+check "it says git hash-object failed" says 'git hash-object failed'
+# A --session check that dies says so (re-review, finding 4).
+json_for "$F" | KILL_GIT=status PATH="$TMP/failbin:$PATH" bash "$DRIFT" --session > "$TMP/out" 2>&1
+check "--session whose check dies exits 0" test "$?" -eq 0
+check "and says the check failed" says 'failed'
+check "with the command for the full report" says 'check-drift.sh'
 
 # --- hooks in .git/hooks (--git-hooks) and under husky (--copy-only)
 # are compared too, byte for byte (cold review, finding 6)
@@ -592,8 +616,8 @@ check "a hook copy with CRLF endings is drift" status_is 1 "$K"
 check "it names it" says '.githooks/commit-msg differs'
 git -C "$K" checkout -q -- .githooks/commit-msg
 
-# --- the clone's own state, and hooks that do not run (cold review,
-# finding 7)
+# --- the clone's own state (cold review, finding 7), and hooks that do
+# not run and commitlint's config (findings 8 and 9)
 printf '# uncommitted\n' >> "$CLONE/templates/gate.conf"
 check "a clone with uncommitted changes is drift" status_is 1 "$P"
 check "it says so" says 'uncommitted changes'
@@ -613,6 +637,10 @@ git clone -q "$P" "$TMP/p-clone"
 check "a fresh clone of a project whose hooks are off is drift" status_is 1 "$TMP/p-clone"
 check "it says the hooks are not active" says 'not active'
 check "and gives the git config line" says 'config core.hooksPath .githooks'
+git config --global core.hooksPath "$TMP/global-hooks"
+check "a global core.hooksPath does not run them either (re-review, finding 5)" status_is 1 "$TMP/p-clone"
+check "they are still not active" says 'not active'
+git config --global --unset core.hooksPath
 git -C "$TMP/p-clone" config core.hooksPath .githooks
 check "with core.hooksPath set: no drift" status_is 0 "$TMP/p-clone"
 CL="$TMP/commitlint"
@@ -637,6 +665,55 @@ check "a worktree of the clone: exit 2" status_is 2 "$TMP/clone-wt"
 session "$(json_for "$TMP/clone-wt")"
 check "--session in a worktree of the clone is silent" silent
 git -C "$CLONE" config --unset core.hooksPath
+# Another clone of ai-workflow is not a project either (re-review,
+# finding 3).
+OTHER="$TMP/aiwf-another"
+git clone -q "$CLONE" "$OTHER"
+git -C "$OTHER" config core.hooksPath hooks
+check "another ai-workflow clone: exit 2" status_is 2 "$OTHER"
+check "it says it is an ai-workflow repository" says 'is an ai-workflow repository'
+session "$(json_for "$OTHER")"
+check "--session in another ai-workflow clone is silent" silent
+
+# --- a record from a squashed or rebased ai-workflow branch is on no
+# branch of the clone: the check names that case, and --force on the
+# copy, --record and --notes-followed (and install.sh --force)
+# re-record at the clone's HEAD after a comparison by hand (re-review,
+# finding 1)
+SQ="$TMP/aiwf-squash"
+git clone -q "$CLONE" "$SQ"
+git -C "$SQ" checkout -q -b feature
+printf '# FEATURE\n' >> "$SQ/templates/gate.conf"
+git -C "$SQ" commit -q -am "feat: change the gate template on a branch"
+Q="$TMP/squashed"
+new_project "$Q"
+q bash "$SQ/hooks/install.sh" "$Q"
+q bash "$SQ/scripts/copy-template.sh" templates/gate.conf gate.conf "$Q"
+q bash "$SQ/scripts/copy-template.sh" --notes-followed "$Q"
+commit_all "$Q" "chore: set up from a branch"
+git -C "$SQ" checkout -q main
+git -C "$SQ" merge -q --squash feature > /dev/null
+git -C "$SQ" commit -q -m "feat: change the gate template"
+git -C "$SQ" branch -q -D feature
+sq() { bash "$SQ/scripts/check-drift.sh" "$@" > "$TMP/out" 2>&1; }
+sq "$Q"
+check "a record from a squashed branch is drift" test "$?" -eq 1
+check "it names a squashed or rebased branch" says 'squashed or rebased'
+check "and re-recording with --force" says '--force'
+refute "install.sh refuses over it" q bash "$SQ/hooks/install.sh" "$Q"
+check "and changes nothing" test -z "$(git -C "$Q" status --porcelain)"
+refute "--notes-followed refuses" q bash "$SQ/scripts/copy-template.sh" --notes-followed "$Q"
+check "--notes-followed --force re-records" q bash "$SQ/scripts/copy-template.sh" --notes-followed --force "$Q"
+check "at the clone's HEAD" grep -qxF "notes $(git -C "$SQ" rev-parse HEAD)" "$Q/.ai-workflow-copies"
+refute "--record refuses" q bash "$SQ/scripts/copy-template.sh" --record "$Q" hooks/pre-push .githooks/pre-push
+check "--record --force re-records" \
+  q bash "$SQ/scripts/copy-template.sh" --record --force "$Q" hooks/pre-push .githooks/pre-push
+refute "a merge refuses" q bash "$SQ/scripts/copy-template.sh" templates/gate.conf gate.conf "$Q"
+check "the copy's --force re-records" q bash "$SQ/scripts/copy-template.sh" --force templates/gate.conf gate.conf "$Q"
+check "install.sh --force re-records the hooks" q bash "$SQ/hooks/install.sh" --force "$Q"
+commit_all "$Q" "chore: re-record after the squash"
+sq "$Q"
+check "then: no drift" test "$?" -eq 0
 
 # --- usage, and a check that writes nothing
 check "an unknown option exits 2" status_is 2 --bogus "$P"
