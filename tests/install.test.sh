@@ -235,6 +235,28 @@ check "the different hook is left as it was" grep -q 'exit 0' "$TMP/d/.git/hooks
 check "--force overwrites it" run_install --git-hooks --force "$TMP/d"
 check "overwritten hook is ours" cmp -s "$ROOT/hooks/commit-msg" "$TMP/d/.git/hooks/commit-msg"
 
+# An older commit-msg of ours (it has our Source line) is replaced
+# without --force, as pre-push is; one that is not ours still needs it.
+older_ours() { { cat "$ROOT/hooks/commit-msg"; printf '# an older version\n'; } > "$1"; }
+new_repo "$TMP/old-ours"
+mkdir -p "$TMP/old-ours/.githooks"
+older_ours "$TMP/old-ours/.githooks/commit-msg"
+check "an older commit-msg of ours is replaced without --force" run_install "$TMP/old-ours"
+check "by the current one" cmp -s "$ROOT/hooks/commit-msg" "$TMP/old-ours/.githooks/commit-msg"
+new_repo "$TMP/old-ours-gh"
+older_ours "$TMP/old-ours-gh/.git/hooks/commit-msg"
+check "--git-hooks: an older commit-msg of ours is replaced without --force" run_install --git-hooks "$TMP/old-ours-gh"
+check "--git-hooks: by the current one" cmp -s "$ROOT/hooks/commit-msg" "$TMP/old-ours-gh/.git/hooks/commit-msg"
+new_repo "$TMP/foreign"
+mkdir -p "$TMP/foreign/.githooks"
+printf '#!/bin/sh\nexit 0\n' > "$TMP/foreign/.githooks/commit-msg"
+refute "a commit-msg in .githooks that is not ours is still refused" run_install "$TMP/foreign"
+check "the refusal names --force" said --force
+check "that commit-msg is left as it was" grep -q 'exit 0' "$TMP/foreign/.githooks/commit-msg"
+check "a refused install writes no record" test ! -e "$TMP/foreign/.ai-workflow-copies"
+check "--force replaces it" run_install --force "$TMP/foreign"
+check "with ours" cmp -s "$ROOT/hooks/commit-msg" "$TMP/foreign/.githooks/commit-msg"
+
 # A pre-push that is not ours (Git LFS installs one) is never overwritten,
 # not even with --force: it is kept as pre-push.local, and ours runs it
 # first with the same arguments and input.
@@ -378,6 +400,45 @@ check "it copies the scripts" cmp -s "$ROOT/scripts/check-features.sh" "$TMP/gat
 new_repo "$TMP/gate3"
 check "--copy-only --gate succeeds" run_install --gate --copy-only "$TMP/gate3"
 check "it copies the scripts too" cmp -s "$ROOT/scripts/check-red-green.sh" "$TMP/gate3/.ai-workflow/check-red-green.sh"
+
+# The record (D153): each install lists what it copied, with this clone's
+# commit, in the project's .ai-workflow-copies, and stages it, so it is
+# committed in every mode, --git-hooks too; scripts/check-drift.sh reads
+# it. It names no path outside the project.
+head=$(git -C "$ROOT" rev-parse HEAD)
+RECORD=.ai-workflow-copies
+recorded() { grep -qxF "$2" "$1/$RECORD"; } # recorded <project> <line>
+staged() { git -C "$1" ls-files --error-unmatch -- "$2" > /dev/null 2>&1; }
+check "the default install writes the record" test -f "$TMP/a/$RECORD"
+for name in commit-msg pre-push check-commits check-walkthrough; do
+  check "it records $name with the clone's commit" recorded "$TMP/a" "$head hooks/$name .githooks/$name"
+done
+check "a first install records the upgrade notes as followed" recorded "$TMP/a" "notes $head"
+check "the record is staged" staged "$TMP/a" "$RECORD"
+refute "the record names no path outside the project" grep -qF "$TMP" "$TMP/a/$RECORD"
+check "a reinstall succeeds" run_install "$TMP/a"
+check "it says it recorded the install" said "$RECORD"
+check "--git-hooks records the hooks in .git/hooks" recorded "$TMP/c" "$head hooks/commit-msg .git/hooks/commit-msg"
+check "--git-hooks stages the record" staged "$TMP/c" "$RECORD"
+check "--copy-only records the hooks in .githooks" recorded "$TMP/husky" "$head hooks/pre-push .githooks/pre-push"
+for name in $GATE_FILES; do
+  check "--gate records $name" recorded "$TMP/gate" "$head scripts/$name .ai-workflow/$name"
+done
+# A line the template helper wrote survives a reinstall.
+cp "$ROOT/templates/gate.conf" "$TMP/a/gate.conf"
+check "the helper records a copy" \
+  q bash "$ROOT/scripts/copy-template.sh" --record "$TMP/a" templates/gate.conf gate.conf
+check "a reinstall after it succeeds" run_install "$TMP/a"
+check "and keeps the helper's line" recorded "$TMP/a" "$head templates/gate.conf gate.conf"
+check "and the notes line" recorded "$TMP/a" "notes $head"
+# An install over hooks of ours from before the record leaves the notes
+# unknown: such a project has not followed the notes just by installing.
+new_repo "$TMP/premigrated"
+mkdir -p "$TMP/premigrated/.githooks"
+older_ours "$TMP/premigrated/.githooks/commit-msg"
+check "an install over hooks of ours with no record succeeds" run_install "$TMP/premigrated"
+check "it writes the record" recorded "$TMP/premigrated" "$head hooks/commit-msg .githooks/commit-msg"
+refute "with no notes line" grep -q '^notes ' "$TMP/premigrated/$RECORD"
 
 # Not a git repository
 mkdir -p "$TMP/plain"
