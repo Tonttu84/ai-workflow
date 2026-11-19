@@ -21,14 +21,22 @@ fixture() { printf '%s\n' "$2" > "$TMP/fx/tests/$1.test.sh"; }
 # launch [variable=value...]: starts the copy in the background with
 # those variables set and without the TEST_JOBS and TEST_TIMES of the run
 # that runs this file; stdout in $TMP/out, stderr in $TMP/err, its PID in
-# $TMP/runner.pid, and its exit status in $TMP/status once it ends
+# $TMP/runner.pid, and its exit status in $TMP/status once it ends.
+# The copy starts with SIGINT at its default, as under a terminal: where
+# this file was started with SIGINT ignored (the Linux CI job failed as
+# if it was), a shell cannot trap it, and the INT checks below fail
+# though the runner is right.
+# GNU env 8.31 and later can reset it; elsewhere SIGINT stays as it is.
+default_int=()
+env --default-signal=INT true 2> /dev/null && default_int=(--default-signal=INT)
 launch() {
   rm -f "$TMP/status" "$TMP/runner.pid"
   (
     # SC2016: the inner shell expands $$, $0 and $@.
     # shellcheck disable=SC2016
     bash -c 'echo "$$" > "$0"; exec "$@"' "$TMP/runner.pid" \
-      env -u TEST_JOBS -u TEST_TIMES "$@" bash "$TMP/fx/tests/run.sh" > "$TMP/out" 2> "$TMP/err"
+      env ${default_int[@]+"${default_int[@]}"} -u TEST_JOBS -u TEST_TIMES "$@" \
+      bash "$TMP/fx/tests/run.sh" > "$TMP/out" 2> "$TMP/err"
     echo "$?" > "$TMP/status"
   ) &
   launched=$!
