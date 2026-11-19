@@ -2,11 +2,12 @@
 # Runs every tests/*.test.sh and fails if any of them fails.
 #
 # Files run in parallel, TEST_JOBS at a time (default: the number of
-# cores; TEST_JOBS=1 runs them one after another). Each file's stdout and
-# stderr are buffered and printed together, in the files' order, so the
-# log reads the same whatever the job count. A file that fails, dies of
-# a signal, never starts or leaves no result fails the run. TEST_TIMES=1
-# adds each file's time in seconds on stderr.
+# cores minus one, at least one; TEST_JOBS=1 runs them one after
+# another). Each file's stdout and stderr are buffered and printed
+# together, in the files' order, so the log reads the same whatever the
+# job count. A file that fails, dies of a signal, never starts or leaves
+# no result fails the run. TEST_TIMES=1 adds the job count and each
+# file's time in seconds on stderr.
 set -u
 cd "$(dirname "$0")/.." || exit 1
 
@@ -19,12 +20,17 @@ cores() {
   printf '%s\n' "$n"
 }
 
+# The default leaves one core free, so a run does not freeze the machine.
 jobs=${TEST_JOBS:-}
-[ -n "$jobs" ] || jobs=$(cores)
+if [ -z "$jobs" ]; then
+  jobs=$(($(cores) - 1))
+  [ "$jobs" -ge 1 ] || jobs=1
+fi
 if ! [[ $jobs =~ ^[1-9][0-9]{0,3}$ ]]; then
   echo "run.sh: TEST_JOBS must be a whole number from 1 to 9999, not '$jobs'" >&2
   exit 2
 fi
+[ "${TEST_TIMES:-}" != 1 ] || echo "run.sh: running $jobs files at a time" >&2
 
 files=()
 for t in tests/*.test.sh; do
