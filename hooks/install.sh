@@ -35,6 +35,9 @@
 #                replaced without it. A pre-push that is not ours
 #                (Git LFS has one) is never replaced, even with --force:
 #                it is kept as pre-push.local, and ours runs it first.
+#                With --force the record also takes this install over
+#                lines that a clone older than the record, or a squashed
+#                ai-workflow branch, left (compare by hand first).
 #   --gate       also copy the push-gate scripts to <project>/.ai-workflow/
 #                (check-features.sh, the checks it runs, their awk
 #                helpers and stryker-mutate-ranges.sh), stage them, the
@@ -242,22 +245,35 @@ install_gate() {
 # --record); check-drift.sh reads it. It never records the upgrade notes
 # as followed: only copy-template.sh --notes-followed does (D156).
 RECORD=.ai-workflow-copies
+HELPER="$here/../scripts/copy-template.sh"
+# The record lines of this run, "<path here> <path in the project>" pairs,
+# and --force for the helper with install.sh --force: it then records
+# over lines a clone older than the record, or a squashed ai-workflow
+# branch, left (D168).
+pairs=()
+dest_dir=.githooks
+[ "$mode" != githooks ] || dest_dir=.git/hooks
+for name in $HOOKS; do pairs+=("hooks/$name" "$dest_dir/$name"); done
+if [ "$gate" -eq 1 ]; then
+  for name in $GATE; do pairs+=("scripts/$name" ".ai-workflow/$name"); done
+fi
+record_flags=()
+[ "$force" -eq 0 ] || record_flags=(--force)
 record_install() {
-  local helper="$here/../scripts/copy-template.sh" dest=.githooks name
-  local -a pairs
-  pairs=()
-  [ "$mode" != githooks ] || dest=.git/hooks
-  for name in $HOOKS; do pairs+=("hooks/$name" "$dest/$name"); done
-  if [ "$gate" -eq 1 ]; then
-    for name in $GATE; do pairs+=("scripts/$name" ".ai-workflow/$name"); done
-  fi
-  if ! bash "$helper" --record "$top" "${pairs[@]}" > /dev/null; then
+  if ! bash "$HELPER" --record ${record_flags[@]+"${record_flags[@]}"} "$top" "${pairs[@]}" > /dev/null; then
     echo "install.sh: could not record the install in $top/$RECORD;" >&2
     echo "  fix the cause and rerun install.sh (safe to repeat)" >&2
     exit 1
   fi
   echo "Recorded the install in $top/$RECORD and staged it. Commit it."
 }
+
+# The record must take this run before anything changes: a clone older
+# than the record would copy older hooks first and refuse after.
+if ! bash "$HELPER" --record --dry-run ${record_flags[@]+"${record_flags[@]}"} "$top" "${pairs[@]}"; then
+  echo "install.sh: nothing was installed or changed" >&2
+  exit 1
+fi
 
 if [ "$mode" = hookspath ]; then
   current=$(git -C "$top" config --local --get core.hooksPath || true)
