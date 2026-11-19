@@ -413,7 +413,10 @@ check "the default install writes the record" test -f "$TMP/a/$RECORD"
 for name in commit-msg pre-push check-commits check-walkthrough; do
   check "it records $name with the clone's commit" recorded "$TMP/a" "$head hooks/$name .githooks/$name"
 done
-check "a first install records the upgrade notes as followed" recorded "$TMP/a" "notes $head"
+# No install records the upgrade notes as followed; only
+# copy-template.sh --notes-followed does (D156).
+refute "a first install records no notes line" grep -q '^notes ' "$TMP/a/$RECORD"
+refute "nor does a first --git-hooks install" grep -q '^notes ' "$TMP/c/$RECORD"
 check "the record is staged" staged "$TMP/a" "$RECORD"
 refute "the record names no path outside the project" grep -qF "$TMP" "$TMP/a/$RECORD"
 check "a reinstall succeeds" run_install "$TMP/a"
@@ -428,6 +431,7 @@ done
 cp "$ROOT/templates/gate.conf" "$TMP/a/gate.conf"
 check "the helper records a copy" \
   q bash "$ROOT/scripts/copy-template.sh" --record "$TMP/a" templates/gate.conf gate.conf
+check "and the notes as followed" q bash "$ROOT/scripts/copy-template.sh" --notes-followed "$TMP/a"
 check "a reinstall after it succeeds" run_install "$TMP/a"
 check "and keeps the helper's line" recorded "$TMP/a" "$head templates/gate.conf gate.conf"
 check "and the notes line" recorded "$TMP/a" "notes $head"

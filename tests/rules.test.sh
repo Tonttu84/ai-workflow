@@ -564,4 +564,16 @@ check "docs/decisions.md records D141 under D60" \
 # D141 adds to D129's ruleset, so its Decision cell names it (re-review nit 2).
 check "D141's decision ends by refining D129" in_row D141 'feature-check template. Refines D129. |'
 
+# --- a migrated project's drift (D153): no install records the upgrade
+# notes as followed, so a new or migrated project's setup ends by doing
+# it (D156), and the templates a project keeps in step, commitlint's
+# config included, are copied with the template helper.
+in_kickoff() { section "$SETUP" 'Kickoff (new project)' | grep -qF -- "$1"; }
+check "the kickoff ends by recording the upgrade notes as followed" in_kickoff 'copy-template.sh --notes-followed'
+check "so does the migration" in_migration_steps 'copy-template.sh --notes-followed'
+in_copies() { section "$SETUP" 'Copies of ai-workflow files' | grep -qF -- "$1"; }
+for name in commit-check.yml feature-check.yml dependabot.yml gate.conf commitlint.config.mjs; do
+  check "the setup file copies $name with the template helper" in_copies "$name"
+done
+
 finish

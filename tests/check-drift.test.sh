@@ -39,6 +39,13 @@ git init -q -b main "$CLONE"
 upstream() { git -C "$CLONE" add -A && git -C "$CLONE" commit -q -m "$1"; }
 upstream "chore: start the clone"
 clone_head() { git -C "$CLONE" rev-parse HEAD; }
+# Its main tracks a remote's main, the remote's default branch: a clone
+# with no upstream, or on another branch, is drift of its own.
+git clone -q --bare "$CLONE" "$TMP/aiwf-origin.git"
+git -C "$CLONE" remote add origin "$TMP/aiwf-origin.git"
+git -C "$CLONE" fetch -q origin
+git -C "$CLONE" branch -q -u origin/main
+git -C "$CLONE" remote set-head origin main
 
 DRIFT="$CLONE/scripts/check-drift.sh"
 COPY="$CLONE/scripts/copy-template.sh"
@@ -79,7 +86,7 @@ check "it writes the record" test -f "$RECORD"
 check "the record lists each hook with the clone's commit" \
   grep -qxF "$(clone_head) hooks/pre-push .githooks/pre-push" "$RECORD"
 check "check-walkthrough too" grep -qxF "$(clone_head) hooks/check-walkthrough .githooks/check-walkthrough" "$RECORD"
-check "a first install records the upgrade notes as followed" grep -qxF "notes $(clone_head)" "$RECORD"
+refute "an install never records the upgrade notes as followed" grep -q '^notes ' "$RECORD"
 check "the record is staged" q git -C "$P" ls-files --error-unmatch .ai-workflow-copies
 refute "the record names no path outside the project" grep -qF "$TMP" "$RECORD"
 check "the helper copies gate.conf" q bash "$COPY" templates/gate.conf gate.conf "$P"
@@ -87,6 +94,11 @@ check "the copy is the template" cmp -s "$CLONE/templates/gate.conf" "$P/gate.co
 check "and is recorded" grep -qxF "$(clone_head) templates/gate.conf gate.conf" "$RECORD"
 check "the helper stages the copy" q git -C "$P" ls-files --error-unmatch gate.conf
 commit_all "$P" "chore: set up the project"
+check "until the notes are recorded as followed, they are drift" status_is 1 "$P"
+check "listed as unknown" says 'unknown'
+check "the helper records the notes as followed" q bash "$COPY" --notes-followed "$P"
+check "with the clone's commit" grep -qxF "notes $(clone_head)" "$RECORD"
+commit_all "$P" "chore: record the upgrade notes as followed"
 check "1. a fresh install: no drift, exit 0" status_is 0 "$P"
 check "it says so" says 'No drift'
 check "from a subdirectory too" status_is 0 "$P/.githooks"
@@ -200,6 +212,7 @@ CR="$TMP/crlf"
 FC=.github/workflows/feature-check.yml
 new_project "$CR"
 q bash "$INSTALL" "$CR"
+q bash "$COPY" --notes-followed "$CR"
 q bash "$COPY" templates/feature-check.yml "$FC" "$CR"
 q bash "$COPY" templates/gate.conf gate.conf "$CR"
 commit_all "$CR" "ci: add the feature check"
@@ -265,6 +278,7 @@ check "and has no drift then" status_is 0 "$P"
 G="$TMP/gate"
 new_project "$G"
 q bash "$INSTALL" "$G"
+q bash "$COPY" --notes-followed "$G"
 commit_all "$G" "chore: install the hooks"
 check "6. a missing gate.conf is drift" status_is 1 "$G"
 check "it says gate.conf is missing" says 'gate.conf is missing'
@@ -295,6 +309,20 @@ printf '.claude/worktrees/\n' > "$G/.gitignore"
 commit_all "$G" "chore: ignore only the worktrees"
 check "one rule missing is drift" status_is 1 "$G"
 refute "and only that one is named" says '.claude/worktrees/'
+# A negated rule takes the file back out of the ignores.
+printf '.claude/*\n!.claude/settings.local.json\n' > "$G/.gitignore"
+commit_all "$G" "chore: un-ignore the local settings"
+check "a negated rule for a file is drift" status_is 1 "$G"
+check "it names that file" says '.claude/settings.local.json'
+refute "and not the other" says '.claude/worktrees/'
+# A tracked .gitignore with the rules only in the working tree.
+printf '*.log\n' > "$G/.gitignore"
+commit_all "$G" "chore: ignore logs only"
+printf '*.log\n.claude/worktrees/\n.claude/settings.local.json\n' > "$G/.gitignore"
+check "rules only in a tracked .gitignore's uncommitted change do not count" status_is 1 "$G"
+check "it names both paths" says '.claude/worktrees/'
+commit_all "$G" "chore: ignore Claude Code's local files again"
+check "committed, they do" status_is 0 "$G"
 rm -rf "$G/.claude"
 check "without .claude/ the ignores are not needed" status_is 0 "$G"
 
@@ -322,6 +350,36 @@ check "the notes are still listed after it" says 'Set the first test variable'
 check "still as unknown" says 'unknown'
 git -C "$O" reset -q --hard
 git -C "$O" clean -q -fd
+# A project migrated with --git-hooks commits no hooks, so the install on
+# a new clone finds none of ours; it still records no notes as followed.
+GH="$TMP/githooks"
+new_project "$GH"
+q bash "$INSTALL" --git-hooks "$GH"
+q bash "$COPY" templates/gate.conf gate.conf "$GH"
+commit_all "$GH" "chore: migrate with the hooks in .git/hooks"
+git clone -q "$GH" "$TMP/githooks-clone"
+check "a --git-hooks install on a new clone succeeds" q bash "$INSTALL" --git-hooks "$TMP/githooks-clone"
+refute "and records no notes as followed" grep -q '^notes ' "$TMP/githooks-clone/.ai-workflow-copies"
+drift "$TMP/githooks-clone"
+check "so the notes are still listed" says 'Set the first test variable'
+
+# --- a clone older than the record: the check says so, and the helper
+# neither merges nor records backwards
+OLDC="$TMP/aiwf-older"
+git clone -q "$CLONE" "$OLDC"
+git -C "$OLDC" reset -q --hard HEAD~2
+bash "$OLDC/scripts/check-drift.sh" "$P" > "$TMP/out" 2>&1
+check "a clone older than the record is drift" test "$?" -eq 1
+check "it says the clone is older than the record" says 'older than the record'
+cp "$RECORD" "$TMP/record.before"
+cp "$P/$WF" "$TMP/wf.before"
+refute "the helper refuses to merge from a clone older than the record" \
+  q bash "$OLDC/scripts/copy-template.sh" templates/commit-check.yml "$WF" "$P"
+check "the copy is as it was" cmp -s "$TMP/wf.before" "$P/$WF"
+refute "it refuses to record a copy backwards" \
+  q bash "$OLDC/scripts/copy-template.sh" --record "$P" templates/commit-check.yml "$WF"
+refute "or the notes" q bash "$OLDC/scripts/copy-template.sh" --notes-followed "$P"
+check "the record is as it was" cmp -s "$TMP/record.before" "$RECORD"
 
 # --- 8. --session: the hook's JSON on stdin, silence where there is
 # nothing to say, always exit 0, a short report, an internal deadline
@@ -411,6 +469,168 @@ git -C "$BEHIND" merge -q --ff-only
 drift_behind "$P"
 check "once pulled: no drift" test "$?" -eq 0
 refute "and nothing about being behind" says 'behind'
+
+# --- the record is data: a line that is not a full SHA and two plain
+# relative paths (or "notes" and a full SHA) is reported as not valid,
+# never handed to git and never echoed (cold review, finding 1)
+J="$TMP/inject"
+new_project "$J"
+q bash "$INSTALL" "$J"
+q bash "$COPY" templates/gate.conf gate.conf "$J"
+q bash "$COPY" --notes-followed "$J"
+commit_all "$J" "chore: set up the project"
+cp "$J/.ai-workflow-copies" "$TMP/record.ok"
+VICTIM="$TMP/victim.txt"
+printf 'keep me\n' > "$VICTIM"
+intact() { grep -qx 'keep me' "$VICTIM"; }
+sha=$(clone_head)
+for line in "--output=$VICTIM templates/gate.conf gate.conf" "notes --output=$VICTIM" \
+  "abc1234 templates/gate.conf gate.conf" "$sha templates/../hooks/pre-push gate.conf" \
+  "$sha templates/gate.conf ../outside.conf" "$sha templates/gate.conf -gate.conf" \
+  "$sha templates/gate.conf /abs/gate.conf" "$sha templates/gate.conf my gate.conf" \
+  "$sha templates/gate.conf gate$(printf '\033')[31m.conf"; do
+  { cat "$TMP/record.ok"; printf '%s\n' "$line"; } > "$J/.ai-workflow-copies"
+  shown=$(printf '%s' "$line" | tr -d '\033' | cut -c 1-30)
+  check "the record line '$shown' is drift" status_is 1 "$J"
+  check "it is reported as not valid ('$shown')" says 'is not valid'
+  check "the victim is intact ('$shown')" intact
+  refute "the line is not echoed ('$shown')" grep -qE -e "$(printf '\033')|--output=" "$TMP/out"
+  session "$(json_for "$J")"
+  check "--session exits 0 ('$shown')" test "$?" -eq 0
+  check "--session reports it ('$shown')" says 'is not valid'
+  check "the victim is intact after --session ('$shown')" intact
+done
+cp "$TMP/record.ok" "$J/.ai-workflow-copies"
+check "with the record restored: no drift" status_is 0 "$J"
+bash "$COPY" --base abc1234 templates/gate.conf gate.conf "$J" > /dev/null 2>&1
+check "the helper's --base must be a full SHA: exit 2" test "$?" -eq 2
+bash "$COPY" --base "--output=$VICTIM" templates/gate.conf gate.conf "$J" > /dev/null 2>&1
+check "an option as --base: exit 2" test "$?" -eq 2
+check "the victim is intact after the helper" intact
+refute "the helper refuses a path with a space" q bash "$COPY" templates/gate.conf "my gate.conf" "$J"
+printf 'abc1234 templates/gate.conf gate.conf\n' >> "$J/.ai-workflow-copies"
+cp "$J/.ai-workflow-copies" "$TMP/record.bad"
+refute "the helper will not rewrite a record with a line that is not valid" \
+  q bash "$COPY" --notes-followed "$J"
+check "and leaves it as it was" cmp -s "$TMP/record.bad" "$J/.ai-workflow-copies"
+cp "$TMP/record.ok" "$J/.ai-workflow-copies"
+
+# --- a git call that fails is a line of the report and counts as
+# drift, never silence (cold review, finding 2)
+F="$TMP/failing"
+new_project "$F"
+q bash "$INSTALL" "$F"
+q bash "$COPY" templates/gate.conf gate.conf "$F"
+mkdir -p "$F/.claude" "$F/.github/workflows"
+printf '.claude/worktrees/\n.claude/settings.local.json\n' > "$F/.gitignore"
+cp "$CLONE/templates/commit-check.yml" "$F/$WF" # not recorded: compared by a guess
+commit_all "$F" "chore: set up the project"
+mkdir -p "$TMP/failbin"
+# The fake git fails the subcommand $FAIL_GIT names, and runs the rest.
+# SC2016: the fake git expands its own variables.
+# shellcheck disable=SC2016
+printf '%s\n' '#!/usr/bin/env bash' 'skip=0 sub=' \
+  'for a in "$@"; do' \
+  '  if [ "$skip" = 1 ]; then skip=0; continue; fi' \
+  '  case $a in -C | -c) skip=1 ;; -*) ;; *) sub=$a; break ;; esac' \
+  'done' \
+  'if [ "$sub" = "$FAIL_GIT" ]; then echo "fatal: $sub failed on purpose" >&2; exit 128; fi' \
+  "exec \"$(command -v git)\" \"\$@\"" > "$TMP/failbin/git"
+chmod +x "$TMP/failbin/git"
+# failing <subcommand> <project>: the check with that git subcommand failing
+failing() { FAIL_GIT=$1 PATH="$TMP/failbin:$PATH" bash "$DRIFT" "$2" > "$TMP/out" 2>&1; }
+for sub in hash-object check-ignore log cat-file show diff ls-files ls-tree status rev-list config \
+  symbolic-ref; do
+  failing "$sub" "$F"
+  check "a failing git $sub is drift" test "$?" -eq 1
+  check "it says git $sub failed" says "git $sub failed"
+done
+failing blame "$P"
+check "a failing git blame is drift" test "$?" -eq 1
+check "it says git blame failed" says 'git blame failed'
+json_for "$F" | FAIL_GIT=check-ignore PATH="$TMP/failbin:$PATH" bash "$DRIFT" --session > "$TMP/out" 2>&1
+check "--session with a failing git exits 0" test "$?" -eq 0
+check "and says what failed" says 'git check-ignore failed'
+
+# --- hooks in .git/hooks (--git-hooks) and under husky (--copy-only)
+# are compared too, byte for byte (cold review, finding 6)
+H="$TMP/gh-project"
+new_project "$H"
+q bash "$INSTALL" --git-hooks "$H"
+q bash "$COPY" templates/gate.conf gate.conf "$H"
+q bash "$COPY" --notes-followed "$H"
+commit_all "$H" "chore: set up the project"
+check "a --git-hooks project: no drift" status_is 0 "$H"
+K="$TMP/husky-project"
+new_project "$K"
+git -C "$K" config core.hooksPath .husky/_
+q bash "$INSTALL" --copy-only "$K"
+q bash "$COPY" templates/gate.conf gate.conf "$K"
+q bash "$COPY" --notes-followed "$K"
+commit_all "$K" "chore: set up the project"
+check "a --copy-only project: no drift" status_is 0 "$K"
+printf '# another upstream change\n' >> "$CLONE/hooks/check-commits"
+upstream "fix: change a hook upstream again"
+check "--git-hooks: a hook changed upstream is drift" status_is 1 "$H"
+check "it names the copy in .git/hooks" says '.git/hooks/check-commits differs'
+check "and the --git-hooks reinstall" says 'install.sh --git-hooks'
+check "--copy-only: a hook changed upstream is drift" status_is 1 "$K"
+check "it names the copy in .githooks" says '.githooks/check-commits differs'
+check "and the --copy-only reinstall" says 'install.sh --copy-only'
+git -C "$CLONE" checkout -q HEAD~1 -- hooks/check-commits
+upstream "revert: take the hook change back"
+check "with the hook back: no drift in either" status_is 0 "$H"
+check "nor in the other" status_is 0 "$K"
+awk '{ print $0 "\r" }' "$CLONE/hooks/commit-msg" > "$K/.githooks/commit-msg"
+check "a hook copy with CRLF endings is drift" status_is 1 "$K"
+check "it names it" says '.githooks/commit-msg differs'
+git -C "$K" checkout -q -- .githooks/commit-msg
+
+# --- the clone's own state, and hooks that do not run (cold review,
+# finding 7)
+printf '# uncommitted\n' >> "$CLONE/templates/gate.conf"
+check "a clone with uncommitted changes is drift" status_is 1 "$P"
+check "it says so" says 'uncommitted changes'
+git -C "$CLONE" checkout -q -- templates/gate.conf
+SIDE="$TMP/aiwf-side"
+git clone -q "$CLONE" "$SIDE"
+git -C "$SIDE" checkout -q -b side
+bash "$SIDE/scripts/check-drift.sh" "$P" > "$TMP/out" 2>&1
+check "a clone on a branch with no upstream is drift" test "$?" -eq 1
+check "it says the branch has no upstream" says 'no upstream'
+check "and that it is not the default branch" says 'not the default branch'
+git -C "$SIDE" checkout -q --detach
+bash "$SIDE/scripts/check-drift.sh" "$P" > "$TMP/out" 2>&1
+check "a clone on no branch is drift" test "$?" -eq 1
+check "it says the clone is not on a branch" says 'not on a branch'
+git clone -q "$P" "$TMP/p-clone"
+check "a fresh clone of a project whose hooks are off is drift" status_is 1 "$TMP/p-clone"
+check "it says the hooks are not active" says 'not active'
+check "and gives the git config line" says 'config core.hooksPath .githooks'
+git -C "$TMP/p-clone" config core.hooksPath .githooks
+check "with core.hooksPath set: no drift" status_is 0 "$TMP/p-clone"
+CL="$TMP/commitlint"
+new_project "$CL"
+cp "$CLONE/templates/commitlint.config.mjs" "$CL/commitlint.config.mjs"
+commit_all "$CL" "build: add commitlint"
+printf '// COMMITLINT-UPSTREAM\n' >> "$CLONE/templates/commitlint.config.mjs"
+upstream "feat: change the commitlint template"
+drift "$CL"
+check "a copied commitlint.config.mjs is compared by a guess" says 'commitlint.config.mjs'
+check "with the template's change" says '+// COMMITLINT-UPSTREAM'
+
+# --- the clone itself, and its worktrees, are not projects (cold
+# review, finding 3); make setup points its core.hooksPath at hooks/
+git -C "$CLONE" config core.hooksPath hooks
+check "the clone itself: exit 2" status_is 2 "$CLONE"
+check "it says it is the clone" says 'is the ai-workflow clone'
+session "$(json_for "$CLONE")"
+check "--session in the clone is silent" silent
+git -C "$CLONE" worktree add -q -b wt "$TMP/clone-wt" 2> /dev/null
+check "a worktree of the clone: exit 2" status_is 2 "$TMP/clone-wt"
+session "$(json_for "$TMP/clone-wt")"
+check "--session in a worktree of the clone is silent" silent
+git -C "$CLONE" config --unset core.hooksPath
 
 # --- usage, and a check that writes nothing
 check "an unknown option exits 2" status_is 2 --bogus "$P"
