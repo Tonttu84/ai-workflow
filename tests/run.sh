@@ -44,7 +44,7 @@ fi
 
 out=$(mktemp -d) || exit 1
 trap 'rm -rf "$out"' EXIT
-trap 'exit 130' INT
+trap 'exit 130' INT # until the files start; then stop() below
 trap 'exit 143' TERM
 
 # The runner waits on a FIFO that each finished file writes a line to,
@@ -58,15 +58,19 @@ pause() { # pause: until a file ends, at most a second or so
 }
 
 # Each file runs in the foreground of a subshell, so it gets signals as
-# it did when the runner ran it itself, and the subshell writes its exit
-# status to $out/<n>.status once it ends. A subshell killed before that
-# leaves no status, and the file counts as failed.
+# it did when the runner ran it itself; its PID goes to $out/<n>.pid. The
+# subshell then writes the file's exit status to $out/<n>.status. A
+# subshell killed before that leaves no status, and the file counts as
+# failed.
 pids=()
 began=() # $SECONDS when each file started
 ended=() # and when the runner first saw it finished
 start() { # start <n>
   (
-    bash "${files[$1]}" > "$out/$1.log" 2>&1 < /dev/null 9>&-
+    # SC2016: the inner shell expands $$, $0 and $1.
+    # shellcheck disable=SC2016
+    bash -c 'echo "$$" > "$0"; exec bash "$1"' "$out/$1.pid" "${files[$1]}" \
+      > "$out/$1.log" 2>&1 < /dev/null 9>&-
     echo "$?" > "$out/$1.status"
     [ -z "$fifo" ] || echo "$1" >&9
   ) &
@@ -120,6 +124,54 @@ fi
 
 next=0    # the next place in $order to start
 printed=0 # the next file to print
+
+# summary: the verdict of the whole run; fails when any file failed
+summary() {
+  if [ "${#failed[@]}" -eq 0 ]; then
+    echo "all tests passed"
+  else
+    printf 'failed: %s\n' "${failed[@]}" >&2
+    echo "some tests failed" >&2
+    return 1
+  fi
+}
+
+# stop <exit status> <signal>: on INT or TERM, stops the files still
+# running (what runs each first, so it writes nothing after the runner
+# has gone), prints what the rest left, names the files that did not
+# finish or start, and exits
+stop() {
+  local i p t running=()
+  trap '' INT TERM
+  for ((i = printed; i < total; i++)); do
+    [ -n "${pids[$i]:-}" ] && ! finished "$i" && running[i]=1
+  done
+  for i in "${!running[@]}"; do
+    kill -TERM "${pids[$i]}" 2> /dev/null
+    p=
+    [ -f "$out/$i.pid" ] && read -r p < "$out/$i.pid"
+    [ -z "$p" ] || kill -TERM "$p" 2> /dev/null
+  done
+  echo "run.sh: stopped by $2" >&2
+  for ((i = printed; i < total; i++)); do
+    t=${files[$i]}
+    if [ -z "${pids[$i]:-}" ]; then
+      echo "run.sh: $t did not start" >&2
+      failed+=("$t")
+    elif [ -n "${running[$i]:-}" ]; then
+      echo "run.sh: $t did not finish; the last lines of its output:" >&2
+      tail -n 20 "$out/$i.log" >&2 2> /dev/null
+      failed+=("$t")
+    else
+      report "$i"
+    fi
+  done
+  summary
+  exit "$1"
+}
+trap 'stop 130 INT' INT
+trap 'stop 143 TERM' TERM
+
 while [ "$printed" -lt "$total" ]; do
   running=0
   for ((i = 0; i < total; i++)); do
@@ -137,11 +189,4 @@ while [ "$printed" -lt "$total" ]; do
   done
   [ "$printed" -ge "$total" ] || pause
 done
-
-if [ "${#failed[@]}" -eq 0 ]; then
-  echo "all tests passed"
-else
-  printf 'failed: %s\n' "${failed[@]}" >&2
-  echo "some tests failed" >&2
-  exit 1
-fi
+summary
