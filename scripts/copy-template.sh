@@ -174,7 +174,8 @@ notes_followed() {
 merge_into() {
   local target=$1 t=$2 base=$3 head=$4 dest=$5 old cur status crlf=0
   git -C "$clone" cat-file -e "$base^{commit}" 2> /dev/null || die "commit $base is not in the ai-workflow clone"
-  old=$(mktemp) && cur=$(mktemp) || die "cannot make a scratch file"
+  old=$(mktemp) || die "cannot make a scratch file"
+  cur=$(mktemp) || { rm -f "$old"; die "cannot make a scratch file"; }
   if ! git -C "$clone" show "$base:$t" > "$old" 2> /dev/null; then
     rm -f "$old" "$cur"
     die "$t did not exist at $base; use --force to replace $dest"
