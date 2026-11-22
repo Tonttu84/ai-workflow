@@ -3,7 +3,7 @@ instruction row quotes the owner."""
 
 from __future__ import annotations
 
-from conftest import HEADER, ROOT, log, row, run_script
+from conftest import HEADER, log, row, run_script
 
 D55_SHAPE = (
     "| D55 | Lint runs with `npx lizard . || true` until step 3 | why | — |\n"
@@ -345,6 +345,37 @@ def test_problems_go_to_stderr_as_utf8_lines(repo):
     assert b"D1" in done.stderr
 
 
-def test_the_live_log_passes_against_origin_main():
-    done = run_script(ROOT, "check", "--base", "origin/main")
-    assert done.returncode == 0, done.stderr.decode("utf-8", "replace")
+def test_a_passing_check_as_a_program_prints_nothing(repo):
+    # The log's shapes: rows before Meta, the D55 shape, Meta rows, UTF-8.
+    rows = ("| D1 | Old | why | none |\n", D55_SHAPE,
+            row("D58", "Päätös", reason='Owner: "Kyllä".',
+                meta="2026-11-16 · instruction · none · two-way"))
+    base = repo.commit(log(*rows))
+    repo.commit(log(*rows, row("D59")))
+    done = run_script(repo.path, "check", "--base", base)
+    assert (done.returncode, done.stdout, done.stderr) == (0, b"", b"")
+
+
+def commit_bytes(repo, data: bytes) -> str:
+    target = repo.path / "docs" / "decisions.md"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(data)
+    repo.git("add", "-A")
+    repo.git("commit", "-q", "-m", "bytes")
+    return repo.git("rev-parse", "HEAD")
+
+
+def test_a_log_that_is_not_utf8_at_head_exits_2(run, repo):
+    base = repo.commit(log(row("D1")))
+    commit_bytes(repo, log(row("D1"), row("D2", "bad")).encode() + b"\xff\n")
+    status, _, err = check(run, repo, base)
+    assert status == 2
+    assert "UTF-8" in err
+
+
+def test_a_log_that_is_not_utf8_at_the_base_exits_2(run, repo):
+    base = commit_bytes(repo, log(row("D1")).encode() + b"| D2 | \xff |\n")
+    repo.commit(log(row("D1")))
+    status, _, err = check(run, repo, base)
+    assert status == 2
+    assert "UTF-8" in err
