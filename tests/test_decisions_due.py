@@ -281,13 +281,92 @@ def test_session_as_a_program_is_quick_and_exits_0(tmp_path):
     assert b"\r" not in done.stdout
 
 
-def test_the_live_log_skips_only_rechecks_a_later_row_moved(run):
-    # D134 moved D93's recheck and D116 D100's; D137 ("Amends D116") and
-    # D135 ("Applies D134") set none of their own.
-    status, out, err = due(run, ROOT / "docs" / "decisions.md", "2027-03-01")
+# The shapes of the live log's recheck rows on 2026-11-22: D134 moved
+# D93's recheck and D116 D100's; D99 names D93, D135 ("Applies D134") and
+# D137 ("Amends D116") name a row and set no recheck of their own.
+LIVE_SHAPES = log(
+    row("D93", "Entire: a one-month trial on one private solo repository",
+        meta="2026-11-16 · instruction · research normal MEDIUM "
+        "(docs/research/entire.md) · two-way · recheck 2026-12-16"),
+    row("D99", "Tier 2 is a bonus; Entire's records are not part of it (D93)",
+        meta="2026-11-16 · agent under D59 · none · two-way"),
+    row("D100", "Scheduled mutation testing in CI (D75) is deferred",
+        meta="2026-11-16 · agent under D75 · none · two-way · recheck 2026-12-16"),
+    row("D116", "Confirms D100: the scheduled CI mutation run is deferred",
+        reason='Owner: "Yes, defer it".',
+        meta="2026-11-17 · instruction · none · two-way · recheck 2027-02-16"),
+    row("D134", "The trial waits. D93's other terms stand. D93's `recheck "
+        "2026-12-16` no longer applies. Postpones D93.",
+        meta="2026-11-18 · instruction · checked (https://example.com) · "
+        "two-way · recheck 2027-02-18"),
+    row("D135", "Entire's hooks stay local. Applies D134.",
+        meta="2026-11-18 · instruction · checked (`cmd/hooks.go`) · two-way"),
+    row("D137", "The CI mutation run stays deferred. Amends D116, and D129.",
+        meta="2026-11-18 · instruction · none · two-way"),
+)
+
+
+def test_the_live_shapes_list_only_rechecks_nothing_took_over(run, tmp_path):
+    status, out, err = due(run, write(tmp_path, LIVE_SHAPES), "2027-03-01")
     assert (status, err) == (0, "")
-    ids = printed_ids(out)
-    assert "D93" not in ids
-    assert "D100" not in ids
-    assert "D116" in ids
-    assert "D134" in ids
+    assert printed_ids(out) == ["D116", "D134"]
+
+
+def test_the_live_shapes_list_nothing_before_the_first_date(run, tmp_path):
+    assert due(run, write(tmp_path, LIVE_SHAPES), "2027-02-15") == (0, "", "")
+
+
+# --- Rechecked <ID>: a later row that says a recheck was done
+
+
+def test_rechecked_without_a_recheck_of_its_own_clears(run, tmp_path):
+    text = log(
+        row("D5", meta=recheck("2026-11-16")),
+        row("D6", "Rechecked D5: still holds"),
+    )
+    assert due(run, write(tmp_path, text), "2027-01-01") == (0, "", "")
+
+
+def test_rechecked_another_id_does_not_clear(run, tmp_path):
+    text = log(
+        row("D5", meta=recheck("2026-11-16")),
+        row("D6", "Rechecked D50: still holds. Applies D5."),
+    )
+    status, out, _ = due(run, write(tmp_path, text), "2027-01-01")
+    assert printed_ids(out) == ["D5"]
+
+
+def test_lower_case_rechecked_does_not_clear(run, tmp_path):
+    text = log(
+        row("D5", meta=recheck("2026-11-16")),
+        row("D6", "D5 was rechecked D5 style, lower case"),
+    )
+    status, out, _ = due(run, write(tmp_path, text), "2027-01-01")
+    assert printed_ids(out) == ["D5"]
+
+
+def test_rechecked_in_the_reason_cell_does_not_clear(run, tmp_path):
+    text = log(
+        row("D5", meta=recheck("2026-11-16")),
+        row("D6", "Something else", reason="Rechecked D5: still holds"),
+    )
+    status, out, _ = due(run, write(tmp_path, text), "2027-01-01")
+    assert printed_ids(out) == ["D5"]
+
+
+def test_rechecked_in_an_earlier_row_does_not_clear(run, tmp_path):
+    text = log(
+        row("D4", "Rechecked D5: still holds"),
+        row("D5", meta=recheck("2026-11-16")),
+    )
+    status, out, _ = due(run, write(tmp_path, text), "2027-01-01")
+    assert printed_ids(out) == ["D5"]
+
+
+def test_rechecked_with_more_words_between_does_not_clear(run, tmp_path):
+    text = log(
+        row("D5", meta=recheck("2026-11-16")),
+        row("D6", "Rechecked the CI and D5"),
+    )
+    status, out, _ = due(run, write(tmp_path, text), "2027-01-01")
+    assert printed_ids(out) == ["D5"]

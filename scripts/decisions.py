@@ -17,8 +17,10 @@ at <ref> makes every row new.
   file at HEAD, a table it cannot read, a duplicate or empty ID).
 
 due prints, whole, every row whose Meta has "recheck YYYY-MM-DD" on or
-before today, unless a later row names its ID in its Decision cell and
-has a recheck of its own (the later row took the recheck over).
+before today, unless a later row cleared it: the later row's Decision
+cell names its ID and that row has a recheck of its own (it took the
+recheck over), or the Decision cell says "Rechecked <ID>" (the recheck
+was done). A row that only names the ID ("Applies D5") clears nothing.
   Exit status: 0 whether or not anything is due, 1 a recheck date is
   malformed (each is named on stderr; due rows are still printed),
   2 bad arguments or no such file.
@@ -26,7 +28,7 @@ With --session (for a Claude Code SessionStart hook) it prints a heading
 and one short line per due row, nothing when nothing is due or there is
 no such file, and always exits 0.
 
-Python 3.9 or later, standard library only.
+Python 3.10 or later, standard library only.
 """
 
 from __future__ import annotations
@@ -340,17 +342,22 @@ def recheck_text(r: Row) -> Optional[str]:
     return None
 
 
-def moved_later(rows: list, index: int) -> bool:
-    """A row after rows[index] names its ID in the Decision cell and has
-    a recheck of its own, which takes the recheck over. A row that only
-    names it ("Applies D5") leaves the recheck where it is."""
+def clears(later: Row, rid: str) -> bool:
+    """The later row clears rid's recheck: its Decision cell says
+    "Rechecked <rid>", or names rid and the row has a recheck of its own,
+    which takes the recheck over. Only naming it ("Applies D5") clears
+    nothing, and the phrase is matched as written, capital R."""
+    escaped = re.escape(rid)
+    decision = later.decision or ""
+    if re.search(rf"(?<!\w)Rechecked {escaped}(?!\w)", decision):
+        return True
+    return (recheck_text(later) is not None
+            and re.search(rf"(?<!\w){escaped}(?!\w)", decision) is not None)
+
+
+def cleared_later(rows: list, index: int) -> bool:
     rid = rows[index].id
-    if not rid:
-        return False
-    mention = re.compile(rf"(?<!\w){re.escape(rid)}(?!\w)")
-    return any(later.decision and mention.search(later.decision)
-               and recheck_text(later) is not None
-               for later in rows[index + 1:])
+    return bool(rid) and any(clears(later, rid) for later in rows[index + 1:])
 
 
 def rechecks(tables) -> list:
@@ -358,7 +365,7 @@ def rechecks(tables) -> list:
     found = []
     for index, r in enumerate(rows):
         text = recheck_text(r)
-        if text is not None and not moved_later(rows, index):
+        if text is not None and not cleared_later(rows, index):
             found.append(Recheck(r, text, parse_date(text)))
     return found
 
@@ -400,8 +407,9 @@ def shorten(text: str, width: int) -> str:
 def session_lines(file: str, due: list, malformed: list) -> list:
     if not due and not malformed:
         return []
-    lines = [f"Decisions due for a recheck in {file} (a new row whose "
-             "Decision names the ID and has its own recheck clears it):"]
+    lines = [f"Decisions due for a recheck in {file} (a new row clears one "
+             "when its Decision says \"Rechecked <ID>\", or names the ID "
+             "and has its own recheck):"]
     for c in due:
         label = c.row.id or f"line {c.row.line_no}"
         lines.append(f"- {label} (recheck {c.text}): "

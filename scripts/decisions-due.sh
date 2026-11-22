@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 # Lists the decisions due for a recheck: every row of a decisions table
 # whose Meta column says "recheck YYYY-MM-DD" with a date on or before
-# today, unless a later row names the row's ID in its Decision column
-# and has a recheck of its own (it took the recheck over). The rows are
-# printed as they are, one per line.
+# today, unless a later row cleared it: the later row's Decision column
+# names the row's ID and that row has a recheck of its own (it took the
+# recheck over), or says "Rechecked <ID>" (the recheck was done). A row
+# that only names the ID clears nothing. The rows are printed as they
+# are, one per line.
 #
 # Usage: decisions-due.sh [decisions-file] [today]
 #   decisions-file defaults to docs/decisions.md
@@ -13,7 +15,7 @@
 # written before the column existed, are skipped.
 #
 # A wrapper of `decisions.py due`, next to this script, which needs
-# Python 3.9 or later: $PYTHON if set, else python, else python3.
+# Python 3.10 or later: $PYTHON if set, else python, else python3.
 #
 # Exit status: 0 whether or not anything is due, 1 a recheck date is
 # malformed (each is named on stderr; due rows are still printed),
@@ -36,17 +38,17 @@ if [ "$#" -ge 2 ]; then today=$2; else today=$(date +%Y-%m-%d); fi
 [ -f "$file" ] || die "no such file: $file"
 
 # find_python: the first of $PYTHON, python and python3 that is Python
-# 3.9 or later (on some systems python is Python 2)
+# 3.10 or later (on some systems python is Python 2)
 find_python() {
   local p
   for p in "${PYTHON:-}" python python3; do
     [ -n "$p" ] || continue
-    if "$p" -c 'import sys; sys.exit(sys.version_info < (3, 9))' > /dev/null 2>&1; then
+    if "$p" -c 'import sys; sys.exit(sys.version_info < (3, 10))' > /dev/null 2>&1; then
       printf '%s\n' "$p"
       return 0
     fi
   done
   return 1
 }
-py=$(find_python) || die "needs Python 3.9 or later: set PYTHON, or put python or python3 on PATH"
+py=$(find_python) || die "needs Python 3.10 or later: set PYTHON, or put python or python3 on PATH"
 exec "$py" "$(dirname "$0")/decisions.py" due --file "$file" --today "$today"
