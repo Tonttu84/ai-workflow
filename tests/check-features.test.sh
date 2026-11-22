@@ -385,6 +385,54 @@ check "a non-.md file in or under docs/features and an empty subfolder pass" sta
 rm -rf "$repo/docs/features/empty"
 reset_repo
 
+# --- a lock commit must be in the history of HEAD: a squash or rebase
+# merge drops it, and only the clone that still holds the old commit
+# would find it
+# wave_feature <merge option>: feature F3 on its own branch, its test
+# locked in one commit and the code and feature file in the next, merged
+# into main with the option (--squash or --no-ff); the branch is deleted
+wave_feature() {
+  git -C "$repo" checkout -q -b wave
+  mkdir -p "$repo/e2e3"
+  # SC2016: the test's code, written literally.
+  # shellcheck disable=SC2016
+  printf '# name: F3-1-r1 waves\nhere=$(dirname "$0")\n[ "$(bash "$here/../src/wave.sh")" = wave ]\n' \
+    > "$repo/e2e3/wave.test.sh"
+  commit_all "test: lock the wave test"
+  wave_lock=$(git -C "$repo" rev-parse HEAD)
+  printf 'echo wave\n' > "$repo/src/wave.sh"
+  printf '2 reports/all.xml\n' > "$repo/.test-count"
+  feature_file wave.md F3-1 'e2e3/wave.test.sh' "e2e3 at $wave_lock"
+  commit_all "feat: wave"
+  git -C "$repo" checkout -q main
+  if [ "$1" = --squash ]; then
+    git -C "$repo" merge -q --squash wave > /dev/null && commit_all "feat: wave"
+  else
+    git -C "$repo" merge -q --no-ff -m "merge: wave" wave
+  fi
+  git -C "$repo" branch -q -D wave
+}
+wave_feature --no-ff
+check "a feature merged with --no-ff, its lock commit kept, passes" status_is 0 --base "$head"
+reset_repo
+wave_feature --squash
+check "the squashed lock commit is still in this clone" git -C "$repo" cat-file -e "$wave_lock^{commit}"
+check "a lock commit that is not in the history of HEAD fails" status_is 1 --base "$head"
+check "it says the commit is not in the history of HEAD" says 'is not in the history of HEAD'
+check "it names a squash or rebase merge as the usual cause" says 'squash or rebase merge'
+check "it names the lock line" says 'docs/features/wave.md:7'
+reset_repo
+
+# --- a lock line may name a commit by up to 64 hex digits, as
+# check-walkthrough does (SHA-256 repositories)
+long=$(printf '%064d' 0 | tr 0 a)
+feature_file greet.md F1-1 'e2e/one.test.sh, F1-1-r1' "e2e at $long"
+commit_all "docs: a lock line with a 64-digit commit ID"
+check "a lock line naming an unknown 64-digit commit fails" status_is 1 --base "$head"
+refute "it is not called malformed" says "is not 'Locked tests"
+check "it says the commit is unknown" says "unknown commit: $long"
+reset_repo
+
 # --- each check can fail the gate
 printf 'true\n' >> "$repo/e2e/one.test.sh"
 commit_all "fix: weaken the locked test"

@@ -52,8 +52,10 @@
 #
 # Every feature file with item rows needs at least one line
 # "Locked tests: <paths> at <SHA>" at the start of a line: the SHA is the
-# test: commit, and the paths, separated by spaces, are from the top of
-# the repository. More than one such line is allowed (tests locked in two
+# test: commit, 7 to 64 hex digits, and must be in the history of HEAD (a
+# squash or rebase merge drops it, and a fresh clone then lacks it), and
+# the paths, separated by spaces, are from the top of the repository.
+# More than one such line is allowed (tests locked in two
 # commits); each is checked. Only the template's own placeholder line,
 # "Locked tests: <paths> at <SHA of the `test:` commit>", is skipped; any
 # other value that is not "<paths> at <SHA>" fails, and so does a line
@@ -272,7 +274,7 @@ for doc in "${docs[@]}"; do
       *) continue ;;
     esac
     [ "$value" != "$PLACEHOLDER" ] || continue # the template's own line
-    re='^(.+)[[:blank:]]+at[[:blank:]]+([0-9a-f]{7,40})$'
+    re='^(.+)[[:blank:]]+at[[:blank:]]+([0-9a-f]{7,64})$'
     if ! [[ $value =~ $re ]]; then
       problem "$doc:$line" "$doc:$line: 'Locked tests: $value' is not 'Locked tests: <paths> at <SHA>'"
       continue
@@ -281,6 +283,14 @@ for doc in "${docs[@]}"; do
     sha=${BASH_REMATCH[2]}
     read -r -a paths <<< "${BASH_REMATCH[1]}"
     for path in "${paths[@]}"; do locked+=("$(normal "$path")"); done
+    # A commit this clone holds but HEAD does not contain would pass here
+    # and be unknown in every fresh clone. An unknown one is left to the
+    # checks below, which name it.
+    if git rev-parse --verify --quiet "$sha^{commit}" > /dev/null &&
+      ! git merge-base --is-ancestor "$sha" HEAD; then
+      problem "$doc:$line" "$doc:$line: the lock commit $sha is not in the history of HEAD, so a fresh clone does not have it: a squash or rebase merge, which drops the branch's commits, is the usual cause; merge with --no-ff, or lock the tests again at a commit HEAD contains"
+      continue
+    fi
     gate "$doc:$line locked tests unchanged" bash "$here/check-locked-tests.sh" "$sha" "${paths[@]}"
     gate "$doc:$line red on the base, green on the head" \
       bash "$here/check-red-green.sh" "${red_green[@]}" "$sha" "$test_command" "${paths[@]}"
