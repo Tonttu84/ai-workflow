@@ -370,6 +370,12 @@ check "a feature file only in a subfolder fails" status_is 1 --base "$head"
 check "it names the file in the subfolder" says 'docs/features/export/feature.md'
 refute "and does not say there is nothing to check" prints 'nothing to check'
 reset_repo
+mkdir -p "$repo/docs/features/export/v2"
+git -C "$repo" mv docs/features/greet.md docs/features/export/v2/feature.md
+commit_all "docs: a feature file only two folders down"
+check "a feature file only two folders down fails" status_is 1 --base "$head"
+check "it names the file two folders down" says 'docs/features/export/v2/feature.md'
+reset_repo
 mkdir -p "$repo/docs/features/export"
 cp "$repo/docs/features/greet.md" "$repo/docs/features/export/feature.md"
 commit_all "docs: a feature file in a subfolder next to one at the top"
@@ -424,13 +430,19 @@ check "it names the lock line" says 'docs/features/wave.md:7'
 reset_repo
 
 # --- a lock line may name a commit by up to 64 hex digits, as
-# check-walkthrough does (SHA-256 repositories)
+# check-walkthrough does (SHA-256 repositories), and no more
 long=$(printf '%064d' 0 | tr 0 a)
 feature_file greet.md F1-1 'e2e/one.test.sh, F1-1-r1' "e2e at $long"
 commit_all "docs: a lock line with a 64-digit commit ID"
 check "a lock line naming an unknown 64-digit commit fails" status_is 1 --base "$head"
 refute "it is not called malformed" says "is not 'Locked tests"
 check "it says the commit is unknown" says "unknown commit: $long"
+reset_repo
+too_long=$(printf '%065d' 0 | tr 0 a)
+feature_file greet.md F1-1 'e2e/one.test.sh, F1-1-r1' "e2e at $too_long"
+commit_all "docs: a lock line with a 65-digit commit ID"
+check "a lock line with a 65-digit commit ID fails" status_is 1 --base "$head"
+check "it is called malformed" says "is not 'Locked tests: <paths> at <SHA>'"
 reset_repo
 
 # --- each check can fail the gate
