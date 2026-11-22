@@ -361,6 +361,30 @@ check "a dot-named feature file's lock lines are checked" status_is 1 --base "$h
 check "it names the dot-named file" says 'docs/features/.draft.md'
 reset_repo
 
+# --- feature files lie at docs/features/<feature>.md, never deeper: a
+# file in a subfolder would be read by no check
+mkdir -p "$repo/docs/features/export"
+git -C "$repo" mv docs/features/greet.md docs/features/export/feature.md
+commit_all "docs: a feature file only in a subfolder"
+check "a feature file only in a subfolder fails" status_is 1 --base "$head"
+check "it names the file in the subfolder" says 'docs/features/export/feature.md'
+refute "and does not say there is nothing to check" prints 'nothing to check'
+reset_repo
+mkdir -p "$repo/docs/features/export"
+cp "$repo/docs/features/greet.md" "$repo/docs/features/export/feature.md"
+commit_all "docs: a feature file in a subfolder next to one at the top"
+check "a feature file in a subfolder next to a passing one fails" status_is 1 --base "$head"
+check "it names the deeper file" says 'docs/features/export/feature.md'
+check "the summary names it" says '  docs/features/export/feature.md'
+reset_repo
+mkdir -p "$repo/docs/features/export" "$repo/docs/features/empty"
+printf 'a,b\n' > "$repo/docs/features/export/data.csv"
+printf 'notes\n' > "$repo/docs/features/notes.txt"
+commit_all "docs: files that are not feature files under docs/features"
+check "a non-.md file in or under docs/features and an empty subfolder pass" status_is 0 --base "$head"
+rm -rf "$repo/docs/features/empty"
+reset_repo
+
 # --- each check can fail the gate
 printf 'true\n' >> "$repo/e2e/one.test.sh"
 commit_all "fix: weaken the locked test"

@@ -24,7 +24,9 @@
 # Run it at the top of the repository, or anywhere in it, before a push
 # to main or the merge of a pull request. The checks are found next to
 # this script (scripts/ in the ai-workflow clone, or the project's
-# .ai-workflow/ after hooks/install.sh --gate). Without docs/features/*.md
+# .ai-workflow/ after hooks/install.sh --gate). Feature files lie at
+# docs/features/<feature>.md: a .md file in a subfolder of docs/features
+# fails, as no check would read it there. Without docs/features/*.md
 # there is nothing to check. With feature files, the config file
 # feature-checks.conf at the top of the repository is required, and a
 # missing or incomplete one fails. Its lines are "<key> = <value>";
@@ -90,12 +92,26 @@ cd "$top"
 git rev-parse --verify --quiet "$base^{commit}" > /dev/null || die "unknown commit: $base"
 
 # The feature files, dot-named ones too, as check-trace-links.sh and
-# check-walkthrough list them.
-docs=()
+# check-walkthrough list them. A .md file deeper down is no feature file
+# any check reads, so it fails rather than being skipped: one layout only.
+docs=() deeper=()
 if [ -d docs/features ]; then
   while IFS= read -r doc; do docs+=("$doc"); done < <(
     find docs/features -maxdepth 1 -type f -name '*.md' | LC_ALL=C sort
   )
+  while IFS= read -r doc; do deeper+=("$doc"); done < <(
+    find docs/features -mindepth 2 -type f -name '*.md' | LC_ALL=C sort
+  )
+fi
+# deeper_says <file>: the problem with a .md file in a subfolder
+deeper_says() {
+  echo "check-features.sh: $1: a .md file in a subfolder of docs/features, where no check reads it: feature files lie at docs/features/<feature>.md, so move it there (or out of docs/features if it is no feature file)" >&2
+}
+if [ "${#docs[@]}" -eq 0 ] && [ "${#deeper[@]}" -gt 0 ]; then
+  for doc in "${deeper[@]}"; do deeper_says "$doc"; done
+  echo "check-features.sh: failed:" >&2
+  printf '  %s\n' "${deeper[@]}" >&2
+  exit 1
 fi
 if [ "${#docs[@]}" -eq 0 ]; then
   echo "check-features.sh: no docs/features/*.md: nothing to check"
@@ -167,6 +183,10 @@ problem() {
   echo "check-features.sh: $2" >&2
   failed+=("$1")
 }
+for doc in ${deeper[@]+"${deeper[@]}"}; do
+  deeper_says "$doc"
+  failed+=("$doc")
+done
 
 # --- 0. the working tree is HEAD
 # The test run, the count and the trace links read the working tree, so
