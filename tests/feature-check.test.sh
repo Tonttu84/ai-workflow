@@ -399,14 +399,20 @@ check "the fetch step passes" step "$FETCH" "$merged" "$next"
 check "it brings the locked commit" in_clone "$old_locked"
 check "and the commit the walkthrough names" in_clone "$old_feat"
 refute "6. with the pull-request refs the checks still fail" step "$CHECKS" "$merged" "$next"
+refute "the walkthrough check is not blamed" says '::error::The walkthrough check failed'
 check "it names the feature checks" says '::error::The feature checks failed'
-check "the lock commit is not in the history of HEAD" says 'is not in the history of HEAD'
+check "the lock commit is not in the history of HEAD" \
+  says "the lock commit $old_locked is not in the history of HEAD"
 refute "the feature checks did not pass" says 'every feature check passed'
 
 # 8. The control: a feature merged with a merge commit keeps its locked
 # commit and the commit its walkthrough names in main's history, so a
 # later pull request passes in a fresh clone without the pull-request
-# refs.
+# refs, which the remote holds as GitHub's does.
+# remote_has <ref>: the remote holds that ref
+remote_has() { git --git-dir "$remote" rev-parse -q --verify "$1" > /dev/null; }
+# no_pr_refs: the clone has no ref under refs/remotes/origin/pr
+no_pr_refs() { test -z "$(git -C "$TMP/ci" for-each-ref refs/remotes/origin/pr)"; }
 new_project "$TMP/noff" "$TMP/noff.git"
 install_checks
 commit_all "chore: start with the feature checks"
@@ -414,6 +420,7 @@ push_as refs/heads/main
 git -C "$dev" checkout -q -b old
 build_feature
 push_as refs/heads/old
+push_as refs/pull/1/head
 old_locked=$locked old_feat=$feat
 git -C "$dev" checkout -q main
 git -C "$dev" merge -q --no-ff --no-verify -m "Merge pull request #1: greet" old > /dev/null 2>&1
@@ -426,11 +433,14 @@ printf '# A project\n' > "$dev/README.md"
 commit_all "docs: add a readme"
 next=$(sha)
 push_as refs/heads/next
+push_as refs/pull/2/head
+check "8. the remote holds the first pull request's ref" remote_has refs/pull/1/head
+check "and the second's" remote_has refs/pull/2/head
 ci_at "$next"
 check "8. after a --no-ff merge the locked commit is in a fresh clone" in_clone "$old_locked"
 check "and the commit the walkthrough names" in_clone "$old_feat"
 refute "the branch is gone" git -C "$TMP/ci" rev-parse -q --verify refs/remotes/origin/old
-refute "no pull-request refs were fetched" git -C "$TMP/ci" rev-parse -q --verify refs/remotes/origin/pr/1
+check "no pull-request refs were fetched" no_pr_refs
 check "8. without the pull-request refs the checks pass" step "$CHECKS" "$merged" "$next"
 check "the feature checks ran and passed" says 'every feature check passed'
 
