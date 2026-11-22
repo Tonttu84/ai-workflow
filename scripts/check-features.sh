@@ -26,11 +26,11 @@
 # this script (scripts/ in the ai-workflow clone, or the project's
 # .ai-workflow/ after hooks/install.sh --gate). Feature files lie at
 # docs/features/<feature>.md: a .md file in a subfolder of docs/features
-# fails, as no check would read it there. Without docs/features/*.md
-# there is nothing to check. With feature files, the config file
-# feature-checks.conf at the top of the repository is required, and a
-# missing or incomplete one fails. Its lines are "<key> = <value>";
-# blank lines and lines starting with # are ignored:
+# fails, as no check would read it there. Without any .md file under
+# docs/features there is nothing to check. With feature files, the
+# config file feature-checks.conf at the top of the repository is
+# required, and a missing or incomplete one fails. Its lines are
+# "<key> = <value>"; blank lines and lines starting with # are ignored:
 #
 #   test_command  required: the test command for one test file, with
 #                 {path} where the path goes ('npx vitest run {path}')
