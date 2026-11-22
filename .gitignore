@@ -3,3 +3,6 @@
 # (D151).
 .claude/worktrees/
 .claude/settings.local.json
+# Python caches of scripts/decisions.py and its pytest tests.
+__pycache__/
+.pytest_cache/
