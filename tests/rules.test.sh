@@ -611,4 +611,15 @@ check "the AGENTS template names the check beside a domain rule" \
   grep -qF 'the test or script that checks it' "$ROOT/templates/AGENTS.md"
 check "docs/decisions.md records D180 with the organiser's rules as its evidence" from_organiser D180
 
+# --- what was not taken (D181): two limits wait as ideas 9 and 10
+# idea_says <n> <text>: entry n of docs/ideas.md holds the text
+idea_says() {
+  awk -v h="## $1. " 'index($0, h) == 1 { on = 1; next } on && /^## / { exit } on' "$IDEAS" | grep -qF -- "$2"
+}
+check "idea 9 is the file-length limit left out by D181" idea_says 9 'D181'
+check "idea 9 names the function limits it would sit beside" idea_says 9 'templates/function-limits.md'
+check "idea 10 is the coverage floor left out by D181" idea_says 10 'D181'
+check "docs/decisions.md records D181 with the organiser's rules as its evidence" from_organiser D181
+check "D181 names both ideas" in_row D181 'entries 9 and 10'
+
 finish
