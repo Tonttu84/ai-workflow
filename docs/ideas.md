@@ -82,3 +82,11 @@ Improvements to the workflow left for later on purpose. Each entry says where it
 - What: a coverage floor in the gate, on a project's logic folders or on the changed lines, so that code no test reaches is seen.
 - Why not now: new logic is written test first, and the hardening step's mutation run on the changed lines checks the same code more strictly (D75, D76). A floor would mostly measure old code, and a number invites tests written to reach it.
 - Revisit when: a migrated project has old logic that no test reaches, or an escape shows untested code that got past the review and the hardening.
+
+## 11. A secret scan in this repository
+
+- Date: 2026-11-23
+- Source: D180, which gives every project a secret scan and leaves this repository without one.
+- What: the same scan here: a `pre-commit` hook over the staged files and a scan of the tracked files in `make test lint`.
+- Why not now: this repository holds rules, templates and scripts, with no credentials and no `.env`, and a scanner would be its first dependency beyond bash, git and ShellCheck. Which scanner suits a repository without a package manager (a single binary) is not researched.
+- Revisit when: a scanner is chosen for the first project without Node.js, or a secret is found in this repository's history.

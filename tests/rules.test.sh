@@ -611,18 +611,29 @@ done
 in_scan() { section "$SETUP" 'The secret scan' | grep -qF -- "$1"; }
 # shellcheck disable=SC2016
 for text in 'scans every staged file, ignored or not' 'refuses the commit on a finding, and when the scanner is missing' \
-  'scans the files git tracks (`git ls-files`), never the ignored ones' 'agent'"'"'s choice' \
+  'scans the files git tracks (`git ls-files`), not the untracked files that `.gitignore` hides' \
+  'is in a file the committed `.gitignore` ignores' 'is found the next time the gate runs' 'agent'"'"'s choice' \
   'git update-index --add --chmod=+x .githooks/pre-commit' '--git-hooks' \
   'git diff --cached --name-only -z --diff-filter=d | xargs -0 -r npx --no -- secretlint --no-gitignore --no-glob' \
   'git ls-files -z | xargs -0 -r npx --no -- secretlint --no-gitignore --no-glob' 'rotated at its provider' \
-  'the commit must be refused' 'its secret scan must be the step that fails'; do
+  'the commit must be refused' 'run the gate'"'"'s `command` by hand' 'its secret scan must be the step that fails'; do
   check "the secret scan section says: $text" in_scan "$text"
 done
 check "the kickoff adds the secret scan" in_kickoff 'secret scan'
 check "so does the migration" in_migration_steps 'secret scan'
 check "the migration untracks a file it starts to ignore" in_migration_steps 'git rm --cached'
+check "and rotates its values, which the scan can no longer see" \
+  in_migration_steps 'rotate its values, since the history keeps them'
+# in_scan_note <text>: the upgrade note for the secret scan holds the text
+in_scan_note() {
+  awk '/^## .*secret scan/ { on = 1; next } on && /^## / { exit } on' "$ROOT/docs/upgrading.md" | grep -qF -- "$1"
+}
+for text in 'rotate their values, since the history keeps them' 'run by hand while that file is staged'; do
+  check "the upgrade note for the secret scan says: $text" in_scan_note "$text"
+done
 check "the setup file's gate holds the secret scan" grep -qF '(tests, lint, types, build, the secret scan)' "$SETUP"
-check "the AGENTS template has a command for the secret scan" grep -qF '| Secret scan' "$ROOT/templates/AGENTS.md"
+check "the AGENTS template has a command for the scan of the tracked files" \
+  grep -qF '| Secret scan of the tracked files' "$ROOT/templates/AGENTS.md"
 check "the AGENTS template's gate holds the secret scan" \
   grep -qF '(tests, lint, types, build, the secret scan;' "$ROOT/templates/AGENTS.md"
 check "the gate.conf template's gate holds the secret scan" grep -qF 'build and the secret' "$ROOT/templates/gate.conf"
@@ -647,6 +658,9 @@ check "idea 10 is the coverage floor left out by D182" idea_says 10 'D182'
 refute "an idea's check reads only that entry" idea_says 9 'D75'
 check "docs/decisions.md records D182 under D176" under_d176 D182
 check "D182 names both ideas" in_row D182 'entries 9 and 10'
+# This repository has no scanner yet (D180); idea 11 says when it would.
+check "D180 points to the idea of a scan in this repository" in_row D180 'entry 11'
+check "idea 11 is the secret scan in this repository, from D180" idea_says 11 'D180'
 check "D182 leaves CI and the gate as D39 and D128 decided" in_row D182 'stay as D39 and D128 decided'
 
 finish
