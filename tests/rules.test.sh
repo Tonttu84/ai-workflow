@@ -606,4 +606,9 @@ check "the AGENTS template has a command for the secret scan" grep -qF '| Secret
 check "docs/decisions.md records D179 with the organiser's rules as its evidence" from_organiser D179
 check "D179 is rechecked, since scanners change" in_row D179 '· recheck 2027-05-23 |'
 
+# --- a project's domain rule names its check where one can (D180)
+check "the AGENTS template names the check beside a domain rule" \
+  grep -qF 'the test or script that checks it' "$ROOT/templates/AGENTS.md"
+check "docs/decisions.md records D180 with the organiser's rules as its evidence" from_organiser D180
+
 finish

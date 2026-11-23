@@ -54,7 +54,7 @@ count_file = <the count file, such as .test-count; its reports are untracked pat
 
 ## Domain rules
 
-<Rules of the problem the code must keep: invariants, units, money and rounding, time zones, permissions. One line each.>
+<Rules of the problem the code must keep: invariants, units, money and rounding, time zones, permissions. One line each, with the test or script that checks it where one can (a meta test in the gate: no clock in the domain folder, every write through one function); review checks the rest.>
 
 ## Features
 
