@@ -38,8 +38,8 @@ See `docs/kickoff.md` for why this stack was chosen.
 | Unit tests | `<...>` |
 | End-to-end tests | `<...>` |
 | Lint, format, type-check | `<...>` |
-| Secret scan of the whole tree (the `pre-commit` hook scans the staged files) | `<...>` |
-| The local gate (tests, lint, types, build; with feature files, the feature checks below), the `command` of the committed `gate.conf` | `<...>` |
+| Secret scan of the tracked files, as the gate runs it (the `pre-commit` hook scans the staged files) | `<...>` |
+| The local gate (tests, lint, types, build, the secret scan; with feature files, the feature checks below), the `command` of the committed `gate.conf` | `<...>` |
 
 The gate guards `main`: run it before a push to `main` or the merge of a pull request (on the pull request's branch). The `pre-push` hook runs it from `gate.conf` before a push to `main` and refuses the push if it fails or cannot run (ai-workflow D142), so give that push a deadline longer than the gate's `timeout`. A push to another branch needs only the `pre-push` commit check, so a feature branch may be pushed while its locked tests are red (ai-workflow D128).
 
@@ -54,7 +54,7 @@ count_file = <the count file, such as .test-count; its reports are untracked pat
 
 ## Domain rules
 
-<Rules of the problem the code must keep: invariants, units, money and rounding, time zones, permissions. One line each, with the test or script that checks it where one can (a meta test in the gate: no clock in the domain folder, every write through one function); review checks the rest.>
+<Rules of the problem the code must keep: invariants, units, money and rounding, time zones, permissions. One line each, with the test or script that checks it where a check is possible (a meta test in the gate: every write through one function, no route without its schema); review checks the rest.>
 
 ## Features
 

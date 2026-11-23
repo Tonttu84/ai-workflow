@@ -78,8 +78,8 @@ Each entry is a heading `## YYYY-MM-DD: <what>`, dated by the change, then three
 - Do: rerun `hooks/install.sh`, which writes `.ai-workflow-copies`. Bring each template the check names up to date with the `scripts/copy-template.sh` command it gives, which passes the guessed commit as `--base` and records the copy. Record a copied template the check does not name, since nothing changed upstream since its guessed version, with `scripts/copy-template.sh --record`, so later checks need no guess. Follow the notes above, then record them with `scripts/copy-template.sh --notes-followed`, and commit.
 - Done when: `bash <clone>/scripts/check-drift.sh <project>` reports no drift.
 
-## 2026-11-23: A secret scan before every commit (D179)
+## 2026-11-23: A secret scan before every commit (D180)
 
-- From: D179 (`rules/setup.md`, "The secret scan").
-- Do: ignore the files that hold real values (`.env`) in the committed `.gitignore`. Add a secret scan of the staged files to the project's own `pre-commit` hook (`.githooks/pre-commit`, committed as executable, or husky's) and a scan of the whole tree to the gate's `command`, and record the scanner in the project's `docs/decisions.md`. Run the scan on the whole tree once: move what it finds out of the repository and rotate it at its provider. A project that already scans checks only that all three are in place.
-- Done when: a commit that stages a planted key in a shape the scanner knows is refused, and the gate fails while that file is in the tree.
+- From: D180 (`rules/setup.md`, "The secret scan").
+- Do: follow that section. Ignore the files with real values in the committed `.gitignore`, and untrack any that git tracks. Add the scan of the staged files to the project's `pre-commit` hook, and the scan of the tracked files to the gate's `command`. Record the scanner in the project's `docs/decisions.md` and add its command to the Commands table of `AGENTS.md`. Run the gate's scan once: move what it finds out of the repository and rotate it at its provider. A project that already scans checks the same three things: the ignored files, the hook, which must also scan a staged file that `.gitignore` matches, and the gate.
+- Done when: the section's smoke check passes. A commit that stages a made-up key in a shape the scanner knows is refused, and the gate's `command`, run by hand while that file is staged, fails at its secret scan.

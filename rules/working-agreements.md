@@ -27,12 +27,12 @@ The coordinator is the session talking with the owner. A subagent working from a
 
 - Outside service calls: a timeout; bounded retries on 408, 429 and 5xx (never other 4xx), only when the call is safe to repeat (idempotent, or with an idempotency key), with exponential backoff and jitter, honouring `Retry-After`; every page when fetching history; failures logged with context. Tests fake a 429, a 500 and a timeout (`templates/hardening-brief.md`).
 - Outside data (HTTP bodies, files, APIs, env) is parsed into typed, validated values where it enters (Zod, pydantic, serde); invalid data is rejected or handled explicitly, as a recorded choice. Tests cover the hardening brief's awkward cases (time zones; missing, null, duplicate, out-of-range fields).
-- Money is a whole number of minor units (integer cents), never floating point. Round once, in one function whose comment states the rule.
-- An unexpected error reaches a client as a generic message in the project's one error shape, with the detail logged on the server: never a raw error message or a stack trace.
+- Money is a whole number of minor units (integer cents), never floating point. Each amount is rounded once, by a function whose comment states the rule.
+- A service's unexpected error reaches its caller as a generic message, in the error shape the project uses, with the detail in the service's log: never a raw error message or a stack trace.
 - A function does one thing at one level of detail; split only when the piece earns a name that hides real detail, never into single-use pass-through helpers. The linter enforces size limits (`templates/function-limits.md`).
 - Shared test credentials live in the private repo `Tonttu84/secrets`, cloned once per machine beside the checkouts (`../secrets` or `$SECRETS_DIR`). A project commits its variable names with empty values; `<secrets>/<project>/credentials/<file>` overlays them and wins. Without it, the project runs with those features off and says so.
 - That repo holds test-grade values, non-sensitive logs, research and metrics only, never real environments: nothing whose safety depends on living in few places (backup or signing keys) or that a household depends on, unless encrypted with a passphrase stored nowhere.
-- No secret is committed: real values live in files a committed `.gitignore` ignores (`.env`), and a secret scan checks the staged files before every commit (`rules/setup.md`).
+- No secret is committed. A real value kept in the project folder is in a file a committed `.gitignore` ignores (`.env`), and a secret scan checks the staged files before every commit (`rules/setup.md`).
 
 ## Tests
 
@@ -65,7 +65,7 @@ The coordinator is the session talking with the owner. A subagent working from a
   - Types: `feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `build`, `ci`, `chore`, `revert`. The scope is optional and lower case; `!` before the colon marks a breaking change.
   - One logical change per commit. Task ids go in a `Refs:` footer, never in the subject.
 - A PR title follows the same format, since a squash merge makes it the subject on `main`; the CI check covers it.
-- The local gate guards `main`: run it before a push to `main` or the merge of a pull request. It is the tests, lint, types, build, the `pre-push` commit check and, where `AGENTS.md` lists them, the feature checks (`.ai-workflow/check-features.sh --base origin/main`); on a push to `main` the hook also checks the walkthrough, then runs the gate the committed `gate.conf` declares and refuses the push if it fails or cannot run (D142), so give that push a deadline that covers the gate. A push to another branch needs only the hook's commit check, so a feature branch may be pushed while its locked tests are red. Never use `--no-verify`, and never write or edit the gate's pass record by hand; fix the cause instead.
+- The local gate guards `main`: run it before a push to `main` or the merge of a pull request. It is the tests, lint, types, build, the secret scan, the `pre-push` commit check and, where `AGENTS.md` lists them, the feature checks (`.ai-workflow/check-features.sh --base origin/main`); on a push to `main` the hook also checks the walkthrough, then runs the gate the committed `gate.conf` declares and refuses the push if it fails or cannot run (D142), so give that push a deadline that covers the gate. A push to another branch needs only the hook's commit check, so a feature branch may be pushed while its locked tests are red. Never use `--no-verify`, and never write or edit the gate's pass record by hand; fix the cause instead.
 - Parallel agents: one worktree per task; merge one at a time. Before the first commit, check which branch you are on and fetch `main`.
 
 ## Decisions

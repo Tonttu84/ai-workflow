@@ -576,50 +576,77 @@ for name in commit-check.yml feature-check.yml dependabot.yml gate.conf commitli
   check "the setup file copies $name with the template helper" in_copies "$name"
 done
 
-# --- rules taken from a hackathon organiser's engineering rules, from
-# D176 on. Money, error detail and the clock are in the always-loaded
-# rules, since they bind whoever writes the code (D176 to D178).
-for text in 'whole number of minor units' 'stack trace' 'the clock and randomness are IO'; do
+# --- rules taken from a hackathon organiser's engineering rules, on the
+# owner's instruction (D176). Money, error detail and the clock are in
+# the always-loaded rules, since they bind whoever writes the code (D177
+# to D179); each check pins the part of the sentence that carries the
+# rule.
+for text in 'whole number of minor units' 'never floating point' 'rounded once' \
+  'never a raw error message or a stack trace' 'the clock and randomness are IO' \
+  'takes the time and the seed as arguments'; do
   check "the rules keep: $text" grep -qF -- "$text" "$RULES"
 done
-check "the review brief looks for error detail sent to a client" \
-  grep -qF 'error detail sent to a client' "$ROOT/templates/review-brief.md"
-# from_organiser <ID>: that row's evidence is the organiser's rules file
-from_organiser() { in_row "$1" '· agent · checked (https://github.com/Tonttu84/northfina-lease-loop/blob/'; }
-for id in D176 D177 D178; do
-  check "docs/decisions.md records $id with the organiser's rules as its evidence" from_organiser "$id"
+check "the review brief looks for error detail sent to a caller" \
+  grep -qF 'error detail sent to a caller' "$ROOT/templates/review-brief.md"
+check "D176 is the owner's instruction, in the owner's words" in_row D176 'Owner (2026-11-23): "'
+check "D176 has the organiser's rules as its evidence" \
+  in_row D176 '· instruction · checked (https://github.com/Tonttu84/northfina-lease-loop/blob/'
+# under_d176 <ID>: that row is the agent's choice within D176, with the
+# organiser's rules file as its evidence
+under_d176() { in_row "$1" '· agent under D176 · checked (https://github.com/Tonttu84/northfina-lease-loop/blob/'; }
+for id in D177 D178 D179; do
+  check "docs/decisions.md records $id under D176" under_d176 "$id"
 done
 
-# --- every project scans for secrets (D179): the rule is always loaded,
-# the steps are a section of the setup file that the kickoff and the
-# migration point to, and migrated projects get an upgrade note.
-check "the rules keep the secret scan" grep -qF 'secret scan' "$RULES"
+# --- every project scans for secrets (D180): the rule is always loaded
+# and the scan is part of the gate; the steps are a section of the setup
+# file that the kickoff and the migration point to. The cold review
+# changed four lines of the first draft without failing a check, so
+# these pin what each step must say. SC2016: the backticks are Markdown.
+# shellcheck disable=SC2016
+for text in 'No secret is committed' 'a secret scan checks the staged files before every commit' \
+  'build, the secret scan, the `pre-push` commit check'; do
+  check "the rules keep: $text" grep -qF -- "$text" "$RULES"
+done
 in_scan() { section "$SETUP" 'The secret scan' | grep -qF -- "$1"; }
-for text in 'staged files' 'pre-commit' 'gate.conf' '.gitignore' 'agent'"'"'s choice' 'rotated' 'must be refused'; do
+# shellcheck disable=SC2016
+for text in 'scans every staged file, ignored or not' 'refuses the commit on a finding, and when the scanner is missing' \
+  'scans the files git tracks (`git ls-files`), never the ignored ones' 'agent'"'"'s choice' \
+  'git update-index --add --chmod=+x .githooks/pre-commit' '--git-hooks' \
+  'git diff --cached --name-only -z --diff-filter=d | xargs -0 -r npx --no -- secretlint --no-gitignore --no-glob' \
+  'git ls-files -z | xargs -0 -r npx --no -- secretlint --no-gitignore --no-glob' 'rotated at its provider' \
+  'the commit must be refused' 'its secret scan must be the step that fails'; do
   check "the secret scan section says: $text" in_scan "$text"
 done
 check "the kickoff adds the secret scan" in_kickoff 'secret scan'
 check "so does the migration" in_migration_steps 'secret scan'
-check "the upgrade notes cover the secret scan" \
-  grep -qE '^## 2026-11-23: .*secret scan.*\(D179\)$' "$ROOT/docs/upgrading.md"
+check "the migration untracks a file it starts to ignore" in_migration_steps 'git rm --cached'
+check "the setup file's gate holds the secret scan" grep -qF '(tests, lint, types, build, the secret scan)' "$SETUP"
 check "the AGENTS template has a command for the secret scan" grep -qF '| Secret scan' "$ROOT/templates/AGENTS.md"
-check "docs/decisions.md records D179 with the organiser's rules as its evidence" from_organiser D179
-check "D179 is rechecked, since scanners change" in_row D179 '· recheck 2027-05-23 |'
+check "the AGENTS template's gate holds the secret scan" \
+  grep -qF '(tests, lint, types, build, the secret scan;' "$ROOT/templates/AGENTS.md"
+check "the gate.conf template's gate holds the secret scan" grep -qF 'build and the secret' "$ROOT/templates/gate.conf"
+check "the readme's setup summary names the secret scan" grep -qF 'the hooks, the secret scan, CI' "$ROOT/README.md"
+check "docs/decisions.md records D180 under D176" under_d176 D180
+check "D180 is rechecked, since scanners change" in_row D180 '· recheck 2027-05-23 |'
 
-# --- a project's domain rule names its check where one can (D180)
+# --- a project's domain rule names its check where one is possible (D181)
 check "the AGENTS template names the check beside a domain rule" \
-  grep -qF 'the test or script that checks it' "$ROOT/templates/AGENTS.md"
-check "docs/decisions.md records D180 with the organiser's rules as its evidence" from_organiser D180
+  grep -qF 'with the test or script that checks it where a check is possible' "$ROOT/templates/AGENTS.md"
+check "docs/decisions.md records D181 under D176" under_d176 D181
 
-# --- what was not taken (D181): two limits wait as ideas 9 and 10
+# --- what was not taken (D182): two limits wait as ideas 9 and 10, and
+# the owner's earlier decisions on CI and the gate stand
 # idea_says <n> <text>: entry n of docs/ideas.md holds the text
 idea_says() {
   awk -v h="## $1. " 'index($0, h) == 1 { on = 1; next } on && /^## / { exit } on' "$IDEAS" | grep -qF -- "$2"
 }
-check "idea 9 is the file-length limit left out by D181" idea_says 9 'D181'
+check "idea 9 is the file-length limit left out by D182" idea_says 9 'D182'
 check "idea 9 names the function limits it would sit beside" idea_says 9 'templates/function-limits.md'
-check "idea 10 is the coverage floor left out by D181" idea_says 10 'D181'
-check "docs/decisions.md records D181 with the organiser's rules as its evidence" from_organiser D181
-check "D181 names both ideas" in_row D181 'entries 9 and 10'
+check "idea 10 is the coverage floor left out by D182" idea_says 10 'D182'
+refute "an idea's check reads only that entry" idea_says 9 'D75'
+check "docs/decisions.md records D182 under D176" under_d176 D182
+check "D182 names both ideas" in_row D182 'entries 9 and 10'
+check "D182 leaves CI and the gate as D39 and D128 decided" in_row D182 'stay as D39 and D128 decided'
 
 finish

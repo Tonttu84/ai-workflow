@@ -46,7 +46,7 @@ Background: <the facts you need, each marked `(checked: <source>)` or `(memory)`
 1. Does it do what the task asked, and nothing it was told not to do?
 2. Correctness: logic errors, edge cases, error handling, concurrency, off-by-one, time zones, money and rounding.
 3. Tests: were they written first for logic and bug fixes? Would a wrong line still pass? Was any test weakened, skipped or deleted?
-4. Security: input validation, secrets, injection, permissions, error detail sent to a client (a raw message, a stack trace).
+4. Security: input validation, secrets, injection, permissions, error detail sent to a caller (a raw message, a stack trace).
 5. Fit: follows the project's rules, layout and existing patterns; no dead code or stray debug output.
 6. Function shape, both ways: each function does one thing at one level of detail. Too big: over the linter's limits (`templates/function-limits.md`) without a stated reason. Too split: a single-use helper that only passes its arguments on, or a name that hides no real detail; fold it back in.
 7. Commits: Conventional Commits, one logical change each, bodies that say why.
