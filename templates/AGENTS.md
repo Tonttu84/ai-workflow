@@ -38,6 +38,7 @@ See `docs/kickoff.md` for why this stack was chosen.
 | Unit tests | `<...>` |
 | End-to-end tests | `<...>` |
 | Lint, format, type-check | `<...>` |
+| Secret scan of the whole tree (the `pre-commit` hook scans the staged files) | `<...>` |
 | The local gate (tests, lint, types, build; with feature files, the feature checks below), the `command` of the committed `gate.conf` | `<...>` |
 
 The gate guards `main`: run it before a push to `main` or the merge of a pull request (on the pull request's branch). The `pre-push` hook runs it from `gate.conf` before a push to `main` and refuses the push if it fails or cannot run (ai-workflow D142), so give that push a deadline longer than the gate's `timeout`. A push to another branch needs only the `pre-push` commit check, so a feature branch may be pushed while its locked tests are red (ai-workflow D128).

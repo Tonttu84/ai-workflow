@@ -77,3 +77,9 @@ Each entry is a heading `## YYYY-MM-DD: <what>`, dated by the change, then three
 - From: D153 and D154: `scripts/check-drift.sh`, `scripts/copy-template.sh` and the record `hooks/install.sh` writes.
 - Do: rerun `hooks/install.sh`, which writes `.ai-workflow-copies`. Bring each template the check names up to date with the `scripts/copy-template.sh` command it gives, which passes the guessed commit as `--base` and records the copy. Record a copied template the check does not name, since nothing changed upstream since its guessed version, with `scripts/copy-template.sh --record`, so later checks need no guess. Follow the notes above, then record them with `scripts/copy-template.sh --notes-followed`, and commit.
 - Done when: `bash <clone>/scripts/check-drift.sh <project>` reports no drift.
+
+## 2026-11-23: A secret scan before every commit (D179)
+
+- From: D179 (`rules/setup.md`, "The secret scan").
+- Do: ignore the files that hold real values (`.env`) in the committed `.gitignore`. Add a secret scan of the staged files to the project's own `pre-commit` hook (`.githooks/pre-commit`, committed as executable, or husky's) and a scan of the whole tree to the gate's `command`, and record the scanner in the project's `docs/decisions.md`. Run the scan on the whole tree once: move what it finds out of the repository and rotate it at its provider. A project that already scans checks only that all three are in place.
+- Done when: a commit that stages a planted key in a shape the scanner knows is refused, and the gate fails while that file is in the tree.

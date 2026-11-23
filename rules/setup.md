@@ -16,7 +16,7 @@ Repositories the owner does not own, and the owner's inactive repositories that 
 4. Copy from `templates/`: `AGENTS.md` (state the kind, and whether the project uses feature files), `CLAUDE.md` (the one line `@AGENTS.md`), `decisions.md` as `docs/decisions.md` and `escapes.md` as `docs/escapes.md` (`templates/escapes.md`).
 5. Install the hooks (with `--gate` if the project uses feature files) and commit the project's `gate.conf` (below), then set up CI, the repository settings and Dependabot: the sections below.
 6. Turn on the function limits from `templates/function-limits.md` at the starting values, as warnings; make them errors once the first code settles.
-7. Test credentials: commit the variable names with empty values; the values live in the private repository under `<project>/credentials/`.
+7. Test credentials: commit the variable names with empty values; the values live in the private repository under `<project>/credentials/`. Add the secret scan (below).
 8. A data or ML project: point `AGENTS.md` at `templates/data-science.md` by its GitHub URL and state the project's split, metric and baseline there.
 9. Record the upgrade notes as followed, since the project is set up under the rules as they are now: `scripts/copy-template.sh --notes-followed <project>`, and commit `.ai-workflow-copies`. No install does it (D156).
 
@@ -30,7 +30,7 @@ Repositories the owner does not own, and the owner's inactive repositories that 
 6. Once the hook is committed and on `main`, add `templates/commit-check.yml` with the template helper (below; a change that adds both is checked with its own copy of the hook, with a warning) and the repository settings (below). Set the repository variable `COMMIT_CHECK_SINCE` to the full SHA of the commit that added `.githooks/` (`gh variable set COMMIT_CHECK_SINCE --body <sha>`), so manual and scheduled runs skip the messages written before the rules. The first pull request, or a manual run, should show the commit check running and passing.
 7. Turn on Dependabot (below).
 8. Set the function limits (`templates/function-limits.md`): turn the linter checks on as warnings (in a separate report-only config if the lint gate allows no warnings), measure the existing code, pick limits that flag only the worst few percent, record them in `docs/decisions.md`, then make them errors.
-9. Move committed test secrets into the private repository (`<secrets>/<project>/credentials/<file>`), leaving their variable names with empty values in the project, and rotate every moved value at its provider: git history keeps the old ones.
+9. Move committed test secrets into the private repository (`<secrets>/<project>/credentials/<file>`), leaving their variable names with empty values in the project, and rotate every moved value at its provider: git history keeps the old ones. Then add the secret scan (below) and run it on the whole tree once: what it finds is moved and rotated the same way.
 10. A data or ML project: point `AGENTS.md` at `templates/data-science.md` by its GitHub URL (collaborators may not have the clone) and add the leakage tests it lists.
 11. Record the upgrade notes as followed, since the migration follows the rules as they are now: `scripts/copy-template.sh --notes-followed <project>`, and commit `.ai-workflow-copies`. No install does it (D156).
 
@@ -72,6 +72,18 @@ A migrated project keeps copies of files from this repository, and some later ch
   - The project then needs no path to an ai-workflow clone, for collaborators or a future CI job (D101). Rerun `--gate` to update the copies when the scripts change.
 - The feature checks need each locked commit and `origin/main` in the clone, so a clone or CI job that runs the gate needs full history (`actions/checkout` with `fetch-depth: 0`) and, in a repository that squash-merges, the pull-request refs (D78, below); otherwise they die with "unknown commit".
 - Scheduled mutation testing in CI (D75) is deferred until the first project with feature files sets up its CI (D100, confirmed by the owner in D116 and again in D137, which built only the gate's job): that project writes the mutation workflow, with D39's triggers for a private repository (by hand and on a schedule), and records it. Until then mutation testing runs only in the hardening step.
+
+## The secret scan
+
+Every project scans for secrets before they reach a commit (D179).
+
+- Files that hold real values (`.env`, key files) are ignored in the committed `.gitignore`. What is committed is the example (`.env.example`): the names, with empty values.
+- A secret scan runs on the staged files before every commit, from the project's own `pre-commit` hook: `.githooks/pre-commit` beside our hooks, committed as executable (`hooks/install.sh` neither writes nor replaces it), or husky's `.husky/pre-commit`. It refuses the commit on a finding, and when the scanner is missing.
+- The gate (the `command` of `gate.conf`) scans the whole tree as well. A fresh clone has its hooks off until the setup command runs, so a secret committed there stops at the push to `main`.
+- The scanner is the agent's choice, as testing tools are: one that is still maintained, needs no network and exits non-zero on a finding. Check that before choosing (the `researching` skill); the project's decision row names the scanner and its evidence. A Node project can use secretlint with its recommended preset: `npx secretlint "**/*"` scans the tree, and the hook passes it the staged files (`git diff --cached --name-only --diff-filter=d`).
+- A false alarm is silenced in the scanner's committed ignore file, with the reason beside it, never by skipping the hook.
+- A scan knows the shapes of keys and tokens, not every password: it is a tripwire, not a proof. A secret that reached a pushed commit is rotated at its provider, since deleting the line leaves it in the history.
+- Smoke-check it: stage a file that holds a planted key in a shape the scanner knows. The commit must be refused, and the gate must fail while the file is in the tree.
 
 ## CI and repository settings
 

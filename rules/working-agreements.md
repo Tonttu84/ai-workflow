@@ -32,6 +32,7 @@ The coordinator is the session talking with the owner. A subagent working from a
 - A function does one thing at one level of detail; split only when the piece earns a name that hides real detail, never into single-use pass-through helpers. The linter enforces size limits (`templates/function-limits.md`).
 - Shared test credentials live in the private repo `Tonttu84/secrets`, cloned once per machine beside the checkouts (`../secrets` or `$SECRETS_DIR`). A project commits its variable names with empty values; `<secrets>/<project>/credentials/<file>` overlays them and wins. Without it, the project runs with those features off and says so.
 - That repo holds test-grade values, non-sensitive logs, research and metrics only, never real environments: nothing whose safety depends on living in few places (backup or signing keys) or that a household depends on, unless encrypted with a passphrase stored nowhere.
+- No secret is committed: real values live in files a committed `.gitignore` ignores (`.env`), and a secret scan checks the staged files before every commit (`rules/setup.md`).
 
 ## Tests
 

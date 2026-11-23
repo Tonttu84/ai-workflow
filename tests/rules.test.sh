@@ -590,4 +590,20 @@ for id in D176 D177 D178; do
   check "docs/decisions.md records $id with the organiser's rules as its evidence" from_organiser "$id"
 done
 
+# --- every project scans for secrets (D179): the rule is always loaded,
+# the steps are a section of the setup file that the kickoff and the
+# migration point to, and migrated projects get an upgrade note.
+check "the rules keep the secret scan" grep -qF 'secret scan' "$RULES"
+in_scan() { section "$SETUP" 'The secret scan' | grep -qF -- "$1"; }
+for text in 'staged files' 'pre-commit' 'gate.conf' '.gitignore' 'agent'"'"'s choice' 'rotated' 'must be refused'; do
+  check "the secret scan section says: $text" in_scan "$text"
+done
+check "the kickoff adds the secret scan" in_kickoff 'secret scan'
+check "so does the migration" in_migration_steps 'secret scan'
+check "the upgrade notes cover the secret scan" \
+  grep -qE '^## 2026-11-23: .*secret scan.*\(D179\)$' "$ROOT/docs/upgrading.md"
+check "the AGENTS template has a command for the secret scan" grep -qF '| Secret scan' "$ROOT/templates/AGENTS.md"
+check "docs/decisions.md records D179 with the organiser's rules as its evidence" from_organiser D179
+check "D179 is rechecked, since scanners change" in_row D179 '· recheck 2027-05-23 |'
+
 finish
