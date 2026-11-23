@@ -576,4 +576,18 @@ for name in commit-check.yml feature-check.yml dependabot.yml gate.conf commitli
   check "the setup file copies $name with the template helper" in_copies "$name"
 done
 
+# --- rules taken from a hackathon organiser's engineering rules, from
+# D176 on. Money, error detail and the clock are in the always-loaded
+# rules, since they bind whoever writes the code (D176 to D178).
+for text in 'whole number of minor units' 'stack trace' 'the clock and randomness are IO'; do
+  check "the rules keep: $text" grep -qF -- "$text" "$RULES"
+done
+check "the review brief looks for error detail sent to a client" \
+  grep -qF 'error detail sent to a client' "$ROOT/templates/review-brief.md"
+# from_organiser <ID>: that row's evidence is the organiser's rules file
+from_organiser() { in_row "$1" '· agent · checked (https://github.com/Tonttu84/northfina-lease-loop/blob/'; }
+for id in D176 D177 D178; do
+  check "docs/decisions.md records $id with the organiser's rules as its evidence" from_organiser "$id"
+done
+
 finish

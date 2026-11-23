@@ -27,6 +27,8 @@ The coordinator is the session talking with the owner. A subagent working from a
 
 - Outside service calls: a timeout; bounded retries on 408, 429 and 5xx (never other 4xx), only when the call is safe to repeat (idempotent, or with an idempotency key), with exponential backoff and jitter, honouring `Retry-After`; every page when fetching history; failures logged with context. Tests fake a 429, a 500 and a timeout (`templates/hardening-brief.md`).
 - Outside data (HTTP bodies, files, APIs, env) is parsed into typed, validated values where it enters (Zod, pydantic, serde); invalid data is rejected or handled explicitly, as a recorded choice. Tests cover the hardening brief's awkward cases (time zones; missing, null, duplicate, out-of-range fields).
+- Money is a whole number of minor units (integer cents), never floating point. Round once, in one function whose comment states the rule.
+- An unexpected error reaches a client as a generic message in the project's one error shape, with the detail logged on the server: never a raw error message or a stack trace.
 - A function does one thing at one level of detail; split only when the piece earns a name that hides real detail, never into single-use pass-through helpers. The linter enforces size limits (`templates/function-limits.md`).
 - Shared test credentials live in the private repo `Tonttu84/secrets`, cloned once per machine beside the checkouts (`../secrets` or `$SECRETS_DIR`). A project commits its variable names with empty values; `<secrets>/<project>/credentials/<file>` overlays them and wins. Without it, the project runs with those features off and says so.
 - That repo holds test-grade values, non-sensitive logs, research and metrics only, never real environments: nothing whose safety depends on living in few places (backup or signing keys) or that a household depends on, unless encrypted with a passphrase stored nowhere.
@@ -39,7 +41,7 @@ The coordinator is the session talking with the owner. A subagent working from a
 - Only a deterministic check (a test, or a script that checks a recorded end state) can pass something. Judgement, yours or a model's, can only lower a verdict to fail or unknown, and neither is a pass. False alarms are tolerable; false passes are not.
 - Never weaken, skip or delete a test to go green. If a test is wrong, a subagent stops and reports why; the coordinator then fixes it as its own change.
 - Locked tests (written first by a test writer and named in your brief) are never edited: make them pass. If one looks wrong, stop and report why.
-- Keep logic pure and IO at the edges. No network in unit tests; use fakes and fixtures.
+- Keep logic pure and IO at the edges; the clock and randomness are IO, so logic takes the time and the seed as arguments. No network in unit tests; use fakes and fixtures.
 - Every wait has a deadline: network calls, polling loops, test waits and CI jobs all time out. Every command you run has a time limit: the tool's timeout, `timeout` (or an equivalent) around anything that might hang, a deadline on background jobs instead of endless polling. Loops get an exit condition and an iteration or time cap, and no command waits for interactive input (use non-interactive flags).
 
 ## Git
