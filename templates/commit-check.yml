@@ -1,14 +1,15 @@
 # The gate for commit messages. The local hook is feedback while writing:
 # a fresh clone has it off until its setup command runs, --no-verify and
-# GitHub's web editor skip it, and a squash merge writes its commit on
-# GitHub. This workflow checks what reaches the default branch:
+# GitHub's web editor skip it, and a merge on GitHub writes its commit
+# there. This workflow checks what reaches the default branch:
 #   - every commit of a pull request (base..head), and every commit of a
 #     push to the default branch (before..after), with the project's
 #     .githooks/commit-msg as it was before the change, so a change cannot
 #     weaken its own check. Merge commits git writes pass, as in the hook;
-#     fixup!/squash!/amend! commits fail, squash them first.
-#   - the PR title, which a squash merge makes the commit subject, without
-#     the hook's exemptions for subjects git writes (a title never is one).
+#     fixup!/squash!/amend! commits fail: fold them into their targets
+#     on the branch first.
+#   - the PR title, which follows the commit format too, without the
+#     hook's exemptions for subjects git writes (a title never is one).
 # A ruleset on the default branch that requires this check and blocks
 # force pushes makes it binding.
 #
@@ -17,11 +18,12 @@
 # Tonttu84/ai-workflow puts them there), and
 # change `main` below if the default branch has another name.
 #
-# GitHub uses the PR title as the squash subject only when the repository
-# says so; by default a one-commit PR gets that commit's subject. Set it
-# once per repository:
-#   gh api -X PATCH repos/OWNER/REPO \
-#     -f squash_merge_commit_title=PR_TITLE -f squash_merge_commit_message=PR_BODY
+# The owner's repositories never squash-merge (ai-workflow D183): a pull
+# request merges with a merge commit, so each commit this job checked is
+# what reaches the default branch. Turn the other merge methods off, once
+# per repository:
+#   gh api -X PATCH repos/OWNER/REPO -F allow_merge_commit=true \
+#     -F allow_squash_merge=false -F allow_rebase_merge=false
 #
 # Triggers: Actions minutes are free for public repositories on standard
 # runners, but private ones share a small monthly allowance on GitHub
@@ -91,7 +93,8 @@ jobs:
               echo "::error::The PR title looks like a message git writes; use 'type(scope): summary'"
               exit 1 ;;
           esac
-          # A squash merge appends " (#N)"; the subject on main must still fit.
+          # A squash merge, where another repository's rules require one,
+          # appends " (#N)"; the subject must still fit.
           printf '%s (#%s)\n' "$TITLE" "$PR_NUMBER" > "$RUNNER_TEMP/pr-title"
           GIT_EDITOR=: bash "$RUNNER_TEMP/commit-msg" "$RUNNER_TEMP/pr-title"
 

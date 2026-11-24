@@ -151,7 +151,7 @@ check "the readme points to the setup file" grep -qF 'rules/setup.md' "$ROOT/REA
 # --- rules/setup.md holds the kickoff and the repository settings
 # shellcheck disable=SC2016
 for text in 'templates/kickoff.md' 'before any code' 'Rust first' 'pyright' 'hooks/install.sh' \
-  'templates/commit-check.yml' 'ruleset' 'squash_merge_commit_title=PR_TITLE' \
+  'templates/commit-check.yml' 'ruleset' '-F allow_squash_merge=false -F allow_rebase_merge=false' \
   'templates/dependabot.yml' 'security updates' 'refs/pull/' 'templates/escapes.md' \
   'templates/function-limits.md' '<project>/credentials/'; do
   check "the setup file mentions $text" grep -qF -- "$text" "$SETUP"
@@ -662,5 +662,36 @@ check "D182 names both ideas" in_row D182 'entries 9 and 10'
 check "D180 points to the idea of a scan in this repository" in_row D180 'entry 11'
 check "idea 11 is the secret scan in this repository, from D180" idea_says 11 'D180'
 check "D182 leaves CI and the gate as D39 and D128 decided" in_row D182 'stay as D39 and D128 decided'
+
+# --- no squash merges in the owner's repositories (D183): a pull
+# request merges with a merge commit, the other methods are turned off
+# (D184), and no doc squash-merges on the owner's word any more.
+# shellcheck disable=SC2016
+for text in 'with a merge commit' 'Never squash or rebase a pull request into `main`' \
+  'a repository the owner does not own whose rules require a squash'; do
+  check "the rules keep: $text" grep -qF -- "$text" "$RULES"
+done
+# refute_grep <text> <file>: the file does not hold the text
+refute_grep() { ! grep -qF -- "$1" "$2"; }
+# squash_merges <file...>: a doc that still squash-merges a pull request
+squash_merges() { grep -nE 'gh pr merge[^`]*--squash|squash-merge on the owner|review and a squash-merge' "$@"; }
+refute "no doc squash-merges a pull request" squash_merges "${DOCS[@]}" "$ROOT"/templates/*.yml
+# shellcheck disable=SC2016
+printf 'Merge it: `gh pr merge 7 --squash --match-head-commit abc`.\n' > "$TMP/squash.md"
+check "a doc that squash-merges is noticed" squash_merges "$TMP/squash.md" > /dev/null
+check "the skill merges the commit it checked with a merge commit" \
+  merge_step_says 'gh pr merge <number> --merge --match-head-commit'
+check "the AGENTS template's showcase kind merges with a merge commit" \
+  grep -qF 'merge commit on the owner'"'"'s word (never a squash' "$AGENTS_T"
+check "the readme turns the other merge methods off" \
+  grep -qF -- '-F allow_merge_commit=true -F allow_squash_merge=false -F allow_rebase_merge=false' "$ROOT/README.md"
+check "the commit-check template no longer sets the squash title" \
+  refute_grep 'squash_merge_commit_title' "$ROOT/templates/commit-check.yml"
+check "D183 is the owner's instruction, in the owner's words" \
+  in_row D183 'Owner (2026-11-24): "No squash merging unless the Repo is not my own and rules require it"'
+check "D183 is an instruction that replaces D17's squash-merge" in_row D183 'Replaces the squash-merge of D17'
+check "D183's Meta says instruction" in_row D183 '2026-11-24 · instruction · '
+check "D184 picks the merge commit under D183" in_row D184 '2026-11-24 · agent under D183 · '
+check "D184 says why not a rebase merge" in_row D184 'rewrites the commits'
 
 finish

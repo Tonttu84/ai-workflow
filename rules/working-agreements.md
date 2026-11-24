@@ -49,7 +49,7 @@ The coordinator is the session talking with the owner. A subagent working from a
 
 - The project kind, stated in `AGENTS.md`, sets the flow:
   - Solo: commit to `main` and push once the local gate is green. In a project with feature files, a feature (any change that adds or revises a feature item) stays on its branch until the coordinator merges it after the trace, the black-box test, the review, the hardening and the owner's walkthrough; push the branch for backup and review fixes.
-  - Showcase or team: branch, pull request, fresh-agent review, squash-merge on the owner's word.
+  - Showcase or team: branch, pull request, fresh-agent review, merge on the owner's word with a merge commit. Never squash or rebase a pull request into `main`: its commits land as they were reviewed. The one exception is a repository the owner does not own whose rules require a squash.
 - Fresh-agent review on every PR, and on solo projects on every non-trivial change before the push to `main` (trivial: a typo, formatting, a comment). The reviewer reads the diff cold, without the author's conversation (`templates/review-brief.md`). It writes its verdict to a file, and the coordinator posts it (`gh pr review --comment` when there is a PR) without any finding about a planted bug; the author fixes, or disputes a finding with evidence for the coordinator to settle; a fix that goes beyond a finding is reviewed again.
 - Commit messages follow Conventional Commits plus good-message rules:
 
@@ -64,7 +64,7 @@ The coordinator is the session talking with the owner. A subagent working from a
 
   - Types: `feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `build`, `ci`, `chore`, `revert`. The scope is optional and lower case; `!` before the colon marks a breaking change.
   - One logical change per commit. Task ids go in a `Refs:` footer, never in the subject.
-- A PR title follows the same format, since a squash merge makes it the subject on `main`; the CI check covers it.
+- A PR title follows the same format; the CI check covers it.
 - The local gate guards `main`: run it before a push to `main` or the merge of a pull request. It is the tests, lint, types, build, the secret scan, the `pre-push` commit check and, where `AGENTS.md` lists them, the feature checks (`.ai-workflow/check-features.sh --base origin/main`); on a push to `main` the hook also checks the walkthrough, then runs the gate the committed `gate.conf` declares and refuses the push if it fails or cannot run (D142), so give that push a deadline that covers the gate. A push to another branch needs only the hook's commit check, so a feature branch may be pushed while its locked tests are red. Never use `--no-verify`, and never write or edit the gate's pass record by hand; fix the cause instead.
 - Parallel agents: one worktree per task; merge one at a time. Before the first commit, check which branch you are on and fetch `main`.
 
