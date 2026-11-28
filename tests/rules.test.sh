@@ -774,16 +774,20 @@ refute "the setup file does not say a reword leaves the commits alone" \
 # Rebasing a branch onto main gives every one of its commits a new SHA,
 # as folding a fixup does, so a branch is brought up to date by a rebase
 # only while no line names one of its commits, and by a merge of main
-# after that (D186). The merge step and the setup file both say so.
+# after that (D186). The setup file says so. The merge step comes after
+# the walkthrough, when both lines name the branch's commits, so it only
+# merges (the cold review, finding 2).
 # shellcheck disable=SC2016
 UPDATE_REBASE='rebase it onto `main` (`git rebase origin/main`) only while no `Walkthrough:` or `Locked tests:` line names one of its commits'
 # shellcheck disable=SC2016
-for text in "$UPDATE_REBASE" 'merging `main` into it (`git merge origin/main`), which keeps the SHAs of its commits' \
-  'so such a line would then point at a commit on no branch' '(D186)'; do
+for text in 'merging `main` into it (`git merge origin/main`), which keeps the SHAs of its commits' \
+  'Never rebase it here: its `Walkthrough:` and `Locked tests:` lines name its commits by now' \
+  'so such a line would then point at a commit on no branch' '(D186, `rules/setup.md`)'; do
   check "the merge step updates a branch so: $text" merge_step_says "$text"
 done
+refute "the merge step offers no rebase it cannot take" merge_step_says 'Or rebase it onto'
 # shellcheck disable=SC2016
-for text in 'Bring a branch up to date with `main` the same way' "$UPDATE_REBASE" \
+for text in 'Bring a branch up to date with `main` under the same condition' "$UPDATE_REBASE" \
   'From then on, merge `main` into it (`git merge origin/main`), which keeps the SHAs' \
   'A rebase gives every commit of the branch a new SHA' \
   'the commit check passes the merge commit git writes' \
@@ -792,6 +796,9 @@ for text in 'Bring a branch up to date with `main` the same way' "$UPDATE_REBASE
 done
 check "D186 is an agent's choice under D183, checked" in_row D186 '2026-11-28 · agent under D183 · checked ('
 check "D186 says a rebase gives the branch's commits new SHAs" in_row D186 'new SHA'
+# shellcheck disable=SC2016
+check "D186 updates the branch by a true merge of main" in_row D186 'by merging `main` into it (`git merge origin/main`)'
+refute "D186 never squashes main into the branch" in_row D186 '--squash'
 check "D186 says the walkthrough check accepts a commit the merge of main keeps" \
   in_row D186 'tests/feature-check.test.sh'
 # in_note <file> <date> <id> <text>: the upgrade entry dated <date> whose

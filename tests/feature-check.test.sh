@@ -402,8 +402,9 @@ check "the feature checks ran and passed" says 'every feature check passed'
 # 8. main moves on after the walkthrough (D186). Merging main into the
 # branch keeps the SHAs its Walkthrough: and Locked tests: lines name,
 # so the checks pass on the merge: they need only each named commit in
-# the clone. Rebasing the branch onto main gives those commits new SHAs; once the rebased branch is pushed over
-# the old one, a fresh clone has neither named commit.
+# the clone. Rebasing the branch onto main gives those commits new
+# SHAs; once the rebased branch is pushed over the old one, a fresh
+# clone has neither named commit.
 new_project "$TMP/update" "$TMP/update.git"
 install_checks
 commit_all "chore: start with the feature checks"
