@@ -43,7 +43,8 @@ chmod +x "$SCAN"
 HOOK="$TMP/hooks/pre-commit"
 mkdir -p "$TMP/hooks"
 {
-  printf '#!/usr/bin/env bash\n'
+  # The recipe is an sh block, for a pre-commit that may run under sh.
+  printf '#!/bin/sh\n'
   hook_lines | awk -v s="$SCANNER" -v r="\"$SCAN\"" '{ i = index($0, s); if (i) $0 = substr($0, 1, i - 1) r substr($0, i + length(s)); print }'
 } > "$HOOK"
 chmod +x "$HOOK"
