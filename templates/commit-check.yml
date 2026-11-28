@@ -7,8 +7,8 @@
 #     .githooks/commit-msg as it was before the change, so a change cannot
 #     weaken its own check. Merge commits git writes pass, as in the hook;
 #     fixup!/squash!/amend! commits fail: fold them into their targets
-#     on the branch before a walkthrough names a later commit
-#     (ai-workflow rules/setup.md says when).
+#     on the branch while no Walkthrough: or Locked tests: line names
+#     the target or a later commit (ai-workflow rules/setup.md).
 #   - the PR title, which follows the commit format too, without the
 #     hook's exemptions for subjects git writes (a title never is one).
 # A ruleset on the default branch that requires this check and blocks

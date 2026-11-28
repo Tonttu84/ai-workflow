@@ -757,6 +757,14 @@ done
 # Rewording a fixup that is not HEAD moves every commit after it, the
 # walkthrough's commit among them (the second review, finding 1).
 # shellcheck disable=SC2016
+# The commit-check template's comment gives the same condition, briefly:
+# a line that names the target itself counts, and so do Locked tests:.
+check "the commit-check template folds fixups only while no line names the target or a later commit" \
+  grep -qF '#     the target or a later commit (ai-workflow rules/setup.md).' "$ROOT/templates/commit-check.yml"
+check "the commit-check template names both kinds of line" \
+  grep -qF '#     on the branch while no Walkthrough: or Locked tests: line names' "$ROOT/templates/commit-check.yml"
+refute "the commit-check template does not leave out the target itself" \
+  grep -qF 'before a walkthrough names a later commit' "$ROOT/templates/commit-check.yml"
 refute "the setup file does not say a reword leaves the commits alone" \
   in_ci_settings 'reword the `fixup!` commit into a commit of its own instead'
 # in_note <file> <date> <id> <text>: the upgrade entry dated <date> whose
