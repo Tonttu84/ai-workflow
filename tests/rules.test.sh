@@ -151,7 +151,7 @@ check "the readme points to the setup file" grep -qF 'rules/setup.md' "$ROOT/REA
 # --- rules/setup.md holds the kickoff and the repository settings
 # shellcheck disable=SC2016
 for text in 'templates/kickoff.md' 'before any code' 'Rust first' 'pyright' 'hooks/install.sh' \
-  'templates/commit-check.yml' 'ruleset' 'squash_merge_commit_title=PR_TITLE' \
+  'templates/commit-check.yml' 'ruleset' '-F allow_squash_merge=false -F allow_rebase_merge=false' \
   'templates/dependabot.yml' 'security updates' 'refs/pull/' 'templates/escapes.md' \
   'templates/function-limits.md' '<project>/credentials/'; do
   check "the setup file mentions $text" grep -qF -- "$text" "$SETUP"
@@ -575,5 +575,219 @@ in_copies() { section "$SETUP" 'Copies of ai-workflow files' | grep -qF -- "$1";
 for name in commit-check.yml feature-check.yml dependabot.yml gate.conf commitlint.config.mjs; do
   check "the setup file copies $name with the template helper" in_copies "$name"
 done
+
+# --- rules taken from a hackathon organiser's engineering rules, on the
+# owner's instruction (D176). Money, error detail and the clock are in
+# the always-loaded rules, since they bind whoever writes the code (D177
+# to D179); each check pins the part of the sentence that carries the
+# rule.
+for text in 'whole number of minor units' 'never floating point' 'rounded once' \
+  'never a raw error message or a stack trace' 'the clock and randomness are IO' \
+  'takes the time and the seed as arguments'; do
+  check "the rules keep: $text" grep -qF -- "$text" "$RULES"
+done
+check "the review brief looks for error detail sent to a caller" \
+  grep -qF 'error detail sent to a caller' "$ROOT/templates/review-brief.md"
+check "D176 is the owner's instruction, in the owner's words" in_row D176 'Owner (2026-11-23): "'
+check "D176 has the organiser's rules as its evidence" \
+  in_row D176 '· instruction · checked (https://github.com/Tonttu84/northfina-lease-loop/blob/'
+# under_d176 <ID>: that row is the agent's choice within D176, with the
+# organiser's rules file as its evidence
+under_d176() { in_row "$1" '· agent under D176 · checked (https://github.com/Tonttu84/northfina-lease-loop/blob/'; }
+for id in D177 D178 D179; do
+  check "docs/decisions.md records $id under D176" under_d176 "$id"
+done
+
+# --- every project scans for secrets (D180): the rule is always loaded
+# and the scan is part of the gate; the steps are a section of the setup
+# file that the kickoff and the migration point to. The cold review
+# changed four lines of the first draft without failing a check, so
+# these pin what each step must say. SC2016: the backticks are Markdown.
+# shellcheck disable=SC2016
+for text in 'No secret is committed' 'a secret scan checks the staged files before every commit' \
+  'build, the secret scan, the `pre-push` commit check'; do
+  check "the rules keep: $text" grep -qF -- "$text" "$RULES"
+done
+in_scan() { section "$SETUP" 'The secret scan' | grep -qF -- "$1"; }
+# shellcheck disable=SC2016
+for text in 'scans every staged file, ignored or not' 'refuses the commit on a finding, and when the scanner is missing' \
+  'scans the files git tracks (`git ls-files`), not the untracked files that `.gitignore` hides' \
+  'is in a file the committed `.gitignore` ignores' 'is found the next time the gate runs' 'agent'"'"'s choice' \
+  'git update-index --add --chmod=+x .githooks/pre-commit' '--git-hooks' \
+  'git diff --cached --name-only -z --diff-filter=d | xargs -0 -r npx --no -- secretlint --no-gitignore --no-glob' \
+  'git ls-files -z | xargs -0 -r npx --no -- secretlint --no-gitignore --no-glob' 'rotated at its provider' \
+  'the commit must be refused' 'run the gate'"'"'s `command` by hand' 'its secret scan must be the step that fails'; do
+  check "the secret scan section says: $text" in_scan "$text"
+done
+check "the kickoff adds the secret scan" in_kickoff 'secret scan'
+check "so does the migration" in_migration_steps 'secret scan'
+check "the migration untracks a file it starts to ignore" in_migration_steps 'git rm --cached'
+check "and rotates its values, which the scan can no longer see" \
+  in_migration_steps 'rotate its values, since the history keeps them'
+# in_scan_note <text>: the upgrade note for the secret scan holds the text
+in_scan_note() {
+  awk '/^## .*secret scan/ { on = 1; next } on && /^## / { exit } on' "$ROOT/docs/upgrading.md" | grep -qF -- "$1"
+}
+for text in 'rotate their values, since the history keeps them' 'run by hand while that file is staged'; do
+  check "the upgrade note for the secret scan says: $text" in_scan_note "$text"
+done
+check "the setup file's gate holds the secret scan" grep -qF '(tests, lint, types, build, the secret scan)' "$SETUP"
+check "the AGENTS template has a command for the scan of the tracked files" \
+  grep -qF '| Secret scan of the tracked files' "$ROOT/templates/AGENTS.md"
+check "the AGENTS template's gate holds the secret scan" \
+  grep -qF '(tests, lint, types, build, the secret scan;' "$ROOT/templates/AGENTS.md"
+check "the gate.conf template's gate holds the secret scan" grep -qF 'build and the secret' "$ROOT/templates/gate.conf"
+check "the readme's setup summary names the secret scan" grep -qF 'the hooks, the secret scan, CI' "$ROOT/README.md"
+check "docs/decisions.md records D180 under D176" under_d176 D180
+check "D180 is rechecked, since scanners change" in_row D180 '· recheck 2027-05-23 |'
+# A scanner reads the working-tree copy, so the hook first refuses a
+# staged file with unstaged changes: the copy scanned is the copy
+# committed (D185).
+# shellcheck disable=SC2016
+for text in 'refuses the commit while a staged file has changes that are not staged' \
+  'stage the whole file' 'the copy scanned is the copy committed' \
+  'git diff --cached --name-only -z --diff-filter=d | xargs -0 -r git --literal-pathspecs -c core.quotePath=false diff --name-only --exit-code --ignore-submodules=dirty -- ||' \
+  'change it again without staging the change: the commit must be refused as well'; do
+  check "the secret scan section says: $text" in_scan "$text"
+done
+check "the upgrade note for the secret scan has the hook refuse unstaged changes" \
+  in_scan_note 'refuse a staged file with unstaged changes'
+# Not every scanner reads the working tree (gitleaks' staged mode reads
+# the index): the claim is about one given the staged paths.
+check "the secret scan section says which scanners read the working tree" \
+  in_scan 'A scanner given the staged paths reads their copies in the working tree'
+refute "it does not say every scanner reads the working tree" \
+  in_scan 'A scanner reads the copy in the working tree'
+# A staged gitlink is what is committed, so changed files inside the
+# submodule, which `git add` cannot stage, do not stop the commit.
+# shellcheck disable=SC2016
+check "the secret scan section says why the diff skips dirty submodules" \
+  in_scan '`--ignore-submodules=dirty` leaves out changed files inside a submodule'
+check "D185 names the dirty submodules it skips" in_row D185 '--ignore-submodules=dirty'
+# shellcheck disable=SC2016
+check "D185's refusal names the files" in_row D185 '`git diff --name-only --exit-code` over the staged files'
+check "D185 prints a non-ASCII name as typed" in_row D185 '-c core.quotePath=false'
+check "D185 is the agent's choice under D180" in_row D185 '· agent under D180 ·'
+# shellcheck disable=SC2016
+check "D185 names its cost: no commit of part of a file" \
+  in_row D185 'a commit of part of a file (`git add -p`, `git commit -p`) is always refused, even when the part held back is harmless'
+# shellcheck disable=SC2016
+for text in 'git show :<path>' 'reads stdin' 'documenting the gap'; do
+  check "D185 was chosen against: $text" in_row D185 "$text"
+done
+
+# --- a project's domain rule names its check where one is possible (D181)
+check "the AGENTS template names the check beside a domain rule" \
+  grep -qF 'with the test or script that checks it where a check is possible' "$ROOT/templates/AGENTS.md"
+check "docs/decisions.md records D181 under D176" under_d176 D181
+
+# --- what was not taken (D182): two limits wait as ideas 9 and 10, and
+# the owner's earlier decisions on CI and the gate stand
+# idea_says <n> <text>: entry n of docs/ideas.md holds the text
+idea_says() {
+  awk -v h="## $1. " 'index($0, h) == 1 { on = 1; next } on && /^## / { exit } on' "$IDEAS" | grep -qF -- "$2"
+}
+check "idea 9 is the file-length limit left out by D182" idea_says 9 'D182'
+check "idea 9 names the function limits it would sit beside" idea_says 9 'templates/function-limits.md'
+check "idea 10 is the coverage floor left out by D182" idea_says 10 'D182'
+refute "an idea's check reads only that entry" idea_says 9 'D75'
+check "docs/decisions.md records D182 under D176" under_d176 D182
+check "D182 names both ideas" in_row D182 'entries 9 and 10'
+# This repository has no scanner yet (D180); idea 11 says when it would.
+check "D180 points to the idea of a scan in this repository" in_row D180 'entry 11'
+check "idea 11 is the secret scan in this repository, from D180" idea_says 11 'D180'
+check "D182 leaves CI and the gate as D39 and D128 decided" in_row D182 'stay as D39 and D128 decided'
+
+# --- no squash merges in the owner's repositories (D183): a pull
+# request merges with a merge commit, the other methods are turned off
+# (D184), and no doc squash-merges on the owner's word any more.
+# shellcheck disable=SC2016
+for text in 'with a merge commit' 'Never squash or rebase a pull request into `main`' \
+  'a repository the owner does not own whose rules require a squash'; do
+  check "the rules keep: $text" grep -qF -- "$text" "$RULES"
+done
+# refute_grep <text> <file>: the file does not hold the text
+refute_grep() { ! grep -qF -- "$1" "$2"; }
+# squash_merges <file...>: a doc that still squash-merges a pull request
+squash_merges() { grep -nE 'gh pr merge[^`]*--squash|squash-merge on the owner|review and a squash-merge' "$@"; }
+refute "no doc squash-merges a pull request" squash_merges "${DOCS[@]}" "$ROOT"/templates/*.yml
+# shellcheck disable=SC2016
+printf 'Merge it: `gh pr merge 7 --squash --match-head-commit abc`.\n' > "$TMP/squash.md"
+check "a doc that squash-merges is noticed" squash_merges "$TMP/squash.md" > /dev/null
+check "the skill merges the commit it checked with a merge commit" \
+  merge_step_says 'gh pr merge <number> --merge --match-head-commit'
+check "the AGENTS template's showcase kind merges with a merge commit" \
+  grep -qF 'merge commit on the owner'"'"'s word (never a squash' "$AGENTS_T"
+check "the readme turns the other merge methods off" \
+  grep -qF -- '-F allow_merge_commit=true -F allow_squash_merge=false -F allow_rebase_merge=false' "$ROOT/README.md"
+check "the commit-check template no longer sets the squash title" \
+  refute_grep 'squash_merge_commit_title' "$ROOT/templates/commit-check.yml"
+check "D183 is the owner's instruction, in the owner's words" \
+  in_row D183 'Owner (2026-11-24): "No squash merging unless the Repo is not my own and rules require it"'
+check "D183 holds the owner's reason of 2026-11-28" \
+  in_row D183 'Owner (2026-11-28): "I think squash merging is out in the general AI workflow rules, it is only AI reading them and we lose some things when we squash so there is little sense in compacting"'
+check "D183 is an instruction that replaces D17's squash-merge" in_row D183 'Replaces the squash-merge of D17'
+check "D183's Meta says instruction" in_row D183 '2026-11-24 · instruction · '
+check "D184 picks the merge commit under D183" in_row D184 '2026-11-24 · agent under D183 · '
+check "D184 says why not a rebase merge" in_row D184 'rewrites the commits'
+check "D184's setting names were checked against the repository" \
+  in_row D184 '· checked (gh api repos/Tonttu84/ai-workflow, 2026-11-28) ·'
+refute "D184 no longer takes the setting names from memory" in_row D184 'from memory'
+# D95 and D108 never ask for an ancestor of main; what a rewrite breaks
+# is finding the commit once the pull request's branch is gone.
+# shellcheck disable=SC2016
+refute "D184 does not claim a named commit must be an ancestor of main" in_row D184 'ancestor of `main`'
+check "D184 says the rewritten commit is lost with the branch (D78)" \
+  in_row D184 'once the pull request'"'"'s branch is gone, only the pull request'"'"'s ref holds it (D78)'
+check "D184 says a commit a project's record names would be on no branch (D168)" \
+  in_row D184 'would be on no branch (D168)'
+# Folding a fixup! commit rewrites every commit from its target on, and
+# rewording it every commit from the fixup itself on, so the setup file
+# says when either is allowed and what a rewrite needs after that.
+in_ci_settings() { section "$SETUP" 'CI and repository settings' | grep -qF -- "$1"; }
+# shellcheck disable=SC2016
+for text in 'make review fixes as commits with subjects of their own from the start' \
+  'fold or reword a `fixup!` commit only while no `Walkthrough:` or `Locked tests:` line names the commit you rewrite or any commit after it' \
+  'folding rewrites from the target on, rewording from the fixup itself on' 'a commit on no branch' \
+  'fold fixups before the walkthrough' 'needs the line recorded again at the new SHA' \
+  'a new walkthrough, which waits for the owner'"'"'s word, or a new `Locked tests:` line' \
+  'the commit check fails on `fixup!` subjects'; do
+  check "the setup file's merge settings say: $text" in_ci_settings "$text"
+done
+# The commit-check template's comment gives the same condition, briefly:
+# a line that names the target itself counts, and so do Locked tests:.
+check "the commit-check template folds fixups only while no line names the target or a later commit" \
+  grep -qF '#     the target or a later commit (ai-workflow rules/setup.md).' "$ROOT/templates/commit-check.yml"
+check "the commit-check template names both kinds of line" \
+  grep -qF '#     on the branch while no Walkthrough: or Locked tests: line names' "$ROOT/templates/commit-check.yml"
+refute "the commit-check template does not leave out the target itself" \
+  grep -qF 'before a walkthrough names a later commit' "$ROOT/templates/commit-check.yml"
+check "the check-commits hook's comment folds fixups into their targets" \
+  grep -qF 'fold them into their' "$ROOT/hooks/check-commits"
+refute "the check-commits hook's comment no longer squashes them" \
+  grep -qF 'squash them first' "$ROOT/hooks/check-commits"
+# Rewording a fixup that is not HEAD moves every commit after it, the
+# walkthrough's commit among them (the second review, finding 1).
+# shellcheck disable=SC2016
+refute "the setup file does not say a reword leaves the commits alone" \
+  in_ci_settings 'reword the `fixup!` commit into a commit of its own instead'
+# in_note <file> <date> <id> <text>: the upgrade entry dated <date> whose
+# heading ends in "(<id>)" holds the text; no other entry is read
+in_note() {
+  awk -v d="## $2: " -v id="($3)" '
+    /^## / { on = index($0, d) == 1 && substr($0, length($0) - length(id) + 1) == id; next }
+    on' "$1" | grep -qF -- "$4"
+}
+MERGE_METHODS='-F allow_merge_commit=true -F allow_squash_merge=false -F allow_rebase_merge=false'
+check "the D183 upgrade note turns squash and rebase merging off" \
+  in_note "$ROOT/docs/upgrading.md" 2026-11-24 D183 "$MERGE_METHODS"
+printf '## 2026-11-24: No squash merges (D183)\n\n- Do: %s.\n' \
+  '-F allow_merge_commit=true -F allow_squash_merge=false -F allow_rebase_merge=true' > "$TMP/rebase-on.md"
+refute "a D183 note that leaves rebase merging on is noticed" \
+  in_note "$TMP/rebase-on.md" 2026-11-24 D183 "$MERGE_METHODS"
+printf '## 2026-11-24: No squash merges (D183)\n\n- Do: x.\n\n## 2026-11-25: Other (D1)\n\n- Do: %s.\n' \
+  "$MERGE_METHODS" > "$TMP/other-entry.md"
+refute "the D183 note's check reads only that entry" \
+  in_note "$TMP/other-entry.md" 2026-11-24 D183 "$MERGE_METHODS"
 
 finish

@@ -47,8 +47,8 @@ A feature's work stays on its own branch from the feature file to the walkthroug
     - Showcase: merge through the pull request, on the owner's word. A merge on GitHub runs no local hook, so the project's required CI check runs the feature checks and the walkthrough check on the pull request (D129, `templates/feature-check.yml`, `rules/setup.md`).
       - At the top of the repository, run `git fetch origin` and `gh pr checkout <number>`. Merge only a head that contains the current `main` (`git merge-base --is-ancestor origin/main HEAD`); otherwise update the branch and run the checks again. Run the gate there, with `.ai-workflow/check-features.sh --base origin/main`.
       - Until that job exists, and always in a private repository, which writes no job, also run the walkthrough check. Where the hooks are in `.githooks/` (the default install, or `--copy-only` under husky), run `bash .githooks/check-walkthrough HEAD`. Where they were installed with `--git-hooks`, run `bash "$(git rev-parse --git-path hooks)/check-walkthrough" HEAD`, which finds them in a linked worktree too, where `.git` is a file.
-      - Merge only if all pass, and only the commit you checked: `gh pr merge <number> --squash --match-head-commit "$(git rev-parse HEAD)"`.
-13. A showcase project that squash-merges fetches pull-request refs, so the commit a walkthrough names stays findable (`rules/setup.md`).
+      - Merge only if all pass, and only the commit you checked: `gh pr merge <number> --merge --match-head-commit "$(git rev-parse HEAD)"`. Never `--squash` or `--rebase` (D183).
+13. A showcase project whose history holds squash merges keeps fetching pull-request refs, so the commit an older walkthrough names stays findable (`rules/setup.md`).
 
 ## Choices per project
 

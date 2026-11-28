@@ -6,8 +6,9 @@
 #
 # Usage: check-commits <commit-msg hook> <git rev-list arguments...>
 #
-# fixup!/squash!/amend! commits are rejected: squash them first. Merge
-# commits git writes pass, as the hook lets them through.
+# fixup!/squash!/amend! commits are rejected: fold them into their
+# targets first. Merge commits git writes pass, as the hook lets them
+# through.
 #
 # Source: https://github.com/Tonttu84/ai-workflow (MIT). Install with
 # hooks/install.sh from that repo. Needs bash 3.2 or later and git.

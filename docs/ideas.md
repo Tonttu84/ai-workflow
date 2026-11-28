@@ -66,3 +66,27 @@ Improvements to the workflow left for later on purpose. Each entry says where it
 - Taken up, the gate half: D137 (2026-11-18), as `templates/feature-check.yml`. The mutation half still waits.
 - Why not now: for the mutation half, a mutation run depends on the stack, and private repositories' Actions minutes are scarce (D39); a template written before a project needs it would be a guess.
 - Revisit when: the first project with feature files sets up its CI (recheck 2027-02-16); that project writes the mutation workflow and it becomes the template. The first candidate is the first showcase project with feature files, which sets up the gate's CI job at setup (D129).
+
+## 9. A file-length limit
+
+- Date: 2026-11-23
+- Source: a hackathon organiser's engineering rules (D182): no hand-written source file over 600 lines, checked by a script in the gate, with generated code, migrations and tests left out.
+- What: a limit on the length of a hand-written source file, beside the function limits of `templates/function-limits.md`, so that a file is split by responsibility before it is too long to review.
+- Why not now: the function limits are still a first guess that no project has measured, and a file limit needs a check for each stack: a linter rule where one exists, a script of ours elsewhere. Which linters have one is not checked.
+- Revisit when: a review or a walkthrough stalls on a file too long to read, or the function limits have been measured on real projects and made errors.
+
+## 10. A coverage floor on logic
+
+- Date: 2026-11-23
+- Source: the same rules (D182): at least 60 % of lines, functions, branches and statements covered in the logic folders, with UI pages not counted. `docs/research/test-strength.md` (option C) rates changed-line coverage as cheap and gateable, but as finding code no test reaches, not weak assertions.
+- What: a coverage floor in the gate, on a project's logic folders or on the changed lines, so that code no test reaches is seen.
+- Why not now: new logic is written test first, and the hardening step's mutation run on the changed lines checks the same code more strictly (D75, D76). A floor would mostly measure old code, and a number invites tests written to reach it.
+- Revisit when: a migrated project has old logic that no test reaches, or an escape shows untested code that got past the review and the hardening.
+
+## 11. A secret scan in this repository
+
+- Date: 2026-11-23
+- Source: D180, which gives every project a secret scan and leaves this repository without one.
+- What: the same scan here: a `pre-commit` hook over the staged files and a scan of the tracked files in `make test lint`.
+- Why not now: this repository holds rules, templates and scripts, with no credentials and no `.env`, and a scanner would be its first dependency beyond bash, git and ShellCheck. Which scanner suits a repository without a package manager (a single binary) is not researched.
+- Revisit when: a scanner is chosen for the first project without Node.js, or a secret is found in this repository's history.

@@ -34,8 +34,9 @@
 #   - raise timeout-minutes if the project's test run needs longer.
 #
 # The checks need each commit a Locked tests: or Walkthrough: line names.
-# Once a squash merge deletes a branch, such a commit lives only on the
-# pull request's ref, refs/pull/<n>/head, so a step fetches those (D78).
+# After a squash merge (none since ai-workflow D183, but a history may
+# hold older ones) such a commit lives only on the pull request's ref,
+# refs/pull/<n>/head, so a step fetches those (D78).
 #
 # The trigger stays pull_request: a pull request from a fork then gets a
 # read-only token and no secrets. Never use its _target variant, which

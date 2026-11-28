@@ -757,7 +757,8 @@ printf '## 2026-11-12: a\n\n- From: x.\n- Do: y.\n- Done when: z.\n\n## 2026-11-
   > "$TMP/order.md"
 refute "entries out of date order are noticed" entries_complete "$TMP/order.md"
 for text in COMMIT_CHECK_SINCE check-walkthrough 'refs/pull/' feature-check.yml D78 D129 D137 D141 \
-  D142 gate.conf '.claude/worktrees/' D151 'git push --dry-run' D152; do
+  D142 gate.conf '.claude/worktrees/' D151 'git push --dry-run' D152 'secret scan' D180 \
+  'allow_squash_merge=false' D183; do
   check "docs/upgrading.md covers $text" grep -qF -- "$text" "$NOTES"
 done
 # Run from this repository against a project without a record, the check

@@ -13,7 +13,7 @@ This file holds only what is specific to this project and wins where it says so.
 **Solo** | **Showcase**  <!-- keep one -->
 
 - Solo: commit to `main` and push once the local gate is green; fresh-agent review of every non-trivial change before the push to `main`. With feature files, a feature's work stays on its branch until the trace, the black-box test, the review, the hardening and the owner's walkthrough; then the coordinator merges and pushes. A change that adds or revises a feature item is feature work, on its own branch; other bug fixes and small changes go straight to `main`. Tier 1.
-- Showcase: branch, pull request, fresh-agent review, squash-merge on the owner's word. Tier 1, plus the tier 2 bonus. With feature files, a required CI check (`.github/workflows/feature-check.yml`, from the ai-workflow `templates/feature-check.yml`) runs the feature checks and the walkthrough check on each pull request, set up before the first feature pull request merges (ai-workflow D129). Until it exists, the coordinator runs the two checks by hand before each merge. A private repository writes no job, since its Actions minutes are scarce, so there the coordinator always runs them by hand. <!-- keep the last sentence only in a private repository -->
+- Showcase: branch, pull request, fresh-agent review, merge commit on the owner's word (never a squash or a rebase merge, ai-workflow D183). Tier 1, plus the tier 2 bonus. With feature files, a required CI check (`.github/workflows/feature-check.yml`, from the ai-workflow `templates/feature-check.yml`) runs the feature checks and the walkthrough check on each pull request, set up before the first feature pull request merges (ai-workflow D129). Until it exists, the coordinator runs the two checks by hand before each merge. A private repository writes no job, since its Actions minutes are scarce, so there the coordinator always runs them by hand. <!-- keep the last sentence only in a private repository -->
 
 The tiers of verification:
 
@@ -38,7 +38,8 @@ See `docs/kickoff.md` for why this stack was chosen.
 | Unit tests | `<...>` |
 | End-to-end tests | `<...>` |
 | Lint, format, type-check | `<...>` |
-| The local gate (tests, lint, types, build; with feature files, the feature checks below), the `command` of the committed `gate.conf` | `<...>` |
+| Secret scan of the tracked files, as the gate runs it (the `pre-commit` hook scans the staged files) | `<...>` |
+| The local gate (tests, lint, types, build, the secret scan; with feature files, the feature checks below), the `command` of the committed `gate.conf` | `<...>` |
 
 The gate guards `main`: run it before a push to `main` or the merge of a pull request (on the pull request's branch). The `pre-push` hook runs it from `gate.conf` before a push to `main` and refuses the push if it fails or cannot run (ai-workflow D142), so give that push a deadline longer than the gate's `timeout`. A push to another branch needs only the `pre-push` commit check, so a feature branch may be pushed while its locked tests are red (ai-workflow D128).
 
@@ -53,7 +54,7 @@ count_file = <the count file, such as .test-count; its reports are untracked pat
 
 ## Domain rules
 
-<Rules of the problem the code must keep: invariants, units, money and rounding, time zones, permissions. One line each.>
+<Rules of the problem the code must keep: invariants, units, money and rounding, time zones, permissions. One line each, with the test or script that checks it where a check is possible (a meta test in the gate: every write through one function, no route without its schema); review checks the rest.>
 
 ## Features
 

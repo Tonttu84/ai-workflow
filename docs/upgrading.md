@@ -77,3 +77,15 @@ Each entry is a heading `## YYYY-MM-DD: <what>`, dated by the change, then three
 - From: D153 and D154: `scripts/check-drift.sh`, `scripts/copy-template.sh` and the record `hooks/install.sh` writes.
 - Do: rerun `hooks/install.sh`, which writes `.ai-workflow-copies`. Bring each template the check names up to date with the `scripts/copy-template.sh` command it gives, which passes the guessed commit as `--base` and records the copy. Record a copied template the check does not name, since nothing changed upstream since its guessed version, with `scripts/copy-template.sh --record`, so later checks need no guess. Follow the notes above, then record them with `scripts/copy-template.sh --notes-followed`, and commit.
 - Done when: `bash <clone>/scripts/check-drift.sh <project>` reports no drift.
+
+## 2026-11-23: A secret scan before every commit (D180)
+
+- From: D180 (`rules/setup.md`, "The secret scan").
+- Do: follow that section. Ignore the files with real values in the committed `.gitignore`; untrack any that git tracks and rotate their values, since the history keeps them. Add the scan of the staged files to the project's `pre-commit` hook, and the scan of the tracked files to the gate's `command`. Record the scanner in the project's `docs/decisions.md` and add its command to the Commands table of `AGENTS.md`. Run the gate's scan once: move what it finds out of the repository and rotate it at its provider. A project that already scans checks the same three things: the ignored files, the hook, which must also scan a staged file that `.gitignore` matches and refuse a staged file with unstaged changes, and the gate.
+- Done when: the section's smoke check passes. A commit that stages a made-up key in a shape the scanner knows is refused, and the gate's `command`, run by hand while that file is staged, fails at its secret scan.
+
+## 2026-11-24: No squash merges in the owner's repositories (D183)
+
+- From: D183 and D184 (`rules/working-agreements.md`, `rules/setup.md`).
+- Do: in a repository of the owner's that works through pull requests, turn squash and rebase merging off: `gh api -X PATCH repos/OWNER/REPO -F allow_merge_commit=true -F allow_squash_merge=false -F allow_rebase_merge=false`. Change the project's `AGENTS.md` where it squash-merges (the Kind line, any rule of its own) to a merge commit, and any command or doc of its own that runs `gh pr merge --squash`. Keep the fetch of pull-request refs where the history already holds squash merges. The setting of the 2026-11-10 entry above, the PR title as the squash subject, no longer matters.
+- Done when: `gh api repos/OWNER/REPO --jq '.allow_squash_merge, .allow_rebase_merge'` prints `false` twice, and no rule in the project's `AGENTS.md` squash-merges.
