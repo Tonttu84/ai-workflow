@@ -102,6 +102,13 @@ rm "$R/k.txt"
 check "a key staged and then deleted is refused" refused_unstaged -m 'feat: k'
 check "the refusal names the deleted file" grep -qx 'k.txt' "$TMP/err"
 
+new_repo
+printf 'fine\n' > "$R/ä.txt"
+git -C "$R" add ä.txt
+printf 'changed\n' > "$R/ä.txt"
+check "a non-ASCII name staged and then changed is refused" refused_unstaged -m 'feat: a'
+check "the refusal prints a non-ASCII name as typed" grep -qx 'ä.txt' "$TMP/err"
+
 # The cost D185 names: part of a file staged, as `git add -p` does,
 # with a harmless rest held back, is refused all the same.
 new_repo
