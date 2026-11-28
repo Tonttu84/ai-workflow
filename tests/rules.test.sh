@@ -646,12 +646,17 @@ check "D180 is rechecked, since scanners change" in_row D180 '· recheck 2027-05
 # shellcheck disable=SC2016
 for text in 'refuses the commit while a staged file has changes that are not staged' \
   'stage the whole file' 'the copy scanned is the copy committed' \
-  'git diff --cached --name-only -z --diff-filter=d | xargs -0 -r git --literal-pathspecs diff --quiet -- ||' \
+  'git diff --cached --name-only -z --diff-filter=d | xargs -0 -r git --literal-pathspecs diff --quiet --ignore-submodules=dirty -- ||' \
   'change it again without staging the change: the commit must be refused as well'; do
   check "the secret scan section says: $text" in_scan "$text"
 done
 check "the upgrade note for the secret scan has the hook refuse unstaged changes" \
   in_scan_note 'refuse a staged file with unstaged changes'
+# A staged gitlink is what is committed, so changed files inside the
+# submodule, which `git add` cannot stage, do not stop the commit.
+# shellcheck disable=SC2016
+check "the secret scan section says why the diff skips dirty submodules"   in_scan '`--ignore-submodules=dirty` leaves out changed files inside a submodule'
+check "D185 names the dirty submodules it skips" in_row D185 '--ignore-submodules=dirty'
 check "D185 is the agent's choice under D180" in_row D185 '· agent under D180 ·'
 # shellcheck disable=SC2016
 for text in 'git show :<path>' 'reads stdin' 'documenting the gap'; do

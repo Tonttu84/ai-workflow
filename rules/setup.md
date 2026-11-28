@@ -85,11 +85,11 @@ Every project scans for secrets before they reach a commit (D180).
   - With `--git-hooks`: git does not read `.githooks/` there, so the scan goes into the `pre-commit` of the hook manager the project runs, or into `.git/hooks/pre-commit` in each clone where it runs none.
 - The gate (the `command` of `gate.conf`) scans the files git tracks (`git ls-files`), not the untracked files that `.gitignore` hides: an ignored `.env` holds real values on purpose. A fresh clone has every hook off until the setup command runs, so a secret committed there is found the next time the gate runs: by hand before a push to `main`, or by `pre-push` once the hooks are on.
 - The scanner is the agent's choice, as testing tools are. It is still maintained, is installed with the project so that a run downloads nothing, takes a list of files, reads a file that `.gitignore` matches when told to, and exits non-zero on a finding. Check that before choosing (the `researching` skill); the project's decision row names the scanner and its evidence.
-- A Node project can use secretlint as a dev dependency. It skips a file `.gitignore` matches unless told otherwise, and given no file it scans the whole folder, so the hook passes `--no-gitignore` and skips an empty list (`xargs -r`). Its first command refuses a staged file with unstaged changes; `--literal-pathspecs` keeps a name such as `[x].txt` from matching another file:
+- A Node project can use secretlint as a dev dependency. It skips a file `.gitignore` matches unless told otherwise, and given no file it scans the whole folder, so the hook passes `--no-gitignore` and skips an empty list (`xargs -r`). Its first command refuses a staged file with unstaged changes; `--literal-pathspecs` keeps a name such as `[x].txt` from matching another file, and `--ignore-submodules=dirty` leaves out changed files inside a submodule, which the staged gitlink does not hold and `git add` cannot stage:
 
   ```sh
   # the hook: no staged file with unstaged changes, then a scan of every staged file
-  git diff --cached --name-only -z --diff-filter=d | xargs -0 -r git --literal-pathspecs diff --quiet -- ||
+  git diff --cached --name-only -z --diff-filter=d | xargs -0 -r git --literal-pathspecs diff --quiet --ignore-submodules=dirty -- ||
     { echo 'pre-commit: a staged file has unstaged changes; stage the whole file (git add <file>)' >&2; exit 1; }
   git diff --cached --name-only -z --diff-filter=d | xargs -0 -r npx --no -- secretlint --no-gitignore --no-glob
   # the gate: every tracked file

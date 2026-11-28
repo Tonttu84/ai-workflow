@@ -130,5 +130,10 @@ git -C "$R/sub" commit -q --allow-empty -m 'chore: one'
 git -C "$R" add sub
 git -C "$R/sub" commit -q --allow-empty -m 'chore: two'
 check "a submodule whose HEAD moved after staging is refused" refused_unstaged -m 'feat: sub'
+# Changed files inside the submodule are not part of the gitlink, and
+# `git add sub` cannot stage them, so they must not stop the commit.
+git -C "$R" add sub
+printf 'changed inside\n' > "$R/sub/s.txt"
+check "a staged submodule with changed files inside goes through" commits -m 'feat: sub'
 
 finish
