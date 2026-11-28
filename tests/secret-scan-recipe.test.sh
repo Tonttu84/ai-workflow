@@ -29,11 +29,14 @@ hook_lines() {
 SCANNER='npx --no -- secretlint --no-gitignore --no-glob'
 SCAN="$TMP/scan"
 # The stand-in scanner: fails on a file that holds FAKEKEY, as a real
-# one fails on a key; it reads the paths it is given, as secretlint does.
+# one fails on a key, and on a path that does not exist, as a real one
+# fails on a file it cannot read; it reads the paths it is given, as
+# secretlint does.
 cat > "$SCAN" << 'EOF'
 #!/usr/bin/env bash
 for f in "$@"; do
-  if grep -q FAKEKEY -- "$f" 2> /dev/null; then echo "scan: a key in $f" >&2; exit 1; fi
+  [ -e "$f" ] || { echo "scan: no such file $f" >&2; exit 2; }
+  if grep -q FAKEKEY -- "$f"; then echo "scan: a key in $f" >&2; exit 1; fi
 done
 EOF
 chmod +x "$SCAN"
@@ -117,6 +120,24 @@ check "a staged [x].txt beside a changed, unstaged x.txt goes through" commits -
 new_repo
 printf 'changed\n' > "$R/base.txt"
 check "git commit -a goes through" commits -a -m 'feat: all'
+
+# Nothing to scan: a commit that only deletes a file, or an empty one,
+# hands neither command a path, so an unrelated unstaged change must not
+# stop it (xargs -r), and the scanner never sees a deleted path
+# (--diff-filter=d).
+new_repo
+printf 'gone\n' > "$R/gone.txt"
+git -C "$R" add gone.txt
+git -C "$R" commit -qm 'chore: gone' --no-verify
+git -C "$R" rm -q gone.txt
+printf 'dirty\n' > "$R/base.txt"
+check "a commit that only deletes a file, beside a dirty file, goes through" commits -m 'feat: delete'
+check "an empty commit beside a dirty file goes through" commits --allow-empty -m 'feat: empty'
+
+new_repo
+git -C "$R" mv base.txt moved.txt
+printf 'dirty\n' > "$R/other.txt"
+check "a rename goes through" commits -m 'feat: rename'
 
 new_repo
 printf 'changed\n' > "$R/base.txt"
