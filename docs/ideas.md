@@ -90,3 +90,11 @@ Improvements to the workflow left for later on purpose. Each entry says where it
 - What: the same scan here: a `pre-commit` hook over the staged files and a scan of the tracked files in `make test lint`.
 - Why not now: this repository holds rules, templates and scripts, with no credentials and no `.env`, and a scanner would be its first dependency beyond bash, git and ShellCheck. Which scanner suits a repository without a package manager (a single binary) is not researched.
 - Revisit when: a scanner is chosen for the first project without Node.js, or a secret is found in this repository's history.
+
+## 12. Benchmarking the workflow
+
+- Date: 2026-11-28
+- Source: Owner (idea, 2026-11-28): "todo benchmarking the workflow somehow". Related to idea 2 (the metrics script) and D96, which count what the records already hold; this one would measure the workflow against something.
+- What: a way to tell whether the workflow's rules pay for their cost: for example, the same small tasks run with these rules and with a bare setup, compared on what got past (escapes, planted bugs missed, tests that check nothing) and on tokens and time; or a rule switched off for a while to see what it was catching.
+- Why not now: nothing is designed yet, and the "somehow" is the open question. Agent runs are costly and vary from run to run, so a fair comparison needs repeated runs of the same tasks with a deterministic check of each outcome (D60), and the records it would be judged by are still few (D96).
+- Revisit when: the metrics script (idea 2) is written, or the owner wants to know whether a rule is worth keeping, or a set of small tasks with known correct outcomes exists to run against.
