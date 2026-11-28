@@ -640,6 +640,23 @@ check "the gate.conf template's gate holds the secret scan" grep -qF 'build and 
 check "the readme's setup summary names the secret scan" grep -qF 'the hooks, the secret scan, CI' "$ROOT/README.md"
 check "docs/decisions.md records D180 under D176" under_d176 D180
 check "D180 is rechecked, since scanners change" in_row D180 '· recheck 2027-05-23 |'
+# A scanner reads the working-tree copy, so the hook first refuses a
+# staged file with unstaged changes: the copy scanned is the copy
+# committed (D185).
+# shellcheck disable=SC2016
+for text in 'refuses the commit while a staged file has changes that are not staged' \
+  'stage the whole file' 'the copy scanned is the copy committed' \
+  'git diff --cached --name-only -z --diff-filter=d | xargs -0 -r git --literal-pathspecs diff --quiet -- ||' \
+  'change it again without staging the change: the commit must be refused as well'; do
+  check "the secret scan section says: $text" in_scan "$text"
+done
+check "the upgrade note for the secret scan has the hook refuse unstaged changes" \
+  in_scan_note 'refuse a staged file with unstaged changes'
+check "D185 is the agent's choice under D180" in_row D185 '· agent under D180 ·'
+# shellcheck disable=SC2016
+for text in 'git show :<path>' 'reads stdin' 'documenting the gap'; do
+  check "D185 was chosen against: $text" in_row D185 "$text"
+done
 
 # --- a project's domain rule names its check where one is possible (D181)
 check "the AGENTS template names the check beside a domain rule" \

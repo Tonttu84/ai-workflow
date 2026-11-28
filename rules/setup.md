@@ -78,17 +78,19 @@ A migrated project keeps copies of files from this repository, and some later ch
 Every project scans for secrets before they reach a commit (D180).
 
 - A real value kept in the project folder (`.env`, a key file) is in a file the committed `.gitignore` ignores. What is committed is the example (`.env.example`): the names, with empty values.
-- Before every commit, the project's own `pre-commit` hook scans every staged file, ignored or not, since `git add -f` stages an ignored file. It refuses the commit on a finding, and when the scanner is missing.
+- Before every commit, the project's own `pre-commit` hook scans every staged file, ignored or not, since `git add -f` stages an ignored file. It refuses the commit on a finding, and when the scanner is missing. A scanner reads the copy in the working tree, not the one staged, so the hook first refuses the commit while a staged file has changes that are not staged (a key staged and then removed from the working tree, or held back with `git add -p`), and tells the user to stage the whole file: then the copy scanned is the copy committed (D185).
 - Where that hook lives depends on how ours were installed:
   - The default mode: `.githooks/pre-commit`, beside ours. `hooks/install.sh` neither writes nor replaces it, so stage it as executable yourself (`git update-index --add --chmod=+x .githooks/pre-commit`) and check that `git ls-files -s .githooks/pre-commit` shows `100755`.
   - Under husky: `.husky/pre-commit`.
   - With `--git-hooks`: git does not read `.githooks/` there, so the scan goes into the `pre-commit` of the hook manager the project runs, or into `.git/hooks/pre-commit` in each clone where it runs none.
 - The gate (the `command` of `gate.conf`) scans the files git tracks (`git ls-files`), not the untracked files that `.gitignore` hides: an ignored `.env` holds real values on purpose. A fresh clone has every hook off until the setup command runs, so a secret committed there is found the next time the gate runs: by hand before a push to `main`, or by `pre-push` once the hooks are on.
 - The scanner is the agent's choice, as testing tools are. It is still maintained, is installed with the project so that a run downloads nothing, takes a list of files, reads a file that `.gitignore` matches when told to, and exits non-zero on a finding. Check that before choosing (the `researching` skill); the project's decision row names the scanner and its evidence.
-- A Node project can use secretlint as a dev dependency. It skips a file `.gitignore` matches unless told otherwise, and given no file it scans the whole folder, so the hook passes `--no-gitignore` and skips an empty list (`xargs -r`):
+- A Node project can use secretlint as a dev dependency. It skips a file `.gitignore` matches unless told otherwise, and given no file it scans the whole folder, so the hook passes `--no-gitignore` and skips an empty list (`xargs -r`). Its first command refuses a staged file with unstaged changes; `--literal-pathspecs` keeps a name such as `[x].txt` from matching another file:
 
   ```sh
-  # the hook: every staged file
+  # the hook: no staged file with unstaged changes, then a scan of every staged file
+  git diff --cached --name-only -z --diff-filter=d | xargs -0 -r git --literal-pathspecs diff --quiet -- ||
+    { echo 'pre-commit: a staged file has unstaged changes; stage the whole file (git add <file>)' >&2; exit 1; }
   git diff --cached --name-only -z --diff-filter=d | xargs -0 -r npx --no -- secretlint --no-gitignore --no-glob
   # the gate: every tracked file
   git ls-files -z | xargs -0 -r npx --no -- secretlint --no-gitignore --no-glob
@@ -96,7 +98,7 @@ Every project scans for secrets before they reach a commit (D180).
 
 - A false alarm is silenced in the scanner's committed ignore file, with the reason beside it, never by skipping the hook.
 - A scan knows the shapes of keys and tokens, not every password: it is a tripwire, not a proof. A secret that reached a pushed commit is rotated at its provider, since deleting the line leaves it in the history.
-- Smoke-check it with a value you make up in a shape the scanner knows; a published example key may be on its allow list. Stage a file that holds it: the commit must be refused. Then run the gate's `command` by hand: its secret scan must be the step that fails. Unstage and delete the file afterwards.
+- Smoke-check it with a value you make up in a shape the scanner knows; a published example key may be on its allow list. Stage a file that holds it: the commit must be refused. Then run the gate's `command` by hand: its secret scan must be the step that fails. Last, stage a clean file and change it again without staging the change: the commit must be refused as well. Unstage and delete both files afterwards.
 
 ## CI and repository settings
 
