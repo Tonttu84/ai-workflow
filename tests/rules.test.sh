@@ -706,6 +706,8 @@ check "the commit-check template no longer sets the squash title" \
   refute_grep 'squash_merge_commit_title' "$ROOT/templates/commit-check.yml"
 check "D183 is the owner's instruction, in the owner's words" \
   in_row D183 'Owner (2026-11-24): "No squash merging unless the Repo is not my own and rules require it"'
+check "D183 holds the owner's reason of 2026-11-28" \
+  in_row D183 'Owner (2026-11-28): "I think squash merging is out in the general AI workflow rules, it is only AI reading them and we lose some things when we squash so there is little sense in compacting"'
 check "D183 is an instruction that replaces D17's squash-merge" in_row D183 'Replaces the squash-merge of D17'
 check "D183's Meta says instruction" in_row D183 '2026-11-24 · instruction · '
 check "D184 picks the merge commit under D183" in_row D184 '2026-11-24 · agent under D183 · '
