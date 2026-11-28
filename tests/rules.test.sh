@@ -754,9 +754,6 @@ for text in 'make review fixes as commits with subjects of their own from the st
   'the commit check fails on `fixup!` subjects'; do
   check "the setup file's merge settings say: $text" in_ci_settings "$text"
 done
-# Rewording a fixup that is not HEAD moves every commit after it, the
-# walkthrough's commit among them (the second review, finding 1).
-# shellcheck disable=SC2016
 # The commit-check template's comment gives the same condition, briefly:
 # a line that names the target itself counts, and so do Locked tests:.
 check "the commit-check template folds fixups only while no line names the target or a later commit" \
@@ -769,6 +766,9 @@ check "the check-commits hook's comment folds fixups into their targets" \
   grep -qF 'fold them into their' "$ROOT/hooks/check-commits"
 refute "the check-commits hook's comment no longer squashes them" \
   grep -qF 'squash them first' "$ROOT/hooks/check-commits"
+# Rewording a fixup that is not HEAD moves every commit after it, the
+# walkthrough's commit among them (the second review, finding 1).
+# shellcheck disable=SC2016
 refute "the setup file does not say a reword leaves the commits alone" \
   in_ci_settings 'reword the `fixup!` commit into a commit of its own instead'
 # in_note <file> <date> <id> <text>: the upgrade entry dated <date> whose
