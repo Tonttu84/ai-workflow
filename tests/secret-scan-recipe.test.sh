@@ -98,6 +98,13 @@ rm "$R/k.txt"
 check "a key staged and then deleted is refused" refused_unstaged -m 'feat: k'
 check "the refusal names the deleted file" grep -qx 'k.txt' "$TMP/err"
 
+# The cost D185 names: part of a file staged, as `git add -p` does,
+# with a harmless rest held back, is refused all the same.
+new_repo
+printf 'base\nmore\n' > "$R/base.txt"
+git -C "$R" update-index --cacheinfo "100644,$(printf 'base\nstaged part\n' | git -C "$R" hash-object -w --stdin),base.txt"
+check "a commit of part of a file is refused" refused_unstaged -m 'feat: part'
+
 new_repo
 printf 'x\n' > "$R/x.txt"
 git -C "$R" add x.txt

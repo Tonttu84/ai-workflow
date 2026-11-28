@@ -665,6 +665,8 @@ check "D185 names the dirty submodules it skips" in_row D185 '--ignore-submodule
 check "D185's refusal names the files" in_row D185 '`git diff --name-only --exit-code` over the staged files'
 check "D185 is the agent's choice under D180" in_row D185 '· agent under D180 ·'
 # shellcheck disable=SC2016
+check "D185 names its cost: no commit of part of a file"   in_row D185 'a commit of part of a file (`git add -p`, `git commit -p`) is always refused, even when the part held back is harmless'
+# shellcheck disable=SC2016
 for text in 'git show :<path>' 'reads stdin' 'documenting the gap'; do
   check "D185 was chosen against: $text" in_row D185 "$text"
 done
