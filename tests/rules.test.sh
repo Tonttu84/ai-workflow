@@ -771,6 +771,29 @@ refute "the check-commits hook's comment no longer squashes them" \
 # shellcheck disable=SC2016
 refute "the setup file does not say a reword leaves the commits alone" \
   in_ci_settings 'reword the `fixup!` commit into a commit of its own instead'
+# Rebasing a branch onto main gives every one of its commits a new SHA,
+# as folding a fixup does, so a branch is brought up to date by a rebase
+# only while no line names one of its commits, and by a merge of main
+# after that (D186). The merge step and the setup file both say so.
+# shellcheck disable=SC2016
+UPDATE_REBASE='rebase it onto `main` (`git rebase origin/main`) only while no `Walkthrough:` or `Locked tests:` line names one of its commits'
+# shellcheck disable=SC2016
+for text in "$UPDATE_REBASE" 'merging `main` into it (`git merge origin/main`), which keeps the SHAs of its commits' \
+  'so such a line would then point at a commit on no branch' '(D186)'; do
+  check "the merge step updates a branch so: $text" merge_step_says "$text"
+done
+# shellcheck disable=SC2016
+for text in 'Bring a branch up to date with `main` the same way' "$UPDATE_REBASE" \
+  'From then on, merge `main` into it (`git merge origin/main`), which keeps the SHAs' \
+  'A rebase gives every commit of the branch a new SHA' \
+  'the commit check passes the merge commit git writes' \
+  'its "Update branch" button merges; never "Update with rebase" once a `Walkthrough:` or `Locked tests:` line names one of its commits'; do
+  check "the setup file's merge settings say: $text" in_ci_settings "$text"
+done
+check "D186 is an agent's choice under D183, checked" in_row D186 '2026-11-28 · agent under D183 · checked ('
+check "D186 says a rebase gives the branch's commits new SHAs" in_row D186 'new SHA'
+check "D186 says the walkthrough check accepts a commit the merge of main keeps" \
+  in_row D186 'tests/feature-check.test.sh'
 # in_note <file> <date> <id> <text>: the upgrade entry dated <date> whose
 # heading ends in "(<id>)" holds the text; no other entry is read
 in_note() {

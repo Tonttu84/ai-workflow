@@ -399,4 +399,41 @@ check "and the commit the walkthrough names" in_clone "$old_feat"
 check "6. with the pull-request refs the checks pass" step "$CHECKS" "$merged" "$next"
 check "the feature checks ran and passed" says 'every feature check passed'
 
+# 8. main moves on after the walkthrough (D186). Merging main into the
+# branch keeps the SHAs its Walkthrough: and Locked tests: lines name,
+# so the checks pass on the merge: they need only each named commit in
+# the clone. Rebasing the branch onto main gives those commits new SHAs; once the rebased branch is pushed over
+# the old one, a fresh clone has neither named commit.
+new_project "$TMP/update" "$TMP/update.git"
+install_checks
+commit_all "chore: start with the feature checks"
+push_as refs/heads/main
+git -C "$dev" checkout -q -b feature
+build_feature
+walked=$head
+push_as refs/heads/feature
+git -C "$dev" checkout -q main
+printf '# A project\n' > "$dev/README.md"
+commit_all "docs: add a readme"
+moved=$(sha)
+push_as refs/heads/main
+git -C "$dev" checkout -q feature
+git -C "$dev" merge -q --no-edit main > /dev/null 2>&1
+updated=$(sha)
+push_as refs/heads/feature
+ancestor() { git -C "$dev" merge-base --is-ancestor "$1" "$2"; } # ancestor <commit> <of>
+check "8. git wrote a merge of main into the branch" ancestor "$moved" "$updated"
+check "the commit the walkthrough names is an ancestor of it" ancestor "$feat" "$updated"
+check "8. a branch updated by a merge of main passes" pr_ok "$moved" "$updated"
+check "the feature checks ran and passed" says 'every feature check passed'
+git -C "$dev" reset -q --hard "$walked"
+git -C "$dev" rebase -q main > /dev/null 2>&1
+check "the rebase put the branch on main" ancestor "$moved" HEAD
+refute "and gave the walkthrough's commit a new SHA" ancestor "$feat" HEAD
+push_as refs/heads/feature
+refute "8. a branch rebased onto main after its walkthrough fails" pr_ok "$moved" "$(sha)"
+check "check-walkthrough cannot find the commit it names" says 'not found in this repository'
+refute "the locked commit is not in a fresh clone" in_clone "$locked"
+refute "nor the commit the walkthrough names" in_clone "$feat"
+
 finish
