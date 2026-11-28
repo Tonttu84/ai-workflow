@@ -723,15 +723,24 @@ check "D184 says the rewritten commit is lost with the branch (D78)" \
   in_row D184 'once the pull request'"'"'s branch is gone, only the pull request'"'"'s ref holds it (D78)'
 check "D184 says a commit a project's record names would be on no branch (D168)" \
   in_row D184 'would be on no branch (D168)'
-# Folding a fixup! commit rewrites the SHAs from its target on, so the
-# setup file says when it may be folded and what to do after that.
+# Folding a fixup! commit rewrites every commit from its target on, and
+# rewording it every commit from the fixup itself on, so the setup file
+# says when either is allowed and what a rewrite needs after that.
 in_ci_settings() { section "$SETUP" 'CI and repository settings' | grep -qF -- "$1"; }
 # shellcheck disable=SC2016
-for text in 'fold `fixup!` commits into their targets on the branch before a `Walkthrough:` or `Locked tests:` line names a commit at or after their target' \
-  'folding rewrites the SHAs from the target on' 'a commit on no branch' \
-  'reword the `fixup!` commit into a commit of its own instead' 'the commit check fails on `fixup!` subjects'; do
+for text in 'make review fixes as commits with subjects of their own from the start' \
+  'fold or reword a `fixup!` commit only while no `Walkthrough:` or `Locked tests:` line names the commit you rewrite or any commit after it' \
+  'folding rewrites from the target on, rewording from the fixup itself on' 'a commit on no branch' \
+  'fold fixups before the walkthrough' 'needs the line recorded again at the new SHA' \
+  'a new walkthrough, which waits for the owner'"'"'s word, or a new `Locked tests:` line' \
+  'the commit check fails on `fixup!` subjects'; do
   check "the setup file's merge settings say: $text" in_ci_settings "$text"
 done
+# Rewording a fixup that is not HEAD moves every commit after it, the
+# walkthrough's commit among them (the second review, finding 1).
+# shellcheck disable=SC2016
+refute "the setup file does not say a reword leaves the commits alone" \
+  in_ci_settings 'reword the `fixup!` commit into a commit of its own instead'
 # in_note <file> <date> <id> <text>: the upgrade entry dated <date> whose
 # heading ends in "(<id>)" holds the text; no other entry is read
 in_note() {
