@@ -89,12 +89,14 @@ printf 'FAKEKEY\n' > "$R/k.txt"
 git -C "$R" add k.txt
 printf 'clean\n' > "$R/k.txt"
 check "a key staged and then overwritten is refused" refused_unstaged -m 'feat: k'
+check "the refusal names the file" grep -qx 'k.txt' "$TMP/err"
 
 new_repo
 printf 'FAKEKEY\n' > "$R/k.txt"
 git -C "$R" add k.txt
 rm "$R/k.txt"
 check "a key staged and then deleted is refused" refused_unstaged -m 'feat: k'
+check "the refusal names the deleted file" grep -qx 'k.txt' "$TMP/err"
 
 new_repo
 printf 'x\n' > "$R/x.txt"
