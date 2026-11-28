@@ -654,19 +654,23 @@ check "the upgrade note for the secret scan has the hook refuse unstaged changes
   in_scan_note 'refuse a staged file with unstaged changes'
 # Not every scanner reads the working tree (gitleaks' staged mode reads
 # the index): the claim is about one given the staged paths.
-check "the secret scan section says which scanners read the working tree"   in_scan 'A scanner given the staged paths reads their copies in the working tree'
-refute "it does not say every scanner reads the working tree"   in_scan 'A scanner reads the copy in the working tree'
+check "the secret scan section says which scanners read the working tree" \
+  in_scan 'A scanner given the staged paths reads their copies in the working tree'
+refute "it does not say every scanner reads the working tree" \
+  in_scan 'A scanner reads the copy in the working tree'
 # A staged gitlink is what is committed, so changed files inside the
 # submodule, which `git add` cannot stage, do not stop the commit.
 # shellcheck disable=SC2016
-check "the secret scan section says why the diff skips dirty submodules"   in_scan '`--ignore-submodules=dirty` leaves out changed files inside a submodule'
+check "the secret scan section says why the diff skips dirty submodules" \
+  in_scan '`--ignore-submodules=dirty` leaves out changed files inside a submodule'
 check "D185 names the dirty submodules it skips" in_row D185 '--ignore-submodules=dirty'
 # shellcheck disable=SC2016
 check "D185's refusal names the files" in_row D185 '`git diff --name-only --exit-code` over the staged files'
 check "D185 prints a non-ASCII name as typed" in_row D185 '-c core.quotePath=false'
 check "D185 is the agent's choice under D180" in_row D185 '· agent under D180 ·'
 # shellcheck disable=SC2016
-check "D185 names its cost: no commit of part of a file"   in_row D185 'a commit of part of a file (`git add -p`, `git commit -p`) is always refused, even when the part held back is harmless'
+check "D185 names its cost: no commit of part of a file" \
+  in_row D185 'a commit of part of a file (`git add -p`, `git commit -p`) is always refused, even when the part held back is harmless'
 # shellcheck disable=SC2016
 for text in 'git show :<path>' 'reads stdin' 'documenting the gap'; do
   check "D185 was chosen against: $text" in_row D185 "$text"
