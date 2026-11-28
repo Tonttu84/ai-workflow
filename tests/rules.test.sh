@@ -640,6 +640,41 @@ check "the gate.conf template's gate holds the secret scan" grep -qF 'build and 
 check "the readme's setup summary names the secret scan" grep -qF 'the hooks, the secret scan, CI' "$ROOT/README.md"
 check "docs/decisions.md records D180 under D176" under_d176 D180
 check "D180 is rechecked, since scanners change" in_row D180 '· recheck 2027-05-23 |'
+# A scanner reads the working-tree copy, so the hook first refuses a
+# staged file with unstaged changes: the copy scanned is the copy
+# committed (D185).
+# shellcheck disable=SC2016
+for text in 'refuses the commit while a staged file has changes that are not staged' \
+  'stage the whole file' 'the copy scanned is the copy committed' \
+  'git diff --cached --name-only -z --diff-filter=d | xargs -0 -r git --literal-pathspecs -c core.quotePath=false diff --name-only --exit-code --ignore-submodules=dirty -- ||' \
+  'change it again without staging the change: the commit must be refused as well'; do
+  check "the secret scan section says: $text" in_scan "$text"
+done
+check "the upgrade note for the secret scan has the hook refuse unstaged changes" \
+  in_scan_note 'refuse a staged file with unstaged changes'
+# Not every scanner reads the working tree (gitleaks' staged mode reads
+# the index): the claim is about one given the staged paths.
+check "the secret scan section says which scanners read the working tree" \
+  in_scan 'A scanner given the staged paths reads their copies in the working tree'
+refute "it does not say every scanner reads the working tree" \
+  in_scan 'A scanner reads the copy in the working tree'
+# A staged gitlink is what is committed, so changed files inside the
+# submodule, which `git add` cannot stage, do not stop the commit.
+# shellcheck disable=SC2016
+check "the secret scan section says why the diff skips dirty submodules" \
+  in_scan '`--ignore-submodules=dirty` leaves out changed files inside a submodule'
+check "D185 names the dirty submodules it skips" in_row D185 '--ignore-submodules=dirty'
+# shellcheck disable=SC2016
+check "D185's refusal names the files" in_row D185 '`git diff --name-only --exit-code` over the staged files'
+check "D185 prints a non-ASCII name as typed" in_row D185 '-c core.quotePath=false'
+check "D185 is the agent's choice under D180" in_row D185 '· agent under D180 ·'
+# shellcheck disable=SC2016
+check "D185 names its cost: no commit of part of a file" \
+  in_row D185 'a commit of part of a file (`git add -p`, `git commit -p`) is always refused, even when the part held back is harmless'
+# shellcheck disable=SC2016
+for text in 'git show :<path>' 'reads stdin' 'documenting the gap'; do
+  check "D185 was chosen against: $text" in_row D185 "$text"
+done
 
 # --- a project's domain rule names its check where one is possible (D181)
 check "the AGENTS template names the check beside a domain rule" \
@@ -689,9 +724,70 @@ check "the commit-check template no longer sets the squash title" \
   refute_grep 'squash_merge_commit_title' "$ROOT/templates/commit-check.yml"
 check "D183 is the owner's instruction, in the owner's words" \
   in_row D183 'Owner (2026-11-24): "No squash merging unless the Repo is not my own and rules require it"'
+check "D183 holds the owner's reason of 2026-11-28" \
+  in_row D183 'Owner (2026-11-28): "I think squash merging is out in the general AI workflow rules, it is only AI reading them and we lose some things when we squash so there is little sense in compacting"'
 check "D183 is an instruction that replaces D17's squash-merge" in_row D183 'Replaces the squash-merge of D17'
 check "D183's Meta says instruction" in_row D183 '2026-11-24 · instruction · '
 check "D184 picks the merge commit under D183" in_row D184 '2026-11-24 · agent under D183 · '
 check "D184 says why not a rebase merge" in_row D184 'rewrites the commits'
+check "D184's setting names were checked against the repository" \
+  in_row D184 '· checked (gh api repos/Tonttu84/ai-workflow, 2026-11-28) ·'
+refute "D184 no longer takes the setting names from memory" in_row D184 'from memory'
+# D95 and D108 never ask for an ancestor of main; what a rewrite breaks
+# is finding the commit once the pull request's branch is gone.
+# shellcheck disable=SC2016
+refute "D184 does not claim a named commit must be an ancestor of main" in_row D184 'ancestor of `main`'
+check "D184 says the rewritten commit is lost with the branch (D78)" \
+  in_row D184 'once the pull request'"'"'s branch is gone, only the pull request'"'"'s ref holds it (D78)'
+check "D184 says a commit a project's record names would be on no branch (D168)" \
+  in_row D184 'would be on no branch (D168)'
+# Folding a fixup! commit rewrites every commit from its target on, and
+# rewording it every commit from the fixup itself on, so the setup file
+# says when either is allowed and what a rewrite needs after that.
+in_ci_settings() { section "$SETUP" 'CI and repository settings' | grep -qF -- "$1"; }
+# shellcheck disable=SC2016
+for text in 'make review fixes as commits with subjects of their own from the start' \
+  'fold or reword a `fixup!` commit only while no `Walkthrough:` or `Locked tests:` line names the commit you rewrite or any commit after it' \
+  'folding rewrites from the target on, rewording from the fixup itself on' 'a commit on no branch' \
+  'fold fixups before the walkthrough' 'needs the line recorded again at the new SHA' \
+  'a new walkthrough, which waits for the owner'"'"'s word, or a new `Locked tests:` line' \
+  'the commit check fails on `fixup!` subjects'; do
+  check "the setup file's merge settings say: $text" in_ci_settings "$text"
+done
+# The commit-check template's comment gives the same condition, briefly:
+# a line that names the target itself counts, and so do Locked tests:.
+check "the commit-check template folds fixups only while no line names the target or a later commit" \
+  grep -qF '#     the target or a later commit (ai-workflow rules/setup.md).' "$ROOT/templates/commit-check.yml"
+check "the commit-check template names both kinds of line" \
+  grep -qF '#     on the branch while no Walkthrough: or Locked tests: line names' "$ROOT/templates/commit-check.yml"
+refute "the commit-check template does not leave out the target itself" \
+  grep -qF 'before a walkthrough names a later commit' "$ROOT/templates/commit-check.yml"
+check "the check-commits hook's comment folds fixups into their targets" \
+  grep -qF 'fold them into their' "$ROOT/hooks/check-commits"
+refute "the check-commits hook's comment no longer squashes them" \
+  grep -qF 'squash them first' "$ROOT/hooks/check-commits"
+# Rewording a fixup that is not HEAD moves every commit after it, the
+# walkthrough's commit among them (the second review, finding 1).
+# shellcheck disable=SC2016
+refute "the setup file does not say a reword leaves the commits alone" \
+  in_ci_settings 'reword the `fixup!` commit into a commit of its own instead'
+# in_note <file> <date> <id> <text>: the upgrade entry dated <date> whose
+# heading ends in "(<id>)" holds the text; no other entry is read
+in_note() {
+  awk -v d="## $2: " -v id="($3)" '
+    /^## / { on = index($0, d) == 1 && substr($0, length($0) - length(id) + 1) == id; next }
+    on' "$1" | grep -qF -- "$4"
+}
+MERGE_METHODS='-F allow_merge_commit=true -F allow_squash_merge=false -F allow_rebase_merge=false'
+check "the D183 upgrade note turns squash and rebase merging off" \
+  in_note "$ROOT/docs/upgrading.md" 2026-11-24 D183 "$MERGE_METHODS"
+printf '## 2026-11-24: No squash merges (D183)\n\n- Do: %s.\n' \
+  '-F allow_merge_commit=true -F allow_squash_merge=false -F allow_rebase_merge=true' > "$TMP/rebase-on.md"
+refute "a D183 note that leaves rebase merging on is noticed" \
+  in_note "$TMP/rebase-on.md" 2026-11-24 D183 "$MERGE_METHODS"
+printf '## 2026-11-24: No squash merges (D183)\n\n- Do: x.\n\n## 2026-11-25: Other (D1)\n\n- Do: %s.\n' \
+  "$MERGE_METHODS" > "$TMP/other-entry.md"
+refute "the D183 note's check reads only that entry" \
+  in_note "$TMP/other-entry.md" 2026-11-24 D183 "$MERGE_METHODS"
 
 finish

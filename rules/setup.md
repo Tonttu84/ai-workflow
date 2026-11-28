@@ -78,17 +78,19 @@ A migrated project keeps copies of files from this repository, and some later ch
 Every project scans for secrets before they reach a commit (D180).
 
 - A real value kept in the project folder (`.env`, a key file) is in a file the committed `.gitignore` ignores. What is committed is the example (`.env.example`): the names, with empty values.
-- Before every commit, the project's own `pre-commit` hook scans every staged file, ignored or not, since `git add -f` stages an ignored file. It refuses the commit on a finding, and when the scanner is missing.
+- Before every commit, the project's own `pre-commit` hook scans every staged file, ignored or not, since `git add -f` stages an ignored file. It refuses the commit on a finding, and when the scanner is missing. A scanner given the staged paths reads their copies in the working tree, not the staged ones, so the hook first refuses the commit while a staged file has changes that are not staged (a key staged and then removed from the working tree, or held back with `git add -p`), and tells the user to stage the whole file: then the copy scanned is the copy committed (D185).
 - Where that hook lives depends on how ours were installed:
   - The default mode: `.githooks/pre-commit`, beside ours. `hooks/install.sh` neither writes nor replaces it, so stage it as executable yourself (`git update-index --add --chmod=+x .githooks/pre-commit`) and check that `git ls-files -s .githooks/pre-commit` shows `100755`.
   - Under husky: `.husky/pre-commit`.
   - With `--git-hooks`: git does not read `.githooks/` there, so the scan goes into the `pre-commit` of the hook manager the project runs, or into `.git/hooks/pre-commit` in each clone where it runs none.
 - The gate (the `command` of `gate.conf`) scans the files git tracks (`git ls-files`), not the untracked files that `.gitignore` hides: an ignored `.env` holds real values on purpose. A fresh clone has every hook off until the setup command runs, so a secret committed there is found the next time the gate runs: by hand before a push to `main`, or by `pre-push` once the hooks are on.
 - The scanner is the agent's choice, as testing tools are. It is still maintained, is installed with the project so that a run downloads nothing, takes a list of files, reads a file that `.gitignore` matches when told to, and exits non-zero on a finding. Check that before choosing (the `researching` skill); the project's decision row names the scanner and its evidence.
-- A Node project can use secretlint as a dev dependency. It skips a file `.gitignore` matches unless told otherwise, and given no file it scans the whole folder, so the hook passes `--no-gitignore` and skips an empty list (`xargs -r`):
+- A Node project can use secretlint as a dev dependency. It skips a file `.gitignore` matches unless told otherwise, and given no file it scans the whole folder, so the hook passes `--no-gitignore` and skips an empty list (`xargs -r`). Its first command names each staged file with unstaged changes and refuses the commit; `--literal-pathspecs` keeps a name such as `[x].txt` from matching another file, and `--ignore-submodules=dirty` leaves out changed files inside a submodule, which the staged gitlink does not hold and `git add` cannot stage, and `-c core.quotePath=false` prints a non-ASCII name as typed:
 
   ```sh
-  # the hook: every staged file
+  # the hook: no staged file with unstaged changes, then a scan of every staged file
+  git diff --cached --name-only -z --diff-filter=d | xargs -0 -r git --literal-pathspecs -c core.quotePath=false diff --name-only --exit-code --ignore-submodules=dirty -- ||
+    { echo 'pre-commit: the files above have unstaged changes; stage the whole file (git add <file>)' >&2; exit 1; }
   git diff --cached --name-only -z --diff-filter=d | xargs -0 -r npx --no -- secretlint --no-gitignore --no-glob
   # the gate: every tracked file
   git ls-files -z | xargs -0 -r npx --no -- secretlint --no-gitignore --no-glob
@@ -96,14 +98,14 @@ Every project scans for secrets before they reach a commit (D180).
 
 - A false alarm is silenced in the scanner's committed ignore file, with the reason beside it, never by skipping the hook.
 - A scan knows the shapes of keys and tokens, not every password: it is a tripwire, not a proof. A secret that reached a pushed commit is rotated at its provider, since deleting the line leaves it in the history.
-- Smoke-check it with a value you make up in a shape the scanner knows; a published example key may be on its allow list. Stage a file that holds it: the commit must be refused. Then run the gate's `command` by hand: its secret scan must be the step that fails. Unstage and delete the file afterwards.
+- Smoke-check it with a value you make up in a shape the scanner knows; a published example key may be on its allow list. Stage a file that holds it: the commit must be refused. Then run the gate's `command` by hand: its secret scan must be the step that fails. Last, stage a clean file and change it again without staging the change: the commit must be refused as well. Unstage and delete both files afterwards.
 
 ## CI and repository settings
 
 - Copy `templates/commit-check.yml` to `.github/workflows/` with the template helper. It is the gate for commit messages and confirms the local check: public repositories run it on every push and pull request; private ones, short of Actions minutes, delete the push trigger and run it on pull requests, by hand (`workflow_dispatch`) and on its schedule.
 - A ruleset on `main` blocks force pushes and deletion. In a repository that works through pull requests it also requires the `commit-check` jobs; a solo repository's does not, since a required check would reject its direct pushes. GitHub Free offers rulesets only on public repositories, so private ones have none (a recorded exception).
 - So in a private solo repository: the local gate before every push to `main` (run by `pre-push` from `gate.conf`), `pre-push`'s commit check on every push, CI by hand and on a schedule, no ruleset.
-- The owner's repositories never squash-merge a pull request (D183). It merges with a merge commit, so every commit reaches `main` with the SHA it was reviewed and walked through at. Turn the other merge methods off, once: `gh api -X PATCH repos/OWNER/REPO -F allow_merge_commit=true -F allow_squash_merge=false -F allow_rebase_merge=false` (D184). Before the merge, fold `fixup!` commits into their targets on the branch; the commit check fails on them.
+- The owner's repositories never squash-merge a pull request (D183). It merges with a merge commit, so every commit reaches `main` with the SHA it was reviewed and walked through at. Turn the other merge methods off, once: `gh api -X PATCH repos/OWNER/REPO -F allow_merge_commit=true -F allow_squash_merge=false -F allow_rebase_merge=false` (D184). No `fixup!` commit reaches `main`, since the commit check fails on `fixup!` subjects. On the branch, fold or reword a `fixup!` commit only while no `Walkthrough:` or `Locked tests:` line names the commit you rewrite or any commit after it (folding rewrites from the target on, rewording from the fixup itself on): a rewrite gives each of those commits a new SHA, and the line would then point at a commit on no branch. Once such a line names one of them, the rewrite needs the line recorded again at the new SHA: a new walkthrough, which waits for the owner's word, or a new `Locked tests:` line. So fold fixups before the walkthrough, and better still, make review fixes as commits with subjects of their own from the start.
 - A showcase project whose history holds squash merges from before D183 keeps fetching pull-request refs in its setup command, so the commit an older walkthrough names stays findable though its branch is gone:
 
   ```sh
