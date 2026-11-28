@@ -652,6 +652,10 @@ for text in 'refuses the commit while a staged file has changes that are not sta
 done
 check "the upgrade note for the secret scan has the hook refuse unstaged changes" \
   in_scan_note 'refuse a staged file with unstaged changes'
+# Not every scanner reads the working tree (gitleaks' staged mode reads
+# the index): the claim is about one given the staged paths.
+check "the secret scan section says which scanners read the working tree"   in_scan 'A scanner given the staged paths reads their copies in the working tree'
+refute "it does not say every scanner reads the working tree"   in_scan 'A scanner reads the copy in the working tree'
 # A staged gitlink is what is committed, so changed files inside the
 # submodule, which `git add` cannot stage, do not stop the commit.
 # shellcheck disable=SC2016
