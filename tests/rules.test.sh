@@ -693,5 +693,23 @@ check "D183 is an instruction that replaces D17's squash-merge" in_row D183 'Rep
 check "D183's Meta says instruction" in_row D183 '2026-11-24 · instruction · '
 check "D184 picks the merge commit under D183" in_row D184 '2026-11-24 · agent under D183 · '
 check "D184 says why not a rebase merge" in_row D184 'rewrites the commits'
+# in_note <file> <date> <id> <text>: the upgrade entry dated <date> whose
+# heading ends in "(<id>)" holds the text; no other entry is read
+in_note() {
+  awk -v d="## $2: " -v id="($3)" '
+    /^## / { on = index($0, d) == 1 && substr($0, length($0) - length(id) + 1) == id; next }
+    on' "$1" | grep -qF -- "$4"
+}
+MERGE_METHODS='-F allow_merge_commit=true -F allow_squash_merge=false -F allow_rebase_merge=false'
+check "the D183 upgrade note turns squash and rebase merging off" \
+  in_note "$ROOT/docs/upgrading.md" 2026-11-24 D183 "$MERGE_METHODS"
+printf '## 2026-11-24: No squash merges (D183)\n\n- Do: %s.\n' \
+  '-F allow_merge_commit=true -F allow_squash_merge=false -F allow_rebase_merge=true' > "$TMP/rebase-on.md"
+refute "a D183 note that leaves rebase merging on is noticed" \
+  in_note "$TMP/rebase-on.md" 2026-11-24 D183 "$MERGE_METHODS"
+printf '## 2026-11-24: No squash merges (D183)\n\n- Do: x.\n\n## 2026-11-25: Other (D1)\n\n- Do: %s.\n' \
+  "$MERGE_METHODS" > "$TMP/other-entry.md"
+refute "the D183 note's check reads only that entry" \
+  in_note "$TMP/other-entry.md" 2026-11-24 D183 "$MERGE_METHODS"
 
 finish
