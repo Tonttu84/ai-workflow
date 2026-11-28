@@ -765,6 +765,10 @@ check "the commit-check template names both kinds of line" \
   grep -qF '#     on the branch while no Walkthrough: or Locked tests: line names' "$ROOT/templates/commit-check.yml"
 refute "the commit-check template does not leave out the target itself" \
   grep -qF 'before a walkthrough names a later commit' "$ROOT/templates/commit-check.yml"
+check "the check-commits hook's comment folds fixups into their targets" \
+  grep -qF 'fold them into their' "$ROOT/hooks/check-commits"
+refute "the check-commits hook's comment no longer squashes them" \
+  grep -qF 'squash them first' "$ROOT/hooks/check-commits"
 refute "the setup file does not say a reword leaves the commits alone" \
   in_ci_settings 'reword the `fixup!` commit into a commit of its own instead'
 # in_note <file> <date> <id> <text>: the upgrade entry dated <date> whose
