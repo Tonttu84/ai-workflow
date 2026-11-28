@@ -715,6 +715,14 @@ check "D184 says why not a rebase merge" in_row D184 'rewrites the commits'
 check "D184's setting names were checked against the repository" \
   in_row D184 '· checked (gh api repos/Tonttu84/ai-workflow, 2026-11-28) ·'
 refute "D184 no longer takes the setting names from memory" in_row D184 'from memory'
+# D95 and D108 never ask for an ancestor of main; what a rewrite breaks
+# is finding the commit once the pull request's branch is gone.
+# shellcheck disable=SC2016
+refute "D184 does not claim a named commit must be an ancestor of main" in_row D184 'ancestor of `main`'
+check "D184 says the rewritten commit is lost with the branch (D78)" \
+  in_row D184 'once the pull request'"'"'s branch is gone, only the pull request'"'"'s ref holds it (D78)'
+check "D184 says a commit a project's record names would be on no branch (D168)" \
+  in_row D184 'would be on no branch (D168)'
 # Folding a fixup! commit rewrites the SHAs from its target on, so the
 # setup file says when it may be folded and what to do after that.
 in_ci_settings() { section "$SETUP" 'CI and repository settings' | grep -qF -- "$1"; }
