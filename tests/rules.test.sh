@@ -693,6 +693,9 @@ check "D183 is an instruction that replaces D17's squash-merge" in_row D183 'Rep
 check "D183's Meta says instruction" in_row D183 '2026-11-24 · instruction · '
 check "D184 picks the merge commit under D183" in_row D184 '2026-11-24 · agent under D183 · '
 check "D184 says why not a rebase merge" in_row D184 'rewrites the commits'
+check "D184's setting names were checked against the repository" \
+  in_row D184 '· checked (gh api repos/Tonttu84/ai-workflow, 2026-11-28) ·'
+refute "D184 no longer takes the setting names from memory" in_row D184 'from memory'
 # in_note <file> <date> <id> <text>: the upgrade entry dated <date> whose
 # heading ends in "(<id>)" holds the text; no other entry is read
 in_note() {
